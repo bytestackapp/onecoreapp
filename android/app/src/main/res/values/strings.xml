@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OneCore</string>
+    <string name="title_activity_main">OneCore</string>
+    <string name="package_name">com.bytestack.onecore</string>
+    <string name="custom_url_scheme">com.bytestack.onecore</string>
+</resources>

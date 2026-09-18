@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profile</title>
+  <link rel="stylesheet" href="../css/global.css" />
+</head>
+<body>
+  <div id="page-content" style="max-width:520px;">
+    <div id="form-banner" class="banner banner-success" style="display:none;"></div>
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+        <div class="avatar" id="profile-avatar" style="width:56px;height:56px;font-size:1.2rem;"></div>
+        <div>
+          <h2 style="margin:0;" id="profile-name">—</h2>
+          <span class="tag tag-normal" id="profile-role">—</span>
+        </div>
+      </div>
+
+      <form id="profile-form">
+        <div class="field">
+          <label for="full_name">Full name</label>
+          <input id="full_name" required />
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" disabled />
+          <div class="field-hint">Contact an administrator to change your email.</div>
+        </div>
+        <div class="field">
+          <label for="phone">Phone</label>
+          <input id="phone" />
+        </div>
+        <button class="btn btn-primary" type="submit" id="save-btn">Save changes</button>
+      </form>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <h3>Password</h3>
+      <p>Update the password you use to sign in.</p>
+      <a class="btn btn-secondary" href="reset-password.html">Send password reset email</a>
+    </div>
+  </div>
+
+  <script type="module" src="../js/profile.js"></script>
+</body>
+</html>

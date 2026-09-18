@@ -1,0 +1,7 @@
+node_modules/
+js/env-config.js
+android/app/google-services.json
+www/
+*firebase-adminsdk*.json
+.backup/
+supabase/.temp/

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leave</title>
+  <link rel="stylesheet" href="../css/global.css" />
+</head>
+<body>
+  <div id="page-content">
+
+    <div id="balances-section" class="section">
+      <div class="section-head"><h2>Leave balance</h2></div>
+      <div id="balances-list" class="grid-cards"><div class="skeleton" style="height:80px;"></div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>File a leave request</h2>
+      </div>
+      <div class="card">
+        <div id="file-error" class="banner banner-error" style="display:none;"></div>
+        <form id="leave-form">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+            <div class="field">
+              <label for="leave-type">Leave type</label>
+              <select id="leave-type" required></select>
+            </div>
+            <div class="field">
+              <label for="start-date">Start date</label>
+              <input id="start-date" type="date" required />
+            </div>
+            <div class="field">
+              <label for="end-date">End date</label>
+              <input id="end-date" type="date" required />
+            </div>
+          </div>
+          <div class="field">
+            <label for="reason">Reason</label>
+            <textarea id="reason" rows="3" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary" id="file-submit">Submit request</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>My requests</h2></div>
+      <div id="my-requests" class="card"><div class="skeleton" style="height:60px;"></div></div>
+    </div>
+
+    <div id="admin-section" style="display:none;">
+      <div class="section">
+        <div class="section-head"><h2>Pending approvals</h2></div>
+        <div id="pending-list" class="card"><div class="skeleton" style="height:60px;"></div></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h2>Leave types</h2></div>
+        <div class="card">
+          <div id="leave-types-list" style="margin-bottom:14px;"></div>
+          <form id="leave-type-form" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+            <div class="field" style="margin-bottom:0;flex:1;min-width:160px;">
+              <label for="lt-name">New leave type</label>
+              <input id="lt-name" required placeholder="e.g. Emergency Leave" />
+            </div>
+            <div class="field" style="margin-bottom:0;width:140px;">
+              <label for="lt-entitlement">Default days</label>
+              <input id="lt-entitlement" type="number" min="0" value="0" required />
+            </div>
+            <button class="btn btn-secondary" type="submit">Add type</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="../js/leave.js"></script>
+</body>
+</html>

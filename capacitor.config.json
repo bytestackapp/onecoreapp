@@ -1,0 +1,11 @@
+{
+  "appId": "com.bytestack.onecore",
+  "appName": "OneCore",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="../css/global.css" />
+</head>
+<body>
+  <div id="page-content">
+    <p id="welcome-line" class="text-muted mt-0">Loading your dashboard…</p>
+
+    <div id="stat-tiles" class="grid-cards"></div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Recent announcements</h2>
+        <a class="link" href="announcements.html">View all</a>
+      </div>
+      <div id="announcements-list" class="card"><div class="skeleton" style="height:60px;"></div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Upcoming events</h2>
+        <a class="link" href="events.html">View all</a>
+      </div>
+      <div id="events-list" class="card"><div class="skeleton" style="height:60px;"></div></div>
+    </div>
+
+    <div id="role-section"></div>
+  </div>
+
+  <script type="module" src="../js/dashboard.js"></script>
+</body>
+</html>

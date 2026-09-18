@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in — OneCore</title>
+  <link rel="stylesheet" href="../css/global.css" />
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card card">
+      <div class="auth-brand" id="auth-brand"></div>
+      <h1>Sign in</h1>
+      <p class="subtitle">Connect. Organize. Operate.</p>
+
+      <div id="setup-banner" class="banner banner-info" style="display:none;">
+        Your account was created, but isn't fully set up yet. Please contact your administrator.
+      </div>
+      <div id="error-banner" class="banner banner-error" style="display:none;"></div>
+
+      <form id="login-form">
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" type="email" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" required />
+        </div>
+        <button class="btn btn-primary" type="submit" id="submit-btn" style="width:100%;">Sign in</button>
+      </form>
+
+      <div class="auth-links">
+        <a href="reset-password.html">Forgot password?</a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabase, getSessionUser, friendlyError } from "../js/supabase-client.js";
+    import { LOGO_MARK, APP_NAME } from "../js/brand.js";
+
+    document.getElementById("auth-brand").innerHTML = `${LOGO_MARK}<span class="brand-name">${APP_NAME}</span>`;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("setup") === "1") {
+      document.getElementById("setup-banner").style.display = "flex";
+    }
+
+    // Already signed in? Skip straight to the dashboard.
+    getSessionUser().then((user) => {
+      if (user) window.location.href = "dashboard.html";
+    });
+
+    const form = document.getElementById("login-form");
+    const errorBanner = document.getElementById("error-banner");
+    const submitBtn = document.getElementById("submit-btn");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorBanner.style.display = "none";
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Signing in…";
+
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        errorBanner.textContent =
+          error.message?.toLowerCase().includes("invalid")
+            ? "Incorrect email or password."
+            : friendlyError(error, "Unable to sign in. Please try again.");
+        errorBanner.style.display = "flex";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Sign in";
+        return;
+      }
+
+      window.location.href = "dashboard.html";
+    });
+  </script>
+</body>
+</html>

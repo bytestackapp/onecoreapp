@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calendar</title>
+  <link rel="stylesheet" href="../css/global.css" />
+  <style>
+    .cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .cal-tabs { display:flex; gap:6px; }
+    .cal-tab { padding:6px 12px; border-radius:999px; border:1px solid var(--paper-100); background:#fff; cursor:pointer; font-size:0.85rem; }
+    .cal-tab.active { background:var(--ink-700); color:#fff; border-color:var(--ink-700); }
+    .cal-nav { display:flex; align-items:center; gap:10px; }
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:var(--radius-md); overflow:hidden; }
+    .cal-dow { background:var(--paper-50); text-align:center; font-size:0.72rem; color:var(--text-600); padding:6px 0; }
+    .cal-day { background:#fff; min-height:82px; padding:6px; font-size:0.8rem; }
+    .cal-day.other-month { background:var(--paper-0); color:var(--text-400); }
+    .cal-day.today .cal-day-num { background:var(--amber-600); color:#1c1305; border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; }
+    .cal-event-dot { display:block; font-size:0.68rem; background:var(--sage-100); color:var(--ink-700); border-radius:4px; padding:1px 4px; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    @media (max-width: 700px) { .cal-day { min-height:56px; font-size:0.72rem; } .cal-event-dot { display:none; } .cal-day.has-events::after { content:"•"; color:var(--amber-600); } }
+  </style>
+</head>
+<body>
+  <div id="page-content">
+    <div class="cal-header">
+      <div class="cal-tabs">
+        <button class="cal-tab active" data-view="month">Month</button>
+        <button class="cal-tab" data-view="agenda">Agenda</button>
+      </div>
+      <div class="cal-nav" id="month-nav">
+        <button class="icon-btn" id="prev-month">‹</button>
+        <strong id="month-label"></strong>
+        <button class="icon-btn" id="next-month">›</button>
+      </div>
+    </div>
+
+    <div id="month-view"></div>
+    <div id="agenda-view" style="display:none;"></div>
+  </div>
+
+  <script type="module" src="../js/calendar.js"></script>
+</body>
+</html>

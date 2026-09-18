@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Groups</title>
+  <link rel="stylesheet" href="../css/global.css" />
+</head>
+<body>
+  <div id="page-content">
+    <div class="section-head" style="border-bottom:none;">
+      <p class="text-muted mt-0">Classes, sections, and groups you're part of.</p>
+      <button class="btn btn-primary btn-sm" id="new-btn" style="display:none;">New group</button>
+    </div>
+
+    <div id="new-form-wrap" class="card" style="display:none;margin-bottom:20px;">
+      <h3>New group</h3>
+      <div id="form-error" class="banner banner-error" style="display:none;"></div>
+      <form id="new-form">
+        <div class="field">
+          <label for="name">Name</label>
+          <input id="name" required placeholder="e.g. Grade 4 - Section A" />
+        </div>
+        <div class="field">
+          <label for="group_type">Type</label>
+          <select id="group_type">
+            <option value="class">Class</option>
+            <option value="department">Department</option>
+            <option value="club">Club</option>
+            <option value="team">Team</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="description">Description</label>
+          <input id="description" />
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button type="submit" class="btn btn-primary">Create</button>
+          <button type="button" class="btn btn-secondary" id="cancel-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="groups-list"><div class="skeleton" style="height:70px;margin-bottom:10px;"></div></div>
+  </div>
+
+  <script type="module" src="../js/groups.js"></script>
+</body>
+</html>

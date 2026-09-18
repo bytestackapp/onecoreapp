@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reports</title>
+  <link rel="stylesheet" href="../css/global.css" />
+</head>
+<body>
+  <div id="page-content">
+    <div class="section">
+      <div class="section-head"><h2>Attendance export</h2></div>
+      <div class="card">
+        <p>Download attendance records for a date range as a CSV file you can open in Excel or Google Sheets.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="field" style="margin-bottom:0;">
+            <label for="from-date">From</label>
+            <input id="from-date" type="date" />
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label for="to-date">To</label>
+            <input id="to-date" type="date" />
+          </div>
+        </div>
+        <button class="btn btn-primary" id="export-btn" style="margin-top:16px;">Export CSV</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>More reports<span class="coming-soon-badge">Coming soon</span></h2></div>
+      <div class="card empty-state">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>
+        <h3>Leave and engagement reports</h3>
+        <p>Organization-wide leave usage, announcement reach, and event turnout reports are planned for a future update.</p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="../js/reports.js"></script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>People</title>
+  <link rel="stylesheet" href="../css/global.css" />
+</head>
+<body>
+  <div id="page-content">
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+        <div class="field" style="margin-bottom:0;">
+          <label for="search">Search</label>
+          <input id="search" placeholder="Search by name or email…" />
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label for="role-filter">Role</label>
+          <select id="role-filter">
+            <option value="">All roles</option>
+            <option value="admin">Admin</option>
+            <option value="teacher">Teacher</option>
+            <option value="student">Student</option>
+            <option value="parent">Parent</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div id="people-list"><div class="skeleton" style="height:70px;margin-bottom:10px;"></div></div>
+  </div>
+
+  <script type="module" src="../js/people.js"></script>
+</body>
+</html>

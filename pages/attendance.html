@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Attendance</title>
+  <link rel="stylesheet" href="../css/global.css" />
+</head>
+<body>
+  <div id="page-content">
+
+    <div id="clock-section" class="section" style="display:none;">
+      <div class="section-head"><h2>Today</h2></div>
+      <div class="card">
+        <div id="clock-status" class="grid-cards" style="margin-bottom:16px;"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="btn-time-in">Time in</button>
+          <button class="btn btn-secondary" id="btn-break-out">Break out</button>
+          <button class="btn btn-secondary" id="btn-break-in">Break in</button>
+          <button class="btn btn-secondary" id="btn-time-out">Time out</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="rollcall-section" class="section" style="display:none;">
+      <div class="section-head"><h2>Take class attendance</h2></div>
+      <div class="card">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+          <div class="field" style="margin-bottom:0;">
+            <label for="rollcall-group">Class</label>
+            <select id="rollcall-group"></select>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label for="rollcall-date">Date</label>
+            <input id="rollcall-date" type="date" />
+          </div>
+        </div>
+        <div id="rollcall-students"><p class="text-muted">Select a class to begin.</p></div>
+        <button class="btn btn-primary" id="rollcall-submit" style="display:none;margin-top:12px;">Save attendance</button>
+      </div>
+    </div>
+
+    <div id="children-section" class="section" style="display:none;">
+      <div class="section-head"><h2>Your children</h2></div>
+      <div id="children-list" class="card"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>My attendance history</h2></div>
+      <div id="history-list" class="card"><div class="skeleton" style="height:60px;"></div></div>
+    </div>
+
+    <div id="correction-modal" class="card" style="display:none;position:fixed;inset:0;margin:auto;max-width:420px;max-height:fit-content;top:10%;z-index:50;box-shadow:0 8px 30px rgba(0,0,0,0.2);">
+      <h3>Request a correction</h3>
+      <div id="correction-error" class="banner banner-error" style="display:none;"></div>
+      <form id="correction-form">
+        <input type="hidden" id="correction-record-id" />
+        <div class="field">
+          <label for="correction-date">Date</label>
+          <input id="correction-date" type="date" disabled />
+        </div>
+        <div class="field">
+          <label for="requested-change">Requested correction</label>
+          <input id="requested-change" required placeholder="e.g. Time in should be 7:50 AM" />
+        </div>
+        <div class="field">
+          <label for="correction-reason">Reason</label>
+          <textarea id="correction-reason" rows="3" required></textarea>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button type="submit" class="btn btn-primary">Submit request</button>
+          <button type="button" class="btn btn-secondary" id="correction-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+    <div id="modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(22,36,31,0.35);z-index:40;"></div>
+  </div>
+
+  <script type="module" src="../js/attendance.js"></script>
+</body>
+</html>

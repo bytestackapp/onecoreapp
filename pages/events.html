@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Events</title>
+  <link rel="stylesheet" href="../css/global.css" />
+</head>
+<body>
+  <div id="page-content">
+    <div class="section-head" style="border-bottom:none;">
+      <p class="text-muted mt-0">Upcoming activities and how to RSVP.</p>
+      <button class="btn btn-primary btn-sm" id="new-btn" style="display:none;">New event</button>
+    </div>
+
+    <div id="new-form-wrap" class="card" style="display:none;margin-bottom:20px;">
+      <h3>New event</h3>
+      <div id="form-error" class="banner banner-error" style="display:none;"></div>
+      <form id="new-form">
+        <div class="field">
+          <label for="title">Title</label>
+          <input id="title" required maxlength="150" />
+        </div>
+        <div class="field">
+          <label for="description">Description</label>
+          <textarea id="description" rows="3"></textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="field">
+            <label for="event_date">Date</label>
+            <input id="event_date" type="date" required />
+          </div>
+          <div class="field">
+            <label for="location">Location</label>
+            <input id="location" />
+          </div>
+          <div class="field">
+            <label for="start_time">Start time</label>
+            <input id="start_time" type="time" />
+          </div>
+          <div class="field">
+            <label for="end_time">End time</label>
+            <input id="end_time" type="time" />
+          </div>
+          <div class="field">
+            <label for="audience">Audience</label>
+            <select id="audience">
+              <option value="everyone">Everyone</option>
+              <option value="teachers">Teachers</option>
+              <option value="students">Students</option>
+              <option value="parents">Parents</option>
+              <option value="group">Specific group</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="max_participants">Max participants</label>
+            <input id="max_participants" type="number" min="1" placeholder="No limit" />
+          </div>
+        </div>
+        <div class="field" id="group-field" style="display:none;">
+          <label for="group-select">Group</label>
+          <select id="group-select"></select>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button type="submit" class="btn btn-primary" id="submit-btn">Create event</button>
+          <button type="button" class="btn btn-secondary" id="cancel-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="events-list"><div class="skeleton" style="height:90px;margin-bottom:10px;"></div></div>
+  </div>
+
+  <script type="module" src="../js/events.js"></script>
+</body>
+</html>

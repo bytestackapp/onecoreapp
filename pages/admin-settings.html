@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings</title>
+  <link rel="stylesheet" href="../css/global.css" />
+</head>
+<body>
+  <div id="page-content" style="max-width:640px;">
+    <div class="section">
+      <div class="section-head"><h2>Organization</h2></div>
+      <div class="card">
+        <div id="org-banner" class="banner banner-success" style="display:none;"></div>
+        <form id="org-form">
+          <div class="field">
+            <label for="org-name">Organization name</label>
+            <input id="org-name" required />
+          </div>
+          <button class="btn btn-primary" type="submit">Save</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>Recent activity</h2></div>
+      <div id="audit-list" class="card"><div class="skeleton" style="height:60px;"></div></div>
+    </div>
+  </div>
+
+  <script type="module" src="../js/admin-settings.js"></script>
+</body>
+</html>
