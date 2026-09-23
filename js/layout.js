@@ -86,8 +86,7 @@ function buildSidebar(profile, activeKey, unread) {
   el.id = "app-sidebar";
   el.innerHTML = `
     <div class="sidebar-brand">
-      ${LOGO_MARK}
-      <span class="brand-name">${APP_NAME}</span>
+      <img src="../images/logo-horiz.png" alt="${APP_NAME}" class="sidebar-brand-logo" />
     </div>
     <nav class="sidebar-nav">
       <div class="sidebar-section-label">Workspace</div>
