@@ -1,9 +1,7 @@
 name: Build Android APK
 
 on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:   # lets you trigger a build manually from the Actions tab
+  workflow_dispatch:   # only runs when you manually click "Run workflow" in the Actions tab
 
 jobs:
   build:
