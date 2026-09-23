@@ -37,6 +37,8 @@ jobs:
           cp -r css www/
           cp -r js www/
           cp -r pages www/
+          cp -r images www/
+          cp favicon.png www/
           cp index.html www/
 
       - name: Write google-services.json from secret
