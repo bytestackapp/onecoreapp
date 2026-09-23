@@ -3,5 +3,10 @@ js/env-config.js
 android/app/google-services.json
 www/
 *firebase-adminsdk*.json
-.backup/
 supabase/.temp/
+*.bat
+temp.b64
+.backup/
+.vercel
+.env*.local
+android/app/onecore-debug.keystore

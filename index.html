@@ -5,16 +5,112 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OneCore</title>
   <link rel="stylesheet" href="css/global.css" />
+  <style>
+    #splashOverlay {
+      position: fixed;
+      inset: 0;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      overflow: hidden;
+      transition: opacity 0.4s ease;
+    }
+    #splashOverlay.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .splash-decor-top {
+      position: absolute;
+      top: -140px;
+      left: -120px;
+      width: 360px;
+      height: 360px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #dbe8ff, #eef4ff);
+      z-index: 0;
+    }
+    .splash-logo {
+      width: 240px;
+      max-width: 60vw;
+      z-index: 1;
+      position: relative;
+    }
+    .splash-bar {
+      margin-top: 32px;
+      width: 120px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(41, 82, 227, 0.15);
+      overflow: hidden;
+      position: relative;
+      z-index: 1;
+    }
+    .splash-bar::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      width: 45%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, #2952e3, #1fc6c6);
+      animation: splashSlide 1.1s ease-in-out infinite;
+    }
+    @keyframes splashSlide {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(320%); }
+    }
+    .splash-wave {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      line-height: 0;
+      z-index: 0;
+    }
+  </style>
 </head>
 <body>
   <div class="auth-page">
-    <p class="text-muted">Loading…</p>
+    <div id="splashOverlay">
+      <div class="splash-decor-top"></div>
+      <img src="images/logo.png" alt="OneCore" class="splash-logo" />
+      <div class="splash-bar"></div>
+      <div class="splash-wave">
+        <svg viewBox="0 0 1440 260" preserveAspectRatio="none" width="100%" height="150" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="waveGradient" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#1f4fe0" />
+              <stop offset="100%" stop-color="#22c9c9" />
+            </linearGradient>
+          </defs>
+          <path d="M0,140 C240,40 420,220 720,120 C1000,30 1200,200 1440,90 L1440,260 L0,260 Z" fill="#cfe0ff" />
+          <path d="M0,180 C260,100 460,240 760,150 C1040,70 1220,220 1440,140 L1440,260 L0,260 Z" fill="url(#waveGradient)" />
+        </svg>
+      </div>
+    </div>
   </div>
   <script type="module">
     import { getSessionUser } from "./js/supabase-client.js";
-    getSessionUser().then((user) => {
-      window.location.replace(user ? "pages/dashboard.html" : "pages/login.html");
-    });
+
+    const MIN_SPLASH_MS = 1300;
+    const FADE_MS = 400;
+    const start = Date.now();
+    const overlay = document.getElementById("splashOverlay");
+
+    function finish(target) {
+      const elapsed = Date.now() - start;
+      const wait = Math.max(0, MIN_SPLASH_MS - elapsed);
+      setTimeout(() => {
+        overlay.classList.add("hide");
+        setTimeout(() => window.location.replace(target), FADE_MS);
+      }, wait);
+    }
+
+    getSessionUser()
+      .then((user) => finish(user ? "pages/dashboard.html" : "pages/login.html"))
+      .catch(() => finish("pages/login.html"));
   </script>
 </body>
 </html>
