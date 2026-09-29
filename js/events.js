@@ -20,6 +20,38 @@ function escapeHtml(str = "") {
 }
 const cap = (s = "") => s.charAt(0).toUpperCase() + s.slice(1);
 
+// -----------------------------------------------------------------
+// Online meeting platforms (shown in the picker, stored as the `id`)
+// -----------------------------------------------------------------
+const PLATFORMS = [
+  { id: "zoom", label: "Zoom", hosts: ["zoom.us", "zoom.com"] },
+  { id: "meet", label: "Google Meet", hosts: ["meet.google.com"] },
+  { id: "teams", label: "Microsoft Teams", hosts: ["teams.microsoft.com", "teams.live.com"] },
+  { id: "webex", label: "Webex", hosts: ["webex.com"] },
+  { id: "other", label: "Other", hosts: [] },
+];
+const platformLabel = (id) => PLATFORMS.find((p) => p.id === id)?.label || "Online";
+
+// Only http(s) links are ever used as a href (blocks javascript: and similar).
+function isHttpUrl(u) {
+  try {
+    const x = new URL(String(u));
+    return x.protocol === "https:" || x.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+function hostMatches(url, platform) {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return platform.hosts.some((d) => h === d || h.endsWith("." + d));
+  } catch {
+    return false;
+  }
+}
+
+const VIDEO_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M22 8l-6 4 6 4V8z"/></svg>`;
+
 if (canCreate) newBtn.style.display = "inline-flex";
 
 // -----------------------------------------------------------------
@@ -173,6 +205,120 @@ function audienceDialog(current) {
 }
 
 // -----------------------------------------------------------------
+// Online meeting picker — choose a platform, then paste the link/details.
+// Resolves to { platform, link, details }, { remove: true }, or null (cancelled).
+// -----------------------------------------------------------------
+function meetingDialog(current) {
+  return new Promise((resolve) => {
+    let platform = current?.platform || null;
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "dialog-backdrop";
+    backdrop.innerHTML = `
+      <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="mt-title">
+        <h3 id="mt-title">Online meeting</h3>
+        <div class="text-muted" style="font-size:0.85rem;margin-bottom:10px;">Choose the platform, then paste the meeting link or details.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+          ${PLATFORMS.map(
+            (p) => `<button type="button" data-plat="${p.id}" style="display:flex;align-items:center;gap:8px;padding:12px;border-radius:10px;border:1px solid rgba(128,128,128,0.35);background:transparent;color:inherit;cursor:pointer;text-align:left;font:inherit;">${VIDEO_ICON}<span>${p.label}</span></button>`
+          ).join("")}
+        </div>
+        <div class="field">
+          <label for="mt-link">Meeting link</label>
+          <input id="mt-link" type="url" inputmode="url" placeholder="https://" autocomplete="off" />
+          <div id="mt-hint" class="text-muted" style="font-size:0.78rem;margin-top:4px;"></div>
+        </div>
+        <div class="field">
+          <label for="mt-details">Meeting details (optional)</label>
+          <textarea id="mt-details" rows="4" maxlength="2000" placeholder="Meeting ID, passcode, dial-in number… or paste the full invite"></textarea>
+        </div>
+        <div class="dialog-actions">
+          ${current ? `<button type="button" class="btn btn-secondary" data-act="remove">Remove</button>` : ""}
+          <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" data-act="save">Save</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    const linkEl = backdrop.querySelector("#mt-link");
+    const detailsEl = backdrop.querySelector("#mt-details");
+    const hintEl = backdrop.querySelector("#mt-hint");
+    linkEl.value = current?.link || "";
+    detailsEl.value = current?.details || "";
+
+    function syncPlatforms() {
+      backdrop.querySelectorAll("[data-plat]").forEach((b) => {
+        const on = b.dataset.plat === platform;
+        b.style.borderColor = on ? "#2952e3" : "rgba(128,128,128,0.35)";
+        b.style.background = on ? "rgba(41,82,227,0.10)" : "transparent";
+        b.style.fontWeight = on ? "600" : "400";
+      });
+    }
+    function updateHint() {
+      const p = PLATFORMS.find((x) => x.id === platform);
+      const link = linkEl.value.trim();
+      hintEl.textContent =
+        p && p.hosts.length && link && isHttpUrl(link) && !hostMatches(link, p)
+          ? `This doesn't look like a ${p.label} link. You can still save it.`
+          : "";
+    }
+    syncPlatforms();
+    updateHint();
+
+    backdrop.querySelectorAll("[data-plat]").forEach((b) =>
+      b.addEventListener("click", () => {
+        platform = b.dataset.plat;
+        syncPlatforms();
+        updateHint();
+      })
+    );
+    linkEl.addEventListener("input", updateHint);
+
+    // Capture phase + stopImmediatePropagation so Escape closes only this
+    // dialog, not the New-event modal underneath it.
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.stopImmediatePropagation();
+        close(null);
+      }
+    };
+    function close(value) {
+      document.removeEventListener("keydown", onKey, true);
+      backdrop.remove();
+      resolve(value);
+    }
+    document.addEventListener("keydown", onKey, true);
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) close(null);
+    });
+    backdrop.querySelector('[data-act="cancel"]').addEventListener("click", () => close(null));
+    backdrop.querySelector('[data-act="remove"]')?.addEventListener("click", () => close({ remove: true }));
+    backdrop.querySelector('[data-act="save"]').addEventListener("click", () => {
+      if (!platform) {
+        showToast("Choose a meeting platform.", "error");
+        return;
+      }
+      let link = linkEl.value.trim();
+      const details = detailsEl.value.trim();
+      // No link typed? Use the first link found in the pasted details.
+      if (!link) {
+        const found = details.match(/https?:\/\/[^\s<>"']+/);
+        if (found) link = found[0];
+      }
+      if (!link && !details) {
+        showToast("Add the meeting link or details.", "error");
+        return;
+      }
+      if (link && !isHttpUrl(link)) {
+        showToast("Enter a valid link starting with https://", "error");
+        return;
+      }
+      close({ platform, link: link || null, details: details || null });
+    });
+  });
+}
+
+// -----------------------------------------------------------------
 // New-event modal
 // -----------------------------------------------------------------
 async function newEventDialog() {
@@ -200,7 +346,12 @@ async function newEventDialog() {
           </div>
           <div class="field">
             <label for="ev-location">Location</label>
+            <div style="display:flex;gap:6px;margin-bottom:6px;">
+              <button type="button" class="btn btn-sm btn-primary" id="ev-loc-inperson">In person</button>
+              <button type="button" class="btn btn-sm btn-secondary" id="ev-loc-online">Online</button>
+            </div>
             <input id="ev-location" />
+            <button type="button" id="ev-meeting-btn" class="audience-btn" style="display:none;"></button>
           </div>
           <div class="field">
             <label for="ev-start">Start time</label>
@@ -240,6 +391,48 @@ async function newEventDialog() {
     }
   });
 
+  // Location: typed place (In person) or an online meeting (Online).
+  let locMode = "in_person";
+  let meeting = null; // { platform, link, details }
+  const locInput = backdrop.querySelector("#ev-location");
+  const meetingBtn = backdrop.querySelector("#ev-meeting-btn");
+  const inPersonBtn = backdrop.querySelector("#ev-loc-inperson");
+  const onlineBtn = backdrop.querySelector("#ev-loc-online");
+
+  function renderLocation() {
+    const online = locMode === "online";
+    inPersonBtn.className = `btn btn-sm ${online ? "btn-secondary" : "btn-primary"}`;
+    onlineBtn.className = `btn btn-sm ${online ? "btn-primary" : "btn-secondary"}`;
+    locInput.style.display = online ? "none" : "";
+    meetingBtn.style.display = online ? "" : "none";
+    meetingBtn.textContent = meeting
+      ? `${platformLabel(meeting.platform)} · ${meeting.link ? "link added" : "details added"}`
+      : "Set up online meeting…";
+  }
+  async function editMeeting() {
+    const result = await meetingDialog(meeting);
+    if (result?.remove) {
+      meeting = null;
+      locMode = "in_person";
+    } else if (result) {
+      meeting = result;
+    } else if (!meeting) {
+      locMode = "in_person"; // cancelled with nothing saved
+    }
+    renderLocation();
+  }
+  inPersonBtn.addEventListener("click", () => {
+    locMode = "in_person";
+    renderLocation();
+  });
+  onlineBtn.addEventListener("click", () => {
+    locMode = "online";
+    renderLocation();
+    if (!meeting) editMeeting();
+  });
+  meetingBtn.addEventListener("click", editMeeting);
+  renderLocation();
+
   const onKey = (e) => {
     if (e.key === "Escape") close();
   };
@@ -260,6 +453,10 @@ async function newEventDialog() {
       showToast("Choose at least one audience.", "error");
       return;
     }
+    if (locMode === "online" && !meeting) {
+      showToast("Set up the online meeting first.", "error");
+      return;
+    }
     const submitBtn = backdrop.querySelector("#ev-submit");
     submitBtn.disabled = true;
     submitBtn.textContent = "Creating…";
@@ -272,7 +469,12 @@ async function newEventDialog() {
       event_date: backdrop.querySelector("#ev-date").value,
       start_time: backdrop.querySelector("#ev-start").value || null,
       end_time: backdrop.querySelector("#ev-end").value || null,
-      location: backdrop.querySelector("#ev-location").value.trim() || null,
+      // Online events also get a readable location so other screens (e.g. the dashboard) still show something.
+      location: locMode === "online" ? `Online · ${platformLabel(meeting.platform)}` : locInput.value.trim() || null,
+      is_online: locMode === "online",
+      meeting_platform: locMode === "online" ? meeting.platform : null,
+      meeting_link: locMode === "online" ? meeting.link : null,
+      meeting_details: locMode === "online" ? meeting.details : null,
       audience_types: [...audienceSel.types],
       audience_group_ids: [...audienceSel.groups],
       audience_user_ids: [...audienceSel.users],
@@ -307,7 +509,7 @@ async function loadEvents() {
     const today = localDate();
     const { data, error } = await supabase
       .from("events")
-      .select("id, title, description, event_date, start_time, end_time, location, rsvp_enabled, max_participants, status, organizer_id, profiles!events_organizer_id_fkey(full_name)")
+      .select("id, title, description, event_date, start_time, end_time, location, is_online, meeting_platform, meeting_link, meeting_details, rsvp_enabled, max_participants, status, organizer_id, profiles!events_organizer_id_fkey(full_name)")
       .gte("event_date", today)
       .order("event_date", { ascending: true });
     if (error) throw error;
@@ -334,11 +536,12 @@ async function loadEvents() {
               ${e.profiles?.full_name ? `<div class="text-muted" style="font-size:0.82rem;margin-top:2px;">${escapeHtml(e.profiles.full_name)}</div>` : ""}
               <div class="text-muted" style="font-size:0.85rem;margin-top:2px;">
                 ${formatDate(e.event_date)}${e.start_time ? " · " + e.start_time.slice(0, 5) : ""}${e.end_time ? "–" + e.end_time.slice(0, 5) : ""}
-                ${e.location ? " · " + escapeHtml(e.location) : ""}
+                ${!e.is_online && e.location ? " · " + escapeHtml(e.location) : ""}
               </div>
             </div>
           </div>
           ${e.description ? `<p style="margin-top:10px;">${escapeHtml(e.description)}</p>` : ""}
+          ${e.is_online ? meetingBlock(e) : ""}
           ${
             e.rsvp_enabled
               ? `<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
@@ -355,11 +558,38 @@ async function loadEvents() {
     listEl.querySelectorAll(".rsvp-btn").forEach((btn) => {
       btn.addEventListener("click", () => rsvp(btn.getAttribute("data-event"), btn.getAttribute("data-status")));
     });
+    listEl.querySelectorAll(".copy-link-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(btn.getAttribute("data-link"));
+          showToast("Link copied.", "success");
+        } catch {
+          showToast("Couldn't copy the link. Use Join instead.", "error");
+        }
+      });
+    });
   } catch (err) {
     console.error(err);
     listEl.innerHTML = `<div class="card empty-state"><h3>Events couldn't be loaded</h3><p>Please refresh the page.</p></div>`;
     showToast("Events couldn't be loaded.", "error");
   }
+}
+
+// Meeting details shown on the event card to everyone who can see the event.
+function meetingBlock(e) {
+  const link = isHttpUrl(e.meeting_link) ? e.meeting_link : null;
+  return `<div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:rgba(41,82,227,0.08);">
+    <div style="font-weight:600;font-size:0.85rem;">Online · ${escapeHtml(platformLabel(e.meeting_platform))}</div>
+    ${e.meeting_details ? `<div class="text-muted" style="font-size:0.85rem;white-space:pre-wrap;margin-top:4px;">${escapeHtml(e.meeting_details)}</div>` : ""}
+    ${
+      link
+        ? `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+            <a class="btn btn-sm btn-primary" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-flex;align-items:center;">Join</a>
+            <button type="button" class="btn btn-sm btn-secondary copy-link-btn" data-link="${escapeHtml(link)}">Copy link</button>
+          </div>`
+        : ""
+    }
+  </div>`;
 }
 
 function rsvpButton(eventId, status, label, current) {
