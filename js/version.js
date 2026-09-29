@@ -1,7 +1,7 @@
 // Bump this on every release. This is the only place the number lives —
 // the version-check widget compares this against `app_versions` in the
 // database to decide whether to prompt the person to update.
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.0.1";
 
 /**
  * Returns "android", "ios", or "web".
