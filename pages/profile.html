@@ -8,6 +8,31 @@
   <link rel="stylesheet" href="../css/global.css" />
 </head>
 <body>
+<div id="page-loader" class="page-loader">
+  <div class="page-loader-decor-top"></div>
+  <svg class="page-loader-ring" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="loaderGradient" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#2952e3" />
+        <stop offset="100%" stop-color="#1fc6c6" />
+      </linearGradient>
+    </defs>
+    <circle cx="25" cy="25" r="20" fill="none" stroke="url(#loaderGradient)" stroke-width="4" stroke-linecap="round" stroke-dasharray="90 40" />
+  </svg>
+  <div class="page-loader-text">LOADING&hellip;</div>
+  <div class="page-loader-wave">
+    <svg viewBox="0 0 1440 260" preserveAspectRatio="none" width="100%" height="150" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="loaderWaveGradient" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#1f4fe0" />
+          <stop offset="100%" stop-color="#22c9c9" />
+        </linearGradient>
+      </defs>
+      <path d="M0,140 C240,40 420,220 720,120 C1000,30 1200,200 1440,90 L1440,260 L0,260 Z" fill="#cfe0ff" />
+      <path d="M0,180 C260,100 460,240 760,150 C1040,70 1220,220 1440,140 L1440,260 L0,260 Z" fill="url(#loaderWaveGradient)" />
+    </svg>
+  </div>
+</div>
   <div id="page-content" style="max-width:520px;">
     <div id="form-banner" class="banner banner-success" style="display:none;"></div>
     <div class="card">
@@ -16,6 +41,7 @@
         <div>
           <h2 style="margin:0;" id="profile-name">—</h2>
           <span class="tag tag-normal" id="profile-role">—</span>
+          <div class="text-muted" id="profile-academy" style="font-size:0.82rem;margin-top:4px;"></div>
         </div>
       </div>
 

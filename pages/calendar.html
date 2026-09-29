@@ -7,34 +7,107 @@
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="../css/global.css" />
   <style>
-    .cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
-    .cal-tabs { display:flex; gap:6px; }
-    .cal-tab { padding:6px 12px; border-radius:999px; border:1px solid var(--paper-100); background:#fff; cursor:pointer; font-size:0.85rem; }
-    .cal-tab.active { background:var(--ink-700); color:#fff; border-color:var(--ink-700); }
+    .cal-header { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; }
+    .cal-header-left { display:flex; align-items:center; min-width:0; }
+    .cal-header-right { display:flex; align-items:center; }
     .cal-nav { display:flex; align-items:center; gap:10px; }
-    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:var(--radius-md); overflow:hidden; }
-    .cal-dow { background:var(--paper-50); text-align:center; font-size:0.72rem; color:var(--text-600); padding:6px 0; }
-    .cal-day { background:#fff; min-height:82px; padding:6px; font-size:0.8rem; }
-    .cal-day.other-month { background:var(--paper-0); color:var(--text-400); }
-    .cal-day.today .cal-day-num { background:var(--amber-600); color:#1c1305; border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; }
-    .cal-event-dot { display:block; font-size:0.68rem; background:var(--sage-100); color:var(--ink-700); border-radius:4px; padding:1px 4px; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    @media (max-width: 700px) { .cal-day { min-height:56px; font-size:0.72rem; } .cal-event-dot { display:none; } .cal-day.has-events::after { content:"•"; color:var(--amber-600); } }
+    .cal-nav strong { font-size:1rem; }
+    #agenda-label { font-size:1rem; font-weight:700; margin:0; }
+
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius-card); overflow:hidden; }
+    .cal-dow { background:var(--bg); text-align:center; font-size:0.72rem; font-weight:600; color:var(--text-secondary); padding:6px 0; }
+    .cal-day { position:relative; background:#fff; min-height:82px; padding:6px; font-size:0.8rem; }
+    .cal-day.other-month { background:var(--bg); color:var(--text-muted); }
+    .cal-day-num { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; }
+    .cal-day.today .cal-day-num { background:var(--primary); color:#fff; font-weight:700; }
+
+    .cal-day.has-events { background:var(--info-bg); }
+    .cal-day.has-events::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:var(--info); }
+    .cal-day.has-leave { background:var(--warning-bg); }
+    .cal-day.has-leave::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:var(--warning); }
+    .cal-day-count {
+      display:none; position:absolute; top:4px; right:4px;
+      min-width:16px; height:16px; padding:0 4px; border-radius:999px;
+      background:var(--info); color:#fff; font-size:0.62rem; font-weight:700;
+      align-items:center; justify-content:center;
+    }
+    .cal-day-num.att-present { box-shadow: 0 0 0 2px var(--success) inset; }
+    .cal-day-num.att-absent { box-shadow: 0 0 0 2px var(--error) inset; }
+    .cal-event-dot { display:block; font-size:0.68rem; background:#fff; color:var(--text); border-radius:4px; padding:1px 4px; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    .cal-legend { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:12px; font-size:0.76rem; color:var(--text-secondary); }
+    .cal-legend span { display:inline-flex; align-items:center; gap:5px; }
+    .cal-legend i { display:inline-block; width:10px; height:10px; border-radius:3px; }
+
+    @media (max-width: 700px) {
+      .cal-day { min-height:56px; font-size:0.72rem; padding:4px; }
+      .cal-event-dot { display:none; }
+      .cal-day.has-events { background:var(--info); }
+      .cal-day.has-events .cal-day-num { color:#fff; }
+      .cal-day.has-events::after { display:none; }
+      .cal-day.has-leave { background:var(--warning); }
+      .cal-day.has-leave .cal-day-num { color:#fff; }
+      .cal-day.has-leave::after { display:none; }
+      .cal-day-count { display:inline-flex; }
+    }
   </style>
 </head>
 <body>
+<div id="page-loader" class="page-loader">
+  <div class="page-loader-decor-top"></div>
+  <svg class="page-loader-ring" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="loaderGradient" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#2952e3" />
+        <stop offset="100%" stop-color="#1fc6c6" />
+      </linearGradient>
+    </defs>
+    <circle cx="25" cy="25" r="20" fill="none" stroke="url(#loaderGradient)" stroke-width="4" stroke-linecap="round" stroke-dasharray="90 40" />
+  </svg>
+  <div class="page-loader-text">LOADING&hellip;</div>
+  <div class="page-loader-wave">
+    <svg viewBox="0 0 1440 260" preserveAspectRatio="none" width="100%" height="150" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="loaderWaveGradient" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#1f4fe0" />
+          <stop offset="100%" stop-color="#22c9c9" />
+        </linearGradient>
+      </defs>
+      <path d="M0,140 C240,40 420,220 720,120 C1000,30 1200,200 1440,90 L1440,260 L0,260 Z" fill="#cfe0ff" />
+      <path d="M0,180 C260,100 460,240 760,150 C1040,70 1220,220 1440,140 L1440,260 L0,260 Z" fill="url(#loaderWaveGradient)" />
+    </svg>
+  </div>
+</div>
   <div id="page-content">
     <div class="cal-header">
-      <div class="cal-tabs">
-        <button class="cal-tab active" data-view="month">Month</button>
-        <button class="cal-tab" data-view="agenda">Agenda</button>
+      <div class="cal-header-left">
+        <div class="cal-nav" id="month-nav">
+          <button class="icon-action sm" id="prev-month" title="Previous month" aria-label="Previous month">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+          </button>
+          <strong id="month-label"></strong>
+          <button class="icon-action sm" id="next-month" title="Next month" aria-label="Next month">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+        <h2 id="agenda-label" style="display:none;">Agenda</h2>
       </div>
-      <div class="cal-nav" id="month-nav">
-        <button class="icon-btn" id="prev-month">‹</button>
-        <strong id="month-label"></strong>
-        <button class="icon-btn" id="next-month">›</button>
+      <div class="cal-header-right">
+        <button type="button" class="icon-action primary" id="agenda-btn" title="View agenda" aria-label="View agenda">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        </button>
+        <button type="button" class="icon-action" id="back-btn" title="Back to calendar" aria-label="Back to calendar" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
       </div>
     </div>
 
+    <div class="cal-legend" id="month-nav-legend">
+      <span><i style="background:var(--info);"></i>Event</span>
+      <span><i style="background:var(--warning);"></i>Leave</span>
+      <span><i style="background:var(--success);"></i>Present</span>
+      <span><i style="background:var(--error);"></i>Absent</span>
+    </div>
     <div id="month-view"></div>
     <div id="agenda-view" style="display:none;"></div>
   </div>

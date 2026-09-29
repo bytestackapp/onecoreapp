@@ -36,8 +36,9 @@ export function showToast(message, type = "info", duration = 4500) {
     setTimeout(() => toast.remove(), 180);
   };
   toast.querySelector(".toast-close").addEventListener("click", remove);
-  const timer = setTimeout(remove, duration);
+  let timer = setTimeout(remove, duration);
   toast.addEventListener("mouseenter", () => clearTimeout(timer));
+  toast.addEventListener("mouseleave", () => { timer = setTimeout(remove, 1500); });
 }
 
 function escapeHtml(str = "") {

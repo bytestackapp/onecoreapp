@@ -42,16 +42,28 @@ export async function getSessionUser() {
  * which carries role/organization_id — the two things every page needs
  * to decide what to show.
  */
+function activeProfileIdFromToken(session) {
+  try {
+    const payload = session.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(payload)).active_profile_id || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getCurrentProfile({ force = false } = {}) {
   if (cachedProfile && !force) return cachedProfile;
 
-  const user = await getSessionUser();
-  if (!user) return null;
+  const { data: sessionData } = await supabase.auth.getSession();
+  const session = sessionData?.session;
+  if (!session) return null;
+
+  const profileId = activeProfileIdFromToken(session) || session.user.id;
 
   const { data, error } = await supabase
     .from("profiles")
     .select("*, organizations(name, logo_url)")
-    .eq("id", user.id)
+    .eq("id", profileId)
     .single();
 
   if (error) {
@@ -65,6 +77,23 @@ export async function getCurrentProfile({ force = false } = {}) {
 
 export function clearProfileCache() {
   cachedProfile = null;
+  cachedIsOwner = null;
+}
+
+let cachedIsOwner = null;
+
+/** True if the signed-in login is a platform owner (see platform_owners table). Cached. */
+export async function isPlatformOwner() {
+  if (cachedIsOwner !== null) return cachedIsOwner;
+  try {
+    const { data, error } = await supabase.rpc("is_owner");
+    if (error) throw error;
+    cachedIsOwner = data === true;
+  } catch (err) {
+    console.error("isPlatformOwner error:", err);
+    cachedIsOwner = false;
+  }
+  return cachedIsOwner;
 }
 
 /**
@@ -72,6 +101,48 @@ export function clearProfileCache() {
  * session, and to the account-setup notice if the profile row hasn't
  * been created yet. Call this first, before rendering the layout.
  */
+/** All of the signed-in login's profiles (one per academy), with unread counts. */
+export async function myAcademies() {
+  const { data, error } = await supabase.rpc("my_academies");
+  if (error) {
+    console.error("myAcademies error:", error);
+    return [];
+  }
+  return data || [];
+}
+
+/** Can this academy profile be signed in to right now? */
+export function isUsableAcademy(a) {
+  if (a.is_active === false) return false;
+  if (a.role === "guest" && a.guest_until && a.guest_until < new Date().toLocaleDateString("en-CA")) return false;
+  return true;
+}
+
+/** Makes profileId the active academy and refreshes the token. Throws on failure. */
+export async function switchToProfile(profileId) {
+  const { error } = await supabase.rpc("switch_academy", { p_profile_id: profileId });
+  if (error) throw error;
+  const { error: rErr } = await supabase.auth.refreshSession();
+  if (rErr) throw rErr;
+  clearProfileCache();
+}
+
+// If the active academy became unusable (deactivated, guest expired…) but the
+// person has another academy they can use, move them there instead of signing out.
+async function tryFallbackAcademy(currentId) {
+  try {
+    const list = await myAcademies();
+    const other = list.find((a) => a.profile_id !== currentId && isUsableAcademy(a));
+    if (!other) return false;
+    await switchToProfile(other.profile_id);
+    window.location.href = "dashboard.html";
+    return true;
+  } catch (err) {
+    console.error("tryFallbackAcademy error:", err);
+    return false;
+  }
+}
+
 export async function requireAuth() {
   const user = await getSessionUser();
   if (!user) {
@@ -80,6 +151,7 @@ export async function requireAuth() {
   }
   const profile = await getCurrentProfile();
   if (!profile || !profile.organization_id) {
+    if (await tryFallbackAcademy(profile?.id ?? null)) return null;
     // Signed in with Supabase Auth, but no matching (or unassigned)
     // profiles row yet. This normally means an admin still needs to
     // finish setting the account up — see README.md.
@@ -88,8 +160,18 @@ export async function requireAuth() {
     return null;
   }
   if (profile.is_active === false) {
+    if (await tryFallbackAcademy(profile.id)) return null;
     await supabase.auth.signOut();
-    window.location.href = "login.html?setup=1";
+    window.location.href = profile.is_approved
+      ? "login.html?deactivated=1"
+      : "login.html?pending=1";
+    return null;
+  }
+  // Guests can have an end date; after it passes they're treated as deactivated.
+  if (profile.role === "guest" && profile.guest_until && profile.guest_until < new Date().toLocaleDateString("en-CA")) {
+    if (await tryFallbackAcademy(profile.id)) return null;
+    await supabase.auth.signOut();
+    window.location.href = "login.html?deactivated=1";
     return null;
   }
   return profile;

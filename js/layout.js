@@ -6,9 +6,11 @@
 // so page-to-page links are plain filenames with no path juggling.
 // =====================================================================
 
-import { requireAuth, signOut, initials, supabase } from "./supabase-client.js";
+import { requireAuth, signOut, initials, isPlatformOwner, myAcademies } from "./supabase-client.js";
+import { openAcademySwitcher } from "./academy-switcher.js";
 import { APP_NAME, LOGO_MARK } from "./brand.js";
 import { initPushNotifications } from "./push.js";
+import { checkForUpdate } from "./version-check.js";
 
 const ICONS = {
   dashboard: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>`,
@@ -24,6 +26,8 @@ const ICONS = {
   reports: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>`,
   users: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.4"/><path d="M2.5 20c0-3.3 2.6-6 6.5-6s6.5 2.7 6.5 6M15 20c0-2.4 1.6-4.5 3.6-5.4"/></svg>`,
   settings: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.7 7.7 0 000-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 00-1.7-1L15 3h-6l-.3 2.6a7.6 7.6 0 00-1.7 1l-2.4-1-2 3.4L4.6 11a7.7 7.7 0 000 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 001.7 1L9 21h6l.3-2.6a7.6 7.6 0 001.7-1l2.4 1 2-3.4z"/></svg>`,
+  owner: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>`,
+  switch: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h13M16 3l4 4-4 4"/><path d="M17 17H4M8 13l-4 4 4 4"/></svg>`,
   logout: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>`,
   more: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>`,
   chevron: `<svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>`,
@@ -32,15 +36,15 @@ const ICONS = {
 // All pages are siblings inside /pages/, so hrefs are plain filenames.
 const NAV_ITEMS = [
   { key: "dashboard", href: "dashboard.html", label: "Dashboard", mobileLabel: "Home", icon: ICONS.dashboard, roles: ["admin", "teacher", "student", "parent"], bottomNav: true },
-  { key: "announcements", href: "announcements.html", label: "Announcements", icon: ICONS.megaphone, roles: ["admin", "teacher", "student", "parent"] },
-  { key: "notifications", href: "notifications.html", label: "Notifications", icon: ICONS.bell, roles: ["admin", "teacher", "student", "parent"], bottomNav: true },
+  { key: "announcements", href: "announcements.html", label: "Announcements", icon: ICONS.megaphone, roles: ["admin", "teacher", "student", "parent", "guest"] },
+  { key: "notifications", href: "notifications.html", label: "Notifications", icon: ICONS.bell, roles: ["admin", "teacher", "student", "parent", "guest"], bottomNav: true },
   { key: "calendar", href: "calendar.html", label: "Calendar", icon: ICONS.calendar, roles: ["admin", "teacher", "student", "parent"], bottomNav: true },
-  { key: "events", href: "events.html", label: "Events", icon: ICONS.event, roles: ["admin", "teacher", "student", "parent"] },
+  { key: "events", href: "events.html", label: "Events", icon: ICONS.event, roles: ["admin", "teacher", "student", "parent", "guest"] },
   { key: "groups", href: "groups.html", label: "Groups", icon: ICONS.groups, roles: ["admin", "teacher", "student", "parent"], bottomNav: true },
   { key: "people", href: "people.html", label: "People", icon: ICONS.people, roles: ["admin", "teacher", "student", "parent"] },
   { key: "attendance", href: "attendance.html", label: "Attendance", icon: ICONS.attendance, roles: ["admin", "teacher", "student", "parent"] },
   { key: "leave", href: "leave.html", label: "Leave", icon: ICONS.leave, roles: ["admin", "teacher"] },
-  { key: "profile", href: "profile.html", label: "Profile", icon: ICONS.profile, roles: ["admin", "teacher", "student", "parent"] },
+  { key: "profile", href: "profile.html", label: "Profile", icon: ICONS.profile, roles: ["admin", "teacher", "student", "parent", "guest"] },
 ];
 
 const ADMIN_ITEMS = [
@@ -49,18 +53,10 @@ const ADMIN_ITEMS = [
   { key: "admin-settings", href: "admin-settings.html", label: "Settings", icon: ICONS.settings },
 ];
 
-async function unreadNotificationCount(profileId) {
-  const { count, error } = await supabase
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("profile_id", profileId)
-    .eq("is_read", false);
-  if (error) {
-    console.error("unreadNotificationCount error:", error);
-    return 0;
-  }
-  return count ?? 0;
-}
+const OWNER_ITEM = { key: "owner", href: "owner.html", label: "Owner console", icon: ICONS.owner };
+
+// Guests only get these pages; anything else bounces them to Announcements.
+const GUEST_KEYS = new Set(["announcements", "notifications", "events", "profile"]);
 
 function navLink(item, activeKey, unread) {
   return `
@@ -71,7 +67,7 @@ function navLink(item, activeKey, unread) {
     </a>`;
 }
 
-function buildSidebar(profile, activeKey, unread) {
+function buildSidebar(profile, activeKey, unread, isOwner) {
   const items = NAV_ITEMS.filter((i) => i.roles.includes(profile.role));
 
   let adminBlock = "";
@@ -79,6 +75,13 @@ function buildSidebar(profile, activeKey, unread) {
     adminBlock = `
       <div class="sidebar-section-label">Administration</div>
       ${ADMIN_ITEMS.map((item) => navLink(item, activeKey, unread)).join("")}
+    `;
+  }
+
+  if (isOwner && profile.role === "admin") {
+    adminBlock += `
+      <div class="sidebar-section-label">Platform</div>
+      ${navLink(OWNER_ITEM, activeKey, unread)}
     `;
   }
 
@@ -97,7 +100,7 @@ function buildSidebar(profile, activeKey, unread) {
       <div class="avatar">${profile.avatar_url ? `<img src="${profile.avatar_url}" alt="">` : initials(profile.full_name)}</div>
       <div style="flex:1;min-width:0;">
         <div class="sidebar-user-name">${profile.full_name}</div>
-        <div class="sidebar-user-role">${profile.role}</div>
+        <div class="sidebar-user-role">${isOwner ? "owner" : profile.role}</div>
       </div>
       <button class="sidebar-signout" id="signout-btn" title="Sign out">${ICONS.logout}</button>
     </div>
@@ -106,12 +109,19 @@ function buildSidebar(profile, activeKey, unread) {
 }
 
 // Mobile bottom nav: Home, Calendar, Notifications, Groups, More.
-function buildBottomNav(profile, activeKey) {
-  const primary = NAV_ITEMS.filter((i) => i.bottomNav && i.roles.includes(profile.role));
-  const moreItems = [
-    ...NAV_ITEMS.filter((i) => !i.bottomNav && i.roles.includes(profile.role)),
-    ...(profile.role === "admin" ? ADMIN_ITEMS : []),
-  ];
+function buildBottomNav(profile, activeKey, isOwner) {
+  const isGuest = profile.role === "guest";
+  // Guests have so few pages that they all fit in the bar itself.
+  const primary = isGuest
+    ? NAV_ITEMS.filter((i) => i.roles.includes("guest"))
+    : NAV_ITEMS.filter((i) => i.bottomNav && i.roles.includes(profile.role));
+  const moreItems = isGuest
+    ? []
+    : [
+        ...NAV_ITEMS.filter((i) => !i.bottomNav && i.roles.includes(profile.role)),
+        ...(profile.role === "admin" ? ADMIN_ITEMS : []),
+        ...(isOwner && profile.role === "admin" ? [OWNER_ITEM] : []),
+      ];
 
   const el = document.createElement("nav");
   el.id = "app-bottomnav";
@@ -146,11 +156,14 @@ function buildBottomNav(profile, activeKey) {
   return { bottomNavEl: el, sheetBackdrop, sheet, openSheet, closeSheet };
 }
 
-function buildTopbar(profile, pageTitle, unread) {
+function buildTopbar(profile, pageTitle, unread, brandOnMobile, isOwner, otherUnread = 0) {
   const el = document.createElement("header");
   el.id = "app-topbar";
   el.innerHTML = `
-    <h1>${pageTitle}</h1>
+    <h1 class="topbar-title">
+      ${brandOnMobile ? `<span class="topbar-title-brand"><span class="brand-one">ONE</span><span class="brand-core">CORE</span></span>` : ""}
+      <span class="topbar-title-text">${pageTitle}</span>
+    </h1>
     <div class="topbar-actions">
       <a class="icon-btn" href="notifications.html" title="Notifications">
         ${ICONS.bell}
@@ -163,9 +176,11 @@ function buildTopbar(profile, pageTitle, unread) {
       <div class="user-menu-dropdown" id="user-menu-dropdown">
         <div class="user-menu-header">
           <div class="name">${profile.full_name}</div>
-          <div class="role">${profile.role}</div>
+          <div class="role">${isOwner ? "owner" : profile.role}</div>
+          ${profile.organizations?.name ? `<div class="text-muted" style="font-size:0.78rem;">${profile.organizations.name}</div>` : ""}
         </div>
         <a class="user-menu-item" href="profile.html">${ICONS.profile}<span>Profile</span></a>
+        <button class="user-menu-item" id="user-menu-switch">${ICONS.switch}<span>Switch academy</span>${otherUnread > 0 ? `<span class="badge" style="margin-left:auto;">${otherUnread > 9 ? "9+" : otherUnread}</span>` : ""}</button>
         <button class="user-menu-item danger" id="user-menu-signout">${ICONS.logout}<span>Sign out</span></button>
       </div>
     </div>
@@ -181,16 +196,27 @@ function buildTopbar(profile, pageTitle, unread) {
  * @param {string[]} [opts.allowedRoles] - if set, roles not listed are redirected to dashboard
  * @returns {Promise<Object|null>} the signed-in profile, or null if redirected
  */
-export async function mountLayout({ activeKey, pageTitle, allowedRoles }) {
+export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnMobile }) {
   const profile = await requireAuth();
+  checkForUpdate(); // fire-and-forget, never blocks the page
   if (!profile) return null;
 
-  if (allowedRoles && !allowedRoles.includes(profile.role)) {
-    window.location.href = "dashboard.html";
+  if (profile.role === "guest" && !GUEST_KEYS.has(activeKey)) {
+    window.location.href = "announcements.html";
     return null;
   }
 
-  const unread = await unreadNotificationCount(profile.id);
+  if (allowedRoles && !allowedRoles.includes(profile.role)) {
+    window.location.href = profile.role === "guest" ? "announcements.html" : "dashboard.html";
+    return null;
+  }
+
+  const isOwner = await isPlatformOwner();
+  // Unread counts cover every academy this login belongs to, so a notification
+  // for Academy A still shows while she is working in Academy B.
+  const academies = await myAcademies();
+  const unread = academies.reduce((n, a) => n + Number(a.unread || 0), 0);
+  const otherUnread = academies.filter((a) => a.profile_id !== profile.id).reduce((n, a) => n + Number(a.unread || 0), 0);
 
   const existingContent = document.getElementById("page-content");
   const pageContentHtml = existingContent ? existingContent.innerHTML : "";
@@ -198,17 +224,17 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles }) {
   const shell = document.createElement("div");
   shell.id = "app-shell";
 
-  const sidebar = buildSidebar(profile, activeKey, unread);
+  const sidebar = buildSidebar(profile, activeKey, unread, isOwner);
   const main = document.createElement("div");
   main.id = "app-main";
-  const topbar = buildTopbar(profile, pageTitle, unread);
+  const topbar = buildTopbar(profile, pageTitle, unread, brandOnMobile, isOwner, otherUnread);
   const content = document.createElement("main");
   content.id = "app-content";
   content.innerHTML = pageContentHtml;
   main.appendChild(topbar);
   main.appendChild(content);
 
-  const { bottomNavEl, sheetBackdrop, sheet, openSheet, closeSheet } = buildBottomNav(profile, activeKey);
+  const { bottomNavEl, sheetBackdrop, sheet, openSheet, closeSheet } = buildBottomNav(profile, activeKey, isOwner);
 
   shell.appendChild(sidebar);
   shell.appendChild(main);
@@ -235,6 +261,7 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles }) {
     if (e.key === "Escape") dropdown.classList.remove("open");
   });
   document.getElementById("user-menu-signout")?.addEventListener("click", signOut);
+  document.getElementById("user-menu-switch")?.addEventListener("click", () => openAcademySwitcher(academies, profile));
 
   document.title = `${pageTitle} — ${APP_NAME}`;
 

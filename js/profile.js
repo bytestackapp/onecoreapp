@@ -7,6 +7,9 @@ if (!profile) throw new Error("redirecting");
 document.getElementById("profile-avatar").textContent = initials(profile.full_name);
 document.getElementById("profile-name").textContent = profile.full_name;
 document.getElementById("profile-role").textContent = profile.role;
+if (profile.organizations?.name) {
+  document.getElementById("profile-academy").textContent = `${profile.organizations.name} · these details apply to this academy only`;
+}
 document.getElementById("full_name").value = profile.full_name || "";
 document.getElementById("email").value = profile.email || "";
 document.getElementById("phone").value = profile.phone || "";

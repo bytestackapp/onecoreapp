@@ -8,65 +8,37 @@
   <link rel="stylesheet" href="../css/global.css" />
 </head>
 <body>
+<div id="page-loader" class="page-loader">
+  <div class="page-loader-decor-top"></div>
+  <svg class="page-loader-ring" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="loaderGradient" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#2952e3" />
+        <stop offset="100%" stop-color="#1fc6c6" />
+      </linearGradient>
+    </defs>
+    <circle cx="25" cy="25" r="20" fill="none" stroke="url(#loaderGradient)" stroke-width="4" stroke-linecap="round" stroke-dasharray="90 40" />
+  </svg>
+  <div class="page-loader-text">LOADING&hellip;</div>
+  <div class="page-loader-wave">
+    <svg viewBox="0 0 1440 260" preserveAspectRatio="none" width="100%" height="150" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="loaderWaveGradient" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#1f4fe0" />
+          <stop offset="100%" stop-color="#22c9c9" />
+        </linearGradient>
+      </defs>
+      <path d="M0,140 C240,40 420,220 720,120 C1000,30 1200,200 1440,90 L1440,260 L0,260 Z" fill="#cfe0ff" />
+      <path d="M0,180 C260,100 460,240 760,150 C1040,70 1220,220 1440,140 L1440,260 L0,260 Z" fill="url(#loaderWaveGradient)" />
+    </svg>
+  </div>
+</div>
   <div id="page-content">
-    <div class="section-head" style="border-bottom:none;">
-      <p class="text-muted mt-0">Upcoming activities and how to RSVP.</p>
-      <button class="btn btn-primary btn-sm" id="new-btn" style="display:none;">New event</button>
-    </div>
-
-    <div id="new-form-wrap" class="card" style="display:none;margin-bottom:20px;">
-      <h3>New event</h3>
-      <div id="form-error" class="banner banner-error" style="display:none;"></div>
-      <form id="new-form">
-        <div class="field">
-          <label for="title">Title</label>
-          <input id="title" required maxlength="150" />
-        </div>
-        <div class="field">
-          <label for="description">Description</label>
-          <textarea id="description" rows="3"></textarea>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-          <div class="field">
-            <label for="event_date">Date</label>
-            <input id="event_date" type="date" required />
-          </div>
-          <div class="field">
-            <label for="location">Location</label>
-            <input id="location" />
-          </div>
-          <div class="field">
-            <label for="start_time">Start time</label>
-            <input id="start_time" type="time" />
-          </div>
-          <div class="field">
-            <label for="end_time">End time</label>
-            <input id="end_time" type="time" />
-          </div>
-          <div class="field">
-            <label for="audience">Audience</label>
-            <select id="audience">
-              <option value="everyone">Everyone</option>
-              <option value="teachers">Teachers</option>
-              <option value="students">Students</option>
-              <option value="parents">Parents</option>
-              <option value="group">Specific group</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="max_participants">Max participants</label>
-            <input id="max_participants" type="number" min="1" placeholder="No limit" />
-          </div>
-        </div>
-        <div class="field" id="group-field" style="display:none;">
-          <label for="group-select">Group</label>
-          <select id="group-select"></select>
-        </div>
-        <div style="display:flex;gap:10px;">
-          <button type="submit" class="btn btn-primary" id="submit-btn">Create event</button>
-          <button type="button" class="btn btn-secondary" id="cancel-btn">Cancel</button>
-        </div>
-      </form>
+    <div class="page-intro-row">
+      <p class="text-muted">Upcoming activities and how to RSVP.</p>
+      <button class="icon-action primary" type="button" id="new-btn" title="New event" aria-label="New event" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
     </div>
 
     <div id="events-list"><div class="skeleton" style="height:90px;margin-bottom:10px;"></div></div>

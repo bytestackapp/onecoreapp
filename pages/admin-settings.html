@@ -8,23 +8,110 @@
   <link rel="stylesheet" href="../css/global.css" />
 </head>
 <body>
+<div id="page-loader" class="page-loader">
+  <div class="page-loader-decor-top"></div>
+  <svg class="page-loader-ring" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="loaderGradient" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#2952e3" />
+        <stop offset="100%" stop-color="#1fc6c6" />
+      </linearGradient>
+    </defs>
+    <circle cx="25" cy="25" r="20" fill="none" stroke="url(#loaderGradient)" stroke-width="4" stroke-linecap="round" stroke-dasharray="90 40" />
+  </svg>
+  <div class="page-loader-text">LOADING&hellip;</div>
+  <div class="page-loader-wave">
+    <svg viewBox="0 0 1440 260" preserveAspectRatio="none" width="100%" height="150" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="loaderWaveGradient" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#1f4fe0" />
+          <stop offset="100%" stop-color="#22c9c9" />
+        </linearGradient>
+      </defs>
+      <path d="M0,140 C240,40 420,220 720,120 C1000,30 1200,200 1440,90 L1440,260 L0,260 Z" fill="#cfe0ff" />
+      <path d="M0,180 C260,100 460,240 760,150 C1040,70 1220,220 1440,140 L1440,260 L0,260 Z" fill="url(#loaderWaveGradient)" />
+    </svg>
+  </div>
+</div>
   <div id="page-content" style="max-width:640px;">
     <div class="section">
-      <div class="section-head"><h2>Organization</h2></div>
+      <div class="section-head tone-primary">
+        <span class="section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 012-2h6a2 2 0 012 2v16"/><path d="M15 9h2a2 2 0 012 2v10"/><path d="M9 7h2M9 11h2M9 15h2"/></svg></span>
+        <h2>Organization</h2>
+      </div>
       <div class="card">
-        <div id="org-banner" class="banner banner-success" style="display:none;"></div>
         <form id="org-form">
           <div class="field">
             <label for="org-name">Organization name</label>
-            <input id="org-name" required />
+            <div class="input-row">
+              <input id="org-name" required disabled />
+              <div id="org-name-view-actions" class="input-row-actions">
+                <button class="icon-action" type="button" id="org-edit-btn" title="Edit name" aria-label="Edit name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
+              </div>
+              <div id="org-name-edit-actions" class="input-row-actions" style="display:none;">
+                <button class="icon-action approve" type="submit" title="Save" aria-label="Save"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+                <button class="icon-action" type="button" id="org-cancel-btn" title="Cancel" aria-label="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+              </div>
+            </div>
           </div>
-          <button class="btn btn-primary" type="submit">Save</button>
         </form>
+
+        <div class="field" style="margin-top:20px;">
+          <label for="invite-code">Invite code</label>
+          <div class="input-row">
+            <input id="invite-code" readonly />
+            <div class="input-row-actions">
+              <button class="icon-action" type="button" id="copy-code-btn" title="Copy code" aria-label="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
+              <button class="icon-action" type="button" id="regenerate-code-btn" title="Regenerate code" aria-label="Regenerate code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.85-3.36L23 10M1 14l4.65 4.36A9 9 0 0020.5 15"/></svg></button>
+            </div>
+          </div>
+          <div class="field-hint">Share this code with people who need to join your organization when they sign up.</div>
+        </div>
       </div>
     </div>
 
     <div class="section">
-      <div class="section-head"><h2>Recent activity</h2></div>
+      <div class="section-head tone-muted">
+        <span class="section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M9 15l2 2 4-4"/></svg></span>
+        <h2>Leave types</h2>
+        <button type="button" class="icon-action primary" id="new-leave-type-btn" title="New leave type" aria-label="New leave type" style="margin-left:auto;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+      <div id="leave-types-list" class="card"><div class="skeleton" style="height:50px;"></div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head tone-primary">
+        <span class="section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="16" r="1.5"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></span>
+        <h2>Scanner devices</h2>
+        <button type="button" class="icon-action primary" id="new-device-btn" title="New device" aria-label="New device" style="margin-left:auto;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+      <div id="devices-list" class="card"><div class="skeleton" style="height:50px;"></div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head tone-muted">
+        <span class="section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M17 17h3v3h-3z"/></svg></span>
+        <h2>QR codes</h2>
+      </div>
+      <div class="card">
+        <p>Every active person has a scan code for the gate/biometric scanner. Refreshing retires every current code and issues new ones — anyone with the old code will need to be reissued before they can scan in again.</p>
+        <button class="btn btn-secondary" id="refresh-qr-btn">Refresh all QR codes</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head tone-info">
+        <span class="section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+        <h2>Recent activity</h2>
+        <div style="margin-left:auto;display:flex;gap:6px;">
+          <button type="button" class="icon-action" id="view-audit-btn" title="View all activity" aria-label="View all activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          <button type="button" class="icon-action danger" id="clear-audit-btn" title="Clear activity" aria-label="Clear activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
+        </div>
+      </div>
       <div id="audit-list" class="card"><div class="skeleton" style="height:60px;"></div></div>
     </div>
   </div>

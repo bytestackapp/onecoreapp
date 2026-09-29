@@ -10,3 +10,6 @@ temp.b64
 .vercel
 .env*.local
 android/app/onecore-debug.keystore
+releases/
+*.keystore
+*.jks

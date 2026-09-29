@@ -11,13 +11,7 @@
   <div class="auth-page">
     <div class="auth-card card">
       <div class="auth-brand" id="auth-brand"></div>
-      <h1>Sign in</h1>
-      <p class="subtitle">Connect. Organize. Operate.</p>
-
-      <div id="setup-banner" class="banner banner-info" style="display:none;">
-        Your account was created, but isn't fully set up yet. Please contact your administrator.
-      </div>
-      <div id="error-banner" class="banner banner-error" style="display:none;"></div>
+      <p class="subtitle">One Core. Everything Connected.</p>
 
       <form id="login-form">
         <div class="field">
@@ -27,25 +21,143 @@
         <div class="field">
           <label for="password">Password</label>
           <input id="password" type="password" autocomplete="current-password" required />
+          <div class="field-inline-link">
+            <a href="reset-password.html">Forgot password?</a>
+          </div>
         </div>
         <button class="btn btn-primary" type="submit" id="submit-btn" style="width:100%;">Sign in</button>
       </form>
 
-      <div class="auth-links">
-        <a href="reset-password.html">Forgot password?</a>
+      <div class="auth-divider"><span>New to OneCore?</span></div>
+      <button class="btn btn-secondary" type="button" id="show-signup-btn" style="width:100%;">Create an account</button>
+	  
+      <div class="auth-meta-links">
+        <button type="button" id="show-about-btn">About</button>
+        <button type="button" id="show-support-btn">Support</button>
+        <button type="button" id="show-privacy-btn">Privacy</button>
+      </div>	  
+
+      <!-- Signup Modal -->      
+      <div id="signup-modal" class="dialog-backdrop" style="display:none;">
+        <div class="dialog-modal">
+          <h3>Create your account</h3>
+          <div id="signup-error-banner" class="banner banner-error" style="display:none;"></div>
+          <form id="signup-form">
+            <div class="field">
+              <label for="signup-name">Full name</label>
+              <input id="signup-name" type="text" required />
+            </div>
+            <div class="field">
+              <label for="signup-email">Email</label>
+              <input id="signup-email" type="email" required />
+            </div>
+            <div class="field">
+              <label for="signup-password">Password</label>
+              <input id="signup-password" type="password" minlength="6" required />
+            </div>
+            <div class="field">
+              <label for="signup-code">Invite code</label>
+              <input id="signup-code" type="text" required style="text-transform:uppercase;" />
+              <div class="field-hint">Ask your administrator for your organization's invite code.</div>
+            </div>
+            <div class="dialog-actions">
+              <button class="btn btn-secondary" type="button" id="cancel-signup-btn">Cancel</button>
+              <button class="btn btn-primary" type="submit" id="signup-submit-btn">Sign up</button>
+            </div>
+          </form>
+        </div>
       </div>
+	  
+      <!-- Choose Academy Modal (shown after sign-in when the account belongs to more than one) -->
+      <div id="academy-modal" class="dialog-backdrop" style="display:none;">
+        <div class="dialog-modal">
+          <h3>Choose an academy</h3>
+          <p>Your account belongs to more than one academy. Pick the one you want to open. You can switch later from the menu.</p>
+          <div class="field">
+            <label for="academy-select">Academy</label>
+            <select id="academy-select"></select>
+          </div>
+          <div class="dialog-actions">
+            <button class="btn btn-secondary" type="button" id="academy-cancel-btn">Sign out</button>
+            <button class="btn btn-primary" type="button" id="academy-continue-btn">Continue</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pending Approval Modal -->
+      <div id="pending-modal" class="dialog-backdrop" style="display:none;">
+        <div class="dialog-modal">
+          <h3>Request submitted</h3>
+          <p>Your account has been created and is pending approval from your administrator. You'll be able to sign in once they approve it.</p>
+          <div class="dialog-actions">
+            <button class="btn btn-primary" type="button" id="pending-ok-btn">OK</button>
+          </div>
+        </div>
+      </div>
+	  
+	  <!-- About Modal -->
+      <div id="about-modal" class="dialog-backdrop" style="display:none;">
+        <div class="dialog-modal">
+          <h3>About OneCore</h3>
+            <p><strong>OneCore</strong> is a centralized platform designed to make organizational operations simpler, more organized, and more connected.</p>
+            <p>OneCore brings essential information, services, and administrative functions together in one place—helping users access what they need without having to rely on multiple systems or disconnected processes.</p>
+            <p class="text-muted">
+              Version 1.0.0<br>
+              © 2026 OneCore. All rights reserved.
+            </p>
+          <div class="dialog-actions">
+            <button class="btn btn-primary" type="button" id="about-ok-btn">Close</button>
+          </div>
+        </div>
+      </div>
+
+	  <!-- Support Modal -->	  
+      <div id="support-modal" class="dialog-backdrop" style="display:none;">
+        <div class="dialog-modal">
+          <h3>Support</h3>
+          <p>Need help with OneCore? If you encounter an issue, have trouble accessing your account, or have questions about a feature, please contact your school or organization's designated administrator or support team.</p>
+		  <p>When reporting an issue, include a brief description of the problem and, if possible, the page or feature where it occurred. Please do not include your password, PIN, verification codes, or other confidential information.</p>
+          <div class="dialog-actions">
+            <button class="btn btn-primary" type="button" id="support-ok-btn">Close</button>
+          </div>
+        </div>
+      </div>
+
+	  <!-- Provacy Modal -->	  	  
+      <div id="privacy-modal" class="dialog-backdrop" style="display:none;">
+        <div class="dialog-modal">
+          <h3>Privacy</h3>
+          <p>OneCore respects your privacy and is committed to protecting your personal information. Information collected through the application is used only for legitimate purposes related to providing school services, managing accounts, communication, security, and other authorized functions.</p>
+          <p>OneCore handles personal information in accordance with applicable privacy laws, including the Philippine Data Privacy Act of 2012 (RA 10173). Users may have rights to access, correct, or request appropriate handling of their personal information, subject to applicable laws and policies.</p>
+          <div class="dialog-actions">
+            <button class="btn btn-primary" type="button" id="privacy-ok-btn">Close</button>
+          </div>
+        </div>
+      </div>
+	  
     </div>
+    <div class="auth-footer">&copy; 2026 OneCore. All rights reserved.</div>
   </div>
 
   <script type="module">
-    import { supabase, getSessionUser, friendlyError } from "../js/supabase-client.js";
-    import { LOGO_MARK, APP_NAME } from "../js/brand.js";
+    import { supabase, getSessionUser, friendlyError, myAcademies, isUsableAcademy, switchToProfile } from "../js/supabase-client.js";
+	import { showToast } from "../js/toast.js";
 
-    document.getElementById("auth-brand").innerHTML = `${LOGO_MARK}<span class="brand-name">${APP_NAME}</span>`;
+    document.getElementById("auth-brand").innerHTML = `<img src="../images/logo-vert.png" alt="OneCore" class="auth-brand-logo">`;
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("setup") === "1") {
-      document.getElementById("setup-banner").style.display = "flex";
+      showToast("Your account was created, but isn't fully set up yet. Please contact your administrator.", "info", 8000);
+    }
+    if (params.get("pending") === "1") {
+      showToast("Your account is pending approval from your administrator. You'll be able to sign in once it's approved.", "info", 8000);
+    }
+    if (params.get("deactivated") === "1") {
+      showToast("Your account has been deactivated. Please contact your administrator.", "error", 8000);
+    }
+    // Clear the flag so refreshing the page doesn't repeat the message.
+    if (params.has("setup") || params.has("pending") || params.has("deactivated")) {
+      history.replaceState(null, "", window.location.pathname);
     }
 
     // Already signed in? Skip straight to the dashboard.
@@ -54,12 +166,10 @@
     });
 
     const form = document.getElementById("login-form");
-    const errorBanner = document.getElementById("error-banner");
     const submitBtn = document.getElementById("submit-btn");
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      errorBanner.style.display = "none";
       submitBtn.disabled = true;
       submitBtn.textContent = "Signing in…";
 
@@ -69,18 +179,160 @@
       const { error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
-        errorBanner.textContent =
+        showToast(
           error.message?.toLowerCase().includes("invalid")
             ? "Incorrect email or password."
-            : friendlyError(error, "Unable to sign in. Please try again.");
-        errorBanner.style.display = "flex";
+            : friendlyError(error, "Unable to sign in. Please try again."),
+          "error"
+        );
         submitBtn.disabled = false;
         submitBtn.textContent = "Sign in";
         return;
       }
 
-      window.location.href = "dashboard.html";
+      await continueAfterSignIn();
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Sign in";
     });
+
+    // After a successful sign-in: work out which academy to open.
+    //  - none usable  -> sign out and explain why
+    //  - one          -> go straight in
+    //  - several      -> let the person pick (last-used one preselected)
+    async function continueAfterSignIn() {
+      const list = await myAcademies();
+      const usable = list.filter(isUsableAcademy);
+
+      if (usable.length === 0) {
+        await supabase.auth.signOut();
+        if (list.length === 0) {
+          showToast("Your account was created, but isn't fully set up yet. Please contact your administrator.", "info", 8000);
+        } else if (list.some((a) => a.is_approved === false)) {
+          showToast("Your account is pending approval from your administrator. You'll be able to sign in once it's approved.", "info", 8000);
+        } else {
+          showToast("Your account has been deactivated. Please contact your administrator.", "error", 8000);
+        }
+        return;
+      }
+
+      if (usable.length === 1) {
+        await openAcademy(usable[0]);
+        return;
+      }
+
+      const select = document.getElementById("academy-select");
+      const preselected = usable.find((a) => a.is_current) || usable[0];
+      select.innerHTML = usable
+        .map((a) => {
+          const label = `${a.academy_name || "Academy"} — ${a.role}${Number(a.unread) > 0 ? ` (${a.unread} new)` : ""}`;
+          return `<option value="${a.profile_id}" ${a.profile_id === preselected.profile_id ? "selected" : ""}>${label.replace(/</g, "&lt;")}</option>`;
+        })
+        .join("");
+      document.getElementById("academy-modal").style.display = "flex";
+
+      document.getElementById("academy-continue-btn").onclick = async () => {
+        const chosen = usable.find((a) => a.profile_id === select.value);
+        document.getElementById("academy-continue-btn").disabled = true;
+        await openAcademy(chosen);
+        document.getElementById("academy-continue-btn").disabled = false;
+      };
+      document.getElementById("academy-cancel-btn").onclick = async () => {
+        await supabase.auth.signOut();
+        document.getElementById("academy-modal").style.display = "none";
+      };
+    }
+
+    async function openAcademy(a) {
+      try {
+        if (!a.is_current) await switchToProfile(a.profile_id);
+        window.location.href = "dashboard.html";
+      } catch (err) {
+        console.error(err);
+        showToast(friendlyError(err, "Unable to open that academy."), "error");
+      }
+    }
+	
+    document.getElementById("show-signup-btn").addEventListener("click", () => {
+      document.getElementById("signup-modal").style.display = "flex";
+    });
+	
+    document.getElementById("cancel-signup-btn").addEventListener("click", () => {
+      document.getElementById("signup-modal").style.display = "none";
+    });
+	
+    document.getElementById("pending-ok-btn").addEventListener("click", () => {
+      document.getElementById("pending-modal").style.display = "none";
+      window.location.href = window.location.pathname;
+    });
+	
+    document.getElementById("show-about-btn").addEventListener("click", () => {
+      document.getElementById("about-modal").style.display = "flex";
+    });
+	
+    document.getElementById("about-ok-btn").addEventListener("click", () => {
+      document.getElementById("about-modal").style.display = "none";
+    });
+
+    document.getElementById("show-support-btn").addEventListener("click", () => {
+      document.getElementById("support-modal").style.display = "flex";
+    });
+	
+    document.getElementById("support-ok-btn").addEventListener("click", () => {
+      document.getElementById("support-modal").style.display = "none";
+    });
+
+    document.getElementById("show-privacy-btn").addEventListener("click", () => {
+      document.getElementById("privacy-modal").style.display = "flex";
+    });
+	
+    document.getElementById("privacy-ok-btn").addEventListener("click", () => {
+      document.getElementById("privacy-modal").style.display = "none";
+    });
+    
+    document.getElementById("signup-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+    
+      const fullName = document.getElementById("signup-name").value.trim();
+      const email = document.getElementById("signup-email").value.trim();
+      const password = document.getElementById("signup-password").value;
+      const inviteCode = document.getElementById("signup-code").value.trim().toUpperCase();
+    
+      // Validate the invite code BEFORE creating the account, so bad codes
+      // never result in a half-created user.
+      const { data: orgRows, error: orgError } = await supabase.rpc("lookup_org_by_invite_code", { code: inviteCode });
+      const org = orgRows?.[0];
+    
+      if (orgError || !org) {
+        showToast("Invalid invite code. Please check with your administrator.", "error");
+        return;
+      }
+    
+      const submitBtn = document.getElementById("signup-submit-btn");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Creating account…";
+    
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName, invite_code: inviteCode },
+        },
+      });
+    
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Sign up";
+    
+      if (signUpError) {
+        showToast(friendlyError(signUpError, "Unable to create your account. Please try again."), "error");
+        return;
+      }
+	  
+	  // Don't leave the new (still pending) user signed in.
+	  await supabase.auth.signOut();
+    
+      document.getElementById("signup-modal").style.display = "none";
+      document.getElementById("pending-modal").style.display = "flex";
+    });	
   </script>
 </body>
 </html>
