@@ -1,13 +1,15 @@
 // Pull-to-refresh for the mobile layout.
-// Pull down from the very top of a page and release to reload it.
+// Pull down from the very top of a page: the page slides down under your
+// finger and a spinner appears in the gap. Release past the mark to reload.
 // Imported once from layout.js, so it covers every page that uses the app
 // shell. The scanner and login pages don't use layout.js, so they're untouched.
 
 const MOBILE_QUERY = "(max-width: 880px)"; // same breakpoint as the bottom nav
 const INSTALLED_APP_ONLY = false; // true = only when installed to the home screen
-const TRIGGER = 56; // how far (px) the indicator must travel to count as a refresh
-const MAX_PULL = 90; // furthest the indicator travels
-const RESISTANCE = 0.6; // finger distance -> indicator distance
+const TRIGGER = 64; // how far (px) the page must be pulled to count as a refresh
+const HOLD = 56; // where the page rests while it reloads
+const MAX_PULL = 110; // furthest the page can be pulled
+const RESISTANCE = 0.55; // finger distance -> page distance
 
 function isInstalledApp() {
   return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
@@ -24,15 +26,15 @@ function initPullToRefresh() {
     #ptr-indicator {
       position: fixed; left: 50%; z-index: 25;
       top: calc(var(--topbar-h, 64px) + env(safe-area-inset-top, 0px));
-      width: 38px; height: 38px; border-radius: 50%;
+      width: 40px; height: 40px; margin-left: -20px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      background: var(--card, #fff); border: 1px solid var(--border, #e2e8f0);
-      box-shadow: var(--shadow-pop, 0 4px 14px rgba(15,23,42,.15));
-      color: var(--text-muted, #94a3b8);
-      opacity: 0; pointer-events: none; transform: translate(-50%, -48px);
+      background: var(--card, #fff); color: var(--primary, #4f46e5);
+      border: 1px solid var(--border, #e2e8f0);
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+      opacity: 0; pointer-events: none;
     }
-    #ptr-indicator.snap { transition: transform .2s var(--ease, ease), opacity .2s; }
-    #ptr-indicator.ready { color: var(--primary, #4f46e5); }
+    #ptr-indicator.snap { transition: transform .2s ease, opacity .2s ease, background .15s ease; }
+    #ptr-indicator.ready { background: var(--primary, #4f46e5); color: #fff; border-color: transparent; }
     #ptr-indicator svg { width: 20px; height: 20px; }
     #ptr-indicator.spinning svg { animation: ptr-spin .8s linear infinite; }
     @keyframes ptr-spin { to { transform: rotate(360deg); } }`;
@@ -41,9 +43,10 @@ function initPullToRefresh() {
   const indicator = document.createElement("div");
   indicator.id = "ptr-indicator";
   indicator.setAttribute("aria-hidden", "true");
-  indicator.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.85-3.36L23 10M1 14l4.65 4.36A9 9 0 0020.5 15"/></svg>`;
+  indicator.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.85-3.36L23 10M1 14l4.65 4.36A9 9 0 0020.5 15"/></svg>`;
   document.body.appendChild(indicator);
   const icon = indicator.querySelector("svg");
+  const content = () => document.getElementById("app-content");
 
   let startY = 0;
   let pull = 0;
@@ -54,24 +57,36 @@ function initPullToRefresh() {
     if (refreshing) return false;
     if (!window.matchMedia(MOBILE_QUERY).matches) return false;
     if (INSTALLED_APP_ONLY && !isInstalledApp()) return false;
-    if ((document.scrollingElement?.scrollTop ?? window.scrollY) > 0) return false;
+    if ((document.scrollingElement?.scrollTop ?? window.scrollY) > 1) return false;
     // Not while a dialog or the "More" sheet is open, or while typing
     if (document.querySelector(".dialog-backdrop, .more-sheet.open")) return false;
-    if (e.target.closest("input, textarea, select, [data-no-ptr]")) return false;
+    if (e.target.closest && e.target.closest("input, textarea, select, [data-no-ptr]")) return false;
     return true;
   }
 
+  // Move the page and the spinner to `distance` px.
   function render(distance) {
-    indicator.style.opacity = String(Math.min(1, distance / TRIGGER));
-    indicator.style.transform = `translate(-50%, ${distance - 48}px)`;
-    icon.style.transform = `rotate(${distance * 4}deg)`;
+    const el = content();
+    if (el) el.style.transform = `translateY(${distance}px)`;
+    indicator.style.opacity = String(Math.min(1, distance / (TRIGGER * 0.6)));
+    indicator.style.transform = `translateY(${distance / 2 - 20}px)`;
+    icon.style.transform = `rotate(${distance * 5}deg)`;
     indicator.classList.toggle("ready", distance >= TRIGGER);
   }
 
   function reset() {
+    const el = content();
+    if (el) {
+      el.style.transition = "transform .2s ease";
+      el.style.transform = "";
+      setTimeout(() => {
+        el.style.transition = "";
+        el.style.willChange = "";
+      }, 220);
+    }
     indicator.classList.add("snap");
     indicator.style.opacity = "0";
-    indicator.style.transform = "translate(-50%, -48px)";
+    indicator.style.transform = "translateY(0)";
     indicator.classList.remove("ready");
     setTimeout(() => indicator.classList.remove("snap"), 220);
     pull = 0;
@@ -85,6 +100,11 @@ function initPullToRefresh() {
       startY = e.touches[0].clientY;
       pull = 0;
       indicator.classList.remove("snap");
+      const el = content();
+      if (el) {
+        el.style.transition = "none";
+        el.style.willChange = "transform";
+      }
     },
     { passive: true }
   );
@@ -112,11 +132,16 @@ function initPullToRefresh() {
     tracking = false;
     if (pull >= TRIGGER) {
       refreshing = true;
+      const el = content();
+      if (el) {
+        el.style.transition = "transform .2s ease";
+        el.style.transform = `translateY(${HOLD}px)`;
+      }
       icon.style.transform = "";
-      indicator.classList.add("snap", "spinning");
+      indicator.classList.add("snap", "spinning", "ready");
       indicator.style.opacity = "1";
-      indicator.style.transform = `translate(-50%, ${TRIGGER - 48}px)`;
-      setTimeout(() => window.location.reload(), 350);
+      indicator.style.transform = `translateY(${HOLD / 2 - 20}px)`;
+      setTimeout(() => window.location.reload(), 450);
     } else {
       reset();
     }

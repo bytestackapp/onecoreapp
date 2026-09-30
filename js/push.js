@@ -29,15 +29,11 @@ export async function initPushNotifications(profile) {
 
     PushNotifications.addListener("registration", async (token) => {
       try {
-        await supabase.from("device_push_tokens").upsert(
-          {
-            profile_id: profile.id,
-            token: token.value,
-            platform: capacitor.getPlatform(), // "android" or "ios"
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "token" }
-        );
+        const { error } = await supabase.rpc("register_push_token", {
+          p_token: token.value,
+          p_platform: capacitor.getPlatform(),
+        });
+        if (error) throw error;
       } catch (err) {
         console.error("Failed to save push token:", err);
       }
