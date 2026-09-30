@@ -1,15 +1,17 @@
 // Pull-to-refresh for the mobile layout.
-// Pull down from the very top of a page: the page slides down under your
-// finger and a spinner appears in the gap. Release past the mark to reload.
+// Pull down from the very top of a page: the page slides down like a sheet
+// with rounded top corners, revealing a brand-coloured area with a white
+// refresh circle. Release past the mark to reload.
 // Imported once from layout.js, so it covers every page that uses the app
 // shell. The scanner and login pages don't use layout.js, so they're untouched.
 
 const MOBILE_QUERY = "(max-width: 880px)"; // same breakpoint as the bottom nav
 const INSTALLED_APP_ONLY = false; // true = only when installed to the home screen
 const TRIGGER = 64; // how far (px) the page must be pulled to count as a refresh
-const HOLD = 56; // where the page rests while it reloads
-const MAX_PULL = 110; // furthest the page can be pulled
+const HOLD = 60; // where the page rests while it reloads
+const MAX_PULL = 120; // furthest the page can be pulled
 const RESISTANCE = 0.55; // finger distance -> page distance
+const RADIUS = 22; // rounded top corners of the sliding page (px)
 
 function isInstalledApp() {
   return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
@@ -23,29 +25,39 @@ function initPullToRefresh() {
   const style = document.createElement("style");
   style.textContent = `
     @media ${MOBILE_QUERY} { html, body { overscroll-behavior-y: contain; } }
-    #ptr-indicator {
-      position: fixed; left: 50%; z-index: 25;
+
+    /* The coloured area revealed above the sliding page */
+    #ptr-reveal {
+      position: fixed; left: 0; right: 0; z-index: 0;
       top: calc(var(--topbar-h, 64px) + env(safe-area-inset-top, 0px));
-      width: 40px; height: 40px; margin-left: -20px; border-radius: 50%;
+      height: 0; overflow: hidden; box-sizing: border-box;
+      padding-bottom: ${RADIUS}px; /* keeps the circle centred in the visible gap only */
       display: flex; align-items: center; justify-content: center;
-      background: var(--card, #fff); color: var(--primary, #4f46e5);
-      border: 1px solid var(--border, #e2e8f0);
-      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
-      opacity: 0; pointer-events: none;
+      background: linear-gradient(135deg, #2952e3 0%, #1fc6c6 100%);
+      pointer-events: none;
     }
-    #ptr-indicator.snap { transition: transform .2s ease, opacity .2s ease, background .15s ease; }
-    #ptr-indicator.ready { background: var(--primary, #4f46e5); color: #fff; border-color: transparent; }
-    #ptr-indicator svg { width: 20px; height: 20px; }
-    #ptr-indicator.spinning svg { animation: ptr-spin .8s linear infinite; }
+    #ptr-reveal.snap { transition: height .2s ease; }
+    #ptr-circle {
+      flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: #fff; color: #2952e3;
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.22);
+      opacity: 0; transform: scale(.7);
+    }
+    #ptr-reveal.ready #ptr-circle { transform: scale(1.08); }
+    #ptr-circle.snap { transition: transform .15s ease, opacity .15s ease; }
+    #ptr-circle svg { width: 22px; height: 22px; }
+    #ptr-reveal.spinning #ptr-circle svg { animation: ptr-spin .8s linear infinite; }
     @keyframes ptr-spin { to { transform: rotate(360deg); } }`;
   document.head.appendChild(style);
 
-  const indicator = document.createElement("div");
-  indicator.id = "ptr-indicator";
-  indicator.setAttribute("aria-hidden", "true");
-  indicator.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.85-3.36L23 10M1 14l4.65 4.36A9 9 0 0020.5 15"/></svg>`;
-  document.body.appendChild(indicator);
-  const icon = indicator.querySelector("svg");
+  const reveal = document.createElement("div");
+  reveal.id = "ptr-reveal";
+  reveal.setAttribute("aria-hidden", "true");
+  reveal.innerHTML = `<div id="ptr-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.85-3.36L23 10M1 14l4.65 4.36A9 9 0 0020.5 15"/></svg></div>`;
+  document.body.appendChild(reveal);
+  const circle = reveal.querySelector("#ptr-circle");
+  const icon = circle.querySelector("svg");
   const content = () => document.getElementById("app-content");
 
   let startY = 0;
@@ -64,14 +76,32 @@ function initPullToRefresh() {
     return true;
   }
 
-  // Move the page and the spinner to `distance` px.
+  // The page becomes a rounded "sheet" that slides over the coloured area.
+  function prepareSheet() {
+    const el = content();
+    if (!el) return;
+    el.style.transition = "none";
+    el.style.willChange = "transform";
+    el.style.position = "relative";
+    el.style.zIndex = "1";
+    el.style.background = "var(--bg)";
+    el.style.borderRadius = `${RADIUS}px ${RADIUS}px 0 0`;
+  }
+
+  function clearSheet() {
+    const el = content();
+    if (!el) return;
+    ["transition", "willChange", "position", "zIndex", "background", "borderRadius", "transform"].forEach((p) => (el.style[p] = ""));
+  }
+
+  // Move the page, the coloured area and the circle to `distance` px.
   function render(distance) {
     const el = content();
     if (el) el.style.transform = `translateY(${distance}px)`;
-    indicator.style.opacity = String(Math.min(1, distance / (TRIGGER * 0.6)));
-    indicator.style.transform = `translateY(${distance / 2 - 20}px)`;
+    reveal.style.height = distance > 0 ? `${distance + RADIUS}px` : "0";
+    circle.style.opacity = String(Math.min(1, distance / (TRIGGER * 0.6)));
     icon.style.transform = `rotate(${distance * 5}deg)`;
-    indicator.classList.toggle("ready", distance >= TRIGGER);
+    reveal.classList.toggle("ready", distance >= TRIGGER);
   }
 
   function reset() {
@@ -79,16 +109,17 @@ function initPullToRefresh() {
     if (el) {
       el.style.transition = "transform .2s ease";
       el.style.transform = "";
-      setTimeout(() => {
-        el.style.transition = "";
-        el.style.willChange = "";
-      }, 220);
+      setTimeout(clearSheet, 220);
     }
-    indicator.classList.add("snap");
-    indicator.style.opacity = "0";
-    indicator.style.transform = "translateY(0)";
-    indicator.classList.remove("ready");
-    setTimeout(() => indicator.classList.remove("snap"), 220);
+    reveal.classList.add("snap");
+    circle.classList.add("snap");
+    reveal.style.height = "0";
+    circle.style.opacity = "0";
+    reveal.classList.remove("ready");
+    setTimeout(() => {
+      reveal.classList.remove("snap");
+      circle.classList.remove("snap");
+    }, 220);
     pull = 0;
   }
 
@@ -99,12 +130,9 @@ function initPullToRefresh() {
       tracking = true;
       startY = e.touches[0].clientY;
       pull = 0;
-      indicator.classList.remove("snap");
-      const el = content();
-      if (el) {
-        el.style.transition = "none";
-        el.style.willChange = "transform";
-      }
+      reveal.classList.remove("snap");
+      circle.classList.remove("snap");
+      prepareSheet();
     },
     { passive: true }
   );
@@ -118,6 +146,7 @@ function initPullToRefresh() {
         // finger moved back up: this is a normal scroll, stop tracking
         tracking = false;
         if (pull > 0) reset();
+        else clearSheet();
         return;
       }
       if (e.cancelable) e.preventDefault(); // stop the browser's own overscroll
@@ -137,13 +166,16 @@ function initPullToRefresh() {
         el.style.transition = "transform .2s ease";
         el.style.transform = `translateY(${HOLD}px)`;
       }
+      reveal.classList.add("snap", "ready", "spinning");
+      circle.classList.add("snap");
+      reveal.style.height = `${HOLD + RADIUS}px`;
+      circle.style.opacity = "1";
       icon.style.transform = "";
-      indicator.classList.add("snap", "spinning", "ready");
-      indicator.style.opacity = "1";
-      indicator.style.transform = `translateY(${HOLD / 2 - 20}px)`;
-      setTimeout(() => window.location.reload(), 450);
-    } else {
+      setTimeout(() => window.location.reload(), 500);
+    } else if (pull > 0) {
       reset();
+    } else {
+      clearSheet();
     }
   }
   document.addEventListener("touchend", release);
