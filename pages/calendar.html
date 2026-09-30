@@ -7,49 +7,63 @@
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="../css/global.css" />
   <style>
-    .cal-header { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; }
-    .cal-header-left { display:flex; align-items:center; min-width:0; }
-    .cal-header-right { display:flex; align-items:center; }
-    .cal-nav { display:flex; align-items:center; gap:10px; }
-    .cal-nav strong { font-size:1rem; }
-    #agenda-label { font-size:1rem; font-weight:700; margin:0; }
+    :root { --note:#7c5cd6; }
+    .cal-wrap { max-width:640px; margin:0 auto; }
+    .cal-top { display:flex; align-items:center; justify-content:space-between; position:relative; margin-bottom:6px; }
+    .cal-view-name { font-size:0.85rem; color:var(--text-secondary); }
+    .gear { width:36px; height:36px; border-radius:50%; border:1px solid var(--border); background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text); padding:0; }
+    .gear svg { width:18px; height:18px; }
+    .cal-menu { display:none; position:absolute; top:42px; right:0; z-index:20; background:#fff; border:1px solid var(--border); border-radius:12px; padding:6px; min-width:170px; box-shadow:0 6px 20px rgba(0,0,0,0.12); }
+    .cal-menu.on { display:block; }
+    .cal-menu-h { font-size:0.7rem; color:var(--text-muted); padding:4px 10px; }
+    .cal-menu button { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; background:none; border:0; text-align:left; font:inherit; font-size:0.9rem; padding:9px 10px; border-radius:8px; cursor:pointer; color:var(--text); }
+    .cal-menu button:hover { background:var(--bg); }
+    .cal-menu button.on::after { content:"\2713"; color:var(--primary); font-weight:700; }
+    .cal-menu button.danger { color:var(--error); }
 
-    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius-card); overflow:hidden; }
-    .cal-dow { background:var(--bg); text-align:center; font-size:0.72rem; font-weight:600; color:var(--text-secondary); padding:6px 0; }
-    .cal-day { position:relative; background:#fff; min-height:82px; padding:6px; font-size:0.8rem; }
-    .cal-day.other-month { background:var(--bg); color:var(--text-muted); }
-    .cal-day-num { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; }
-    .cal-day.today .cal-day-num { background:var(--primary); color:#fff; font-weight:700; }
-
-    .cal-day.has-events { background:var(--info-bg); }
-    .cal-day.has-events::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:var(--info); }
-    .cal-day.has-leave { background:var(--warning-bg); }
-    .cal-day.has-leave::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:var(--warning); }
-    .cal-day-count {
-      display:none; position:absolute; top:4px; right:4px;
-      min-width:16px; height:16px; padding:0 4px; border-radius:999px;
-      background:var(--info); color:#fff; font-size:0.62rem; font-weight:700;
-      align-items:center; justify-content:center;
-    }
-    .cal-day-num.att-present { box-shadow: 0 0 0 2px var(--success) inset; }
-    .cal-day-num.att-absent { box-shadow: 0 0 0 2px var(--error) inset; }
-    .cal-event-dot { display:block; font-size:0.68rem; background:#fff; color:var(--text); border-radius:4px; padding:1px 4px; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-    .cal-legend { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:12px; font-size:0.76rem; color:var(--text-secondary); }
+    .cal-legend { display:flex; flex-wrap:wrap; gap:12px; margin:10px 0 4px; font-size:0.76rem; color:var(--text-secondary); }
     .cal-legend span { display:inline-flex; align-items:center; gap:5px; }
-    .cal-legend i { display:inline-block; width:10px; height:10px; border-radius:3px; }
+    .cal-legend i { display:inline-block; width:9px; height:9px; border-radius:50%; }
+    .cal-nav { display:flex; align-items:center; justify-content:space-between; margin:10px 0; }
+    .cal-nav strong { font-size:1rem; }
 
-    @media (max-width: 700px) {
-      .cal-day { min-height:56px; font-size:0.72rem; padding:4px; }
-      .cal-event-dot { display:none; }
-      .cal-day.has-events { background:var(--info); }
-      .cal-day.has-events .cal-day-num { color:#fff; }
-      .cal-day.has-events::after { display:none; }
-      .cal-day.has-leave { background:var(--warning); }
-      .cal-day.has-leave .cal-day-num { color:#fff; }
-      .cal-day.has-leave::after { display:none; }
-      .cal-day-count { display:inline-flex; }
-    }
+    .cal-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); row-gap:4px; text-align:center; }
+    .cal-dow { font-size:0.72rem; color:var(--text-muted); padding-bottom:4px; }
+    .cal-cell { display:flex; flex-direction:column; align-items:center; background:none; border:0; padding:0; font:inherit; color:var(--text); cursor:pointer; }
+    .cal-num { width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.9rem; border:1.5px solid transparent; }
+    .cal-cell.other-month .cal-num { color:var(--text-muted); }
+    .cal-cell.has-events .cal-num { background:var(--info-bg); }
+    .cal-cell.has-leave .cal-num { background:var(--warning-bg); }
+    .cal-cell.att-present .cal-num { color:var(--success); font-weight:700; }
+    .cal-cell.att-absent .cal-num { color:var(--error); font-weight:700; }
+    .cal-cell.today .cal-num { border-color:var(--primary); }
+    .cal-cell.sel .cal-num { background:var(--primary); border-color:var(--primary); color:#fff; }
+
+    .wk-strip { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; }
+    .wk-pill { display:flex; flex-direction:column; align-items:center; gap:4px; background:#fff; border:1px solid var(--border); border-radius:20px; padding:8px 0 4px; font:inherit; color:var(--text); cursor:pointer; }
+    .wk-l { font-size:0.72rem; color:var(--text-secondary); }
+    .wk-dot { width:5px; height:5px; border-radius:50%; background:transparent; }
+    .wk-dot.on { background:var(--note); }
+    .wk-n { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.88rem; border:1.5px solid transparent; }
+    .wk-n.today { border-color:var(--primary); }
+    .wk-pill.sel .wk-n { background:var(--primary); border-color:var(--primary); color:#fff; }
+
+    .day-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:16px 0 8px; font-weight:700; font-size:0.95rem; }
+    .day-head small { font-size:0.76rem; font-weight:400; color:var(--text-secondary); }
+    .day-actions { display:flex; align-items:center; gap:6px; position:relative; }
+    .cal-pb { background:var(--primary); color:#fff; border:0; border-radius:999px; padding:6px 14px; font:inherit; font-size:0.82rem; font-weight:600; cursor:pointer; }
+    .cal-dots { width:30px; height:30px; border-radius:50%; border:1px solid var(--border); background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; color:var(--text); }
+    .cal-private { font-size:0.76rem; color:var(--text-secondary); display:flex; align-items:center; gap:4px; margin:-2px 0 10px; }
+    .ag-date { font-size:0.8rem; color:var(--text-secondary); margin:14px 0 6px; }
+
+    .cd { display:flex; align-items:center; gap:10px; width:100%; box-sizing:border-box; background:#fff; border:1px solid var(--border); border-radius:12px; padding:10px 12px; margin-bottom:8px; text-decoration:none; color:inherit; text-align:left; font:inherit; cursor:pointer; }
+    .cd-bar { width:4px; align-self:stretch; border-radius:2px; flex-shrink:0; }
+    .cd-tx { flex:1; min-width:0; display:flex; flex-direction:column; }
+    .cd-t { font-weight:600; font-size:0.92rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .cd-s { font-size:0.8rem; color:var(--text-secondary); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .cd-chev { color:var(--text-muted); flex-shrink:0; display:flex; }
+    .cd-chev svg { width:16px; height:16px; }
+    .note-err { color:var(--error); font-size:0.8rem; margin-top:6px; min-height:1em; }
   </style>
 </head>
 <body>
@@ -79,37 +93,20 @@
   </div>
 </div>
   <div id="page-content">
-    <div class="cal-header">
-      <div class="cal-header-left">
-        <div class="cal-nav" id="month-nav">
-          <button class="icon-action sm" id="prev-month" title="Previous month" aria-label="Previous month">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
-          </button>
-          <strong id="month-label"></strong>
-          <button class="icon-action sm" id="next-month" title="Next month" aria-label="Next month">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-          </button>
+    <div class="cal-wrap">
+      <div class="cal-top">
+        <span class="cal-view-name" id="view-name"></span>
+        <button type="button" class="gear" id="gear-btn" title="Calendar settings" aria-label="Calendar settings" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+        <div class="cal-menu" id="view-menu" role="menu">
+          <div class="cal-menu-h">View</div>
+          <button type="button" role="menuitem" data-view="month">Month</button>
+          <button type="button" role="menuitem" data-view="week">Week</button>
+          <button type="button" role="menuitem" data-view="agenda">Agenda</button>
         </div>
-        <h2 id="agenda-label" style="display:none;">Agenda</h2>
       </div>
-      <div class="cal-header-right">
-        <button type="button" class="icon-action primary" id="agenda-btn" title="View agenda" aria-label="View agenda">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-        </button>
-        <button type="button" class="icon-action" id="back-btn" title="Back to calendar" aria-label="Back to calendar" style="display:none;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-        </button>
-      </div>
+      <div class="cal-legend" id="legend"></div>
+      <div id="cal-view"><div class="skeleton" style="height:320px;"></div></div>
     </div>
-
-    <div class="cal-legend" id="month-nav-legend">
-      <span><i style="background:var(--info);"></i>Event</span>
-      <span><i style="background:var(--warning);"></i>Leave</span>
-      <span><i style="background:var(--success);"></i>Present</span>
-      <span><i style="background:var(--error);"></i>Absent</span>
-    </div>
-    <div id="month-view"></div>
-    <div id="agenda-view" style="display:none;"></div>
   </div>
 
   <script type="module" src="../js/calendar.js"></script>

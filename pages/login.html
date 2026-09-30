@@ -35,7 +35,30 @@
         <button type="button" id="show-about-btn">About</button>
         <button type="button" id="show-support-btn">Support</button>
         <button type="button" id="show-privacy-btn">Privacy</button>
+        <button type="button" id="show-scanner-btn">Scanner mode</button>
       </div>	  
+
+      <!-- Scanner Mode Modal -->
+      <div id="scanner-modal" class="dialog-backdrop" style="display:none;">
+        <div class="dialog-modal">
+          <h3>Scanner mode</h3>
+          <p>This turns this device into an attendance scanner. Enter the device code and passcode from Settings → Scanner devices to continue.</p>
+          <form id="scanner-form">
+            <div class="field">
+              <label for="scanner-code">Device code</label>
+              <input id="scanner-code" required style="text-transform:uppercase;letter-spacing:0.1em;text-align:left;" />
+            </div>
+            <div class="field">
+              <label for="scanner-passcode">Passcode</label>
+              <input id="scanner-passcode" type="password" required />
+            </div>
+            <div class="dialog-actions">
+              <button class="btn btn-secondary" type="button" id="cancel-scanner-btn">Cancel</button>
+              <button class="btn btn-primary" type="submit" id="scanner-submit-btn">Continue</button>
+            </div>
+          </form>
+        </div>
+      </div>
 
       <!-- Signup Modal -->      
       <div id="signup-modal" class="dialog-backdrop" style="display:none;">
@@ -68,22 +91,6 @@
         </div>
       </div>
 	  
-      <!-- Choose Academy Modal (shown after sign-in when the account belongs to more than one) -->
-      <div id="academy-modal" class="dialog-backdrop" style="display:none;">
-        <div class="dialog-modal">
-          <h3>Choose an academy</h3>
-          <p>Your account belongs to more than one academy. Pick the one you want to open. You can switch later from the menu.</p>
-          <div class="field">
-            <label for="academy-select">Academy</label>
-            <select id="academy-select"></select>
-          </div>
-          <div class="dialog-actions">
-            <button class="btn btn-secondary" type="button" id="academy-cancel-btn">Sign out</button>
-            <button class="btn btn-primary" type="button" id="academy-continue-btn">Continue</button>
-          </div>
-        </div>
-      </div>
-
       <!-- Pending Approval Modal -->
       <div id="pending-modal" class="dialog-backdrop" style="display:none;">
         <div class="dialog-modal">
@@ -92,6 +99,15 @@
           <div class="dialog-actions">
             <button class="btn btn-primary" type="button" id="pending-ok-btn">OK</button>
           </div>
+        </div>
+      </div>
+
+      <!-- Academy Picker Modal -->
+      <div id="academy-picker-modal" class="dialog-backdrop" style="display:none;">
+        <div class="dialog-modal">
+          <h3>Choose an academy</h3>
+          <p>Your account is linked to more than one academy.</p>
+          <div id="academy-picker-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px;"></div>
         </div>
       </div>
 	  
@@ -140,7 +156,7 @@
   </div>
 
   <script type="module">
-    import { supabase, getSessionUser, friendlyError, myAcademies, isUsableAcademy, switchToProfile } from "../js/supabase-client.js";
+    import { supabase, getSessionUser, friendlyError } from "../js/supabase-client.js";
 	import { showToast } from "../js/toast.js";
 
     document.getElementById("auth-brand").innerHTML = `<img src="../images/logo-vert.png" alt="OneCore" class="auth-brand-logo">`;
@@ -190,66 +206,57 @@
         return;
       }
 
-      await continueAfterSignIn();
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Sign in";
+      await proceedAfterSignIn();
     });
 
-    // After a successful sign-in: work out which academy to open.
-    //  - none usable  -> sign out and explain why
-    //  - one          -> go straight in
-    //  - several      -> let the person pick (last-used one preselected)
-    async function continueAfterSignIn() {
-      const list = await myAcademies();
-      const usable = list.filter(isUsableAcademy);
+    // After a successful sign-in: if this login has more than one approved,
+    // active academy, ask which one before continuing. Otherwise, straight
+    // to the dashboard, exactly as before.
+    async function proceedAfterSignIn() {
+      const { data: userData } = await supabase.auth.getUser();
+      const { data: myProfiles, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, organization_id, organizations(name)")
+        .eq("auth_user_id", userData.user.id)
+        .eq("is_approved", true)
+        .eq("is_active", true);
 
-      if (usable.length === 0) {
-        await supabase.auth.signOut();
-        if (list.length === 0) {
-          showToast("Your account was created, but isn't fully set up yet. Please contact your administrator.", "info", 8000);
-        } else if (list.some((a) => a.is_approved === false)) {
-          showToast("Your account is pending approval from your administrator. You'll be able to sign in once it's approved.", "info", 8000);
-        } else {
-          showToast("Your account has been deactivated. Please contact your administrator.", "error", 8000);
-        }
+      if (error || !myProfiles || myProfiles.length <= 1) {
+        window.location.href = "dashboard.html";
         return;
       }
 
-      if (usable.length === 1) {
-        await openAcademy(usable[0]);
-        return;
-      }
-
-      const select = document.getElementById("academy-select");
-      const preselected = usable.find((a) => a.is_current) || usable[0];
-      select.innerHTML = usable
-        .map((a) => {
-          const label = `${a.academy_name || "Academy"} — ${a.role}${Number(a.unread) > 0 ? ` (${a.unread} new)` : ""}`;
-          return `<option value="${a.profile_id}" ${a.profile_id === preselected.profile_id ? "selected" : ""}>${label.replace(/</g, "&lt;")}</option>`;
-        })
+      const listEl = document.getElementById("academy-picker-list");
+      listEl.innerHTML = myProfiles
+        .map(
+          (p) =>
+            `<button type="button" class="btn btn-secondary academy-pick-btn" data-id="${p.id}" style="text-align:left;">${escapeHtml(p.organizations?.name || "Academy")}</button>`
+        )
         .join("");
-      document.getElementById("academy-modal").style.display = "flex";
-
-      document.getElementById("academy-continue-btn").onclick = async () => {
-        const chosen = usable.find((a) => a.profile_id === select.value);
-        document.getElementById("academy-continue-btn").disabled = true;
-        await openAcademy(chosen);
-        document.getElementById("academy-continue-btn").disabled = false;
-      };
-      document.getElementById("academy-cancel-btn").onclick = async () => {
-        await supabase.auth.signOut();
-        document.getElementById("academy-modal").style.display = "none";
-      };
+      listEl.querySelectorAll(".academy-pick-btn").forEach((btn) => {
+        btn.addEventListener("click", () => chooseAcademy(btn.getAttribute("data-id")));
+      });
+      document.getElementById("academy-picker-modal").style.display = "flex";
     }
 
-    async function openAcademy(a) {
-      try {
-        if (!a.is_current) await switchToProfile(a.profile_id);
-        window.location.href = "dashboard.html";
-      } catch (err) {
-        console.error(err);
-        showToast(friendlyError(err, "Unable to open that academy."), "error");
+    async function chooseAcademy(profileId) {
+      const { data: userData } = await supabase.auth.getUser();
+      const { error } = await supabase.from("active_academy_selection").upsert({
+        auth_user_id: userData.user.id,
+        profile_id: profileId,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) {
+        console.error(error);
+        showToast("Unable to switch academies. Please try again.", "error");
+        return;
       }
+      await supabase.auth.refreshSession();
+      window.location.href = "dashboard.html";
+    }
+
+    function escapeHtml(str = "") {
+      return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 	
     document.getElementById("show-signup-btn").addEventListener("click", () => {
@@ -287,6 +294,45 @@
 	
     document.getElementById("privacy-ok-btn").addEventListener("click", () => {
       document.getElementById("privacy-modal").style.display = "none";
+    });
+
+    document.getElementById("show-scanner-btn").addEventListener("click", () => {
+      document.getElementById("scanner-modal").style.display = "flex";
+    });
+    document.getElementById("cancel-scanner-btn").addEventListener("click", () => {
+      document.getElementById("scanner-modal").style.display = "none";
+      document.getElementById("scanner-form").reset();
+    });
+
+    document.getElementById("scanner-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const submitBtn = document.getElementById("scanner-submit-btn");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Checking…";
+
+      const deviceCode = document.getElementById("scanner-code").value.trim().toUpperCase();
+      const passcode = document.getElementById("scanner-passcode").value;
+
+      const { data, error } = await supabase.rpc("activate_scanner_device", {
+        p_device_code: deviceCode,
+        p_passcode: passcode,
+      });
+
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Continue";
+
+      const activated = data?.[0];
+      if (error || !activated) {
+        showToast("Invalid device code or passcode.", "error");
+        return;
+      }
+
+      // Persist on this device — it won't need to be activated again until revoked.
+      localStorage.setItem(
+        "onecore_scanner_device",
+        JSON.stringify({ token: activated.device_token, name: activated.device_name })
+      );
+      window.location.href = "scanner.html";
     });
     
     document.getElementById("signup-form").addEventListener("submit", async (e) => {

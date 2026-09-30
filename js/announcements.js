@@ -83,9 +83,8 @@ function audienceDialog(current) {
           ${
             groupsCache.length
               ? `<div class="ack-group-title">Specific groups</div>
-                 <div class="aud-list">
-                   ${groupsCache.map((g) => `<label class="aud-row"><input type="checkbox" data-kind="group" value="${g.id}" /><span>${escapeHtml(g.name)}</span></label>`).join("")}
-                 </div>`
+                 <div class="field aud-search"><input type="search" id="aud-group-search" placeholder="Search groups…" autocomplete="off" /></div>
+                 <div class="aud-list" id="aud-groups"></div>`
               : ""
           }
           <div class="ack-group-title">Specific people</div>
@@ -118,6 +117,18 @@ function audienceDialog(current) {
       syncChecks();
     }
     renderPeople();
+	
+	const groupsEl = backdrop.querySelector("#aud-groups");
+    function renderGroups(query = "") {
+      if (!groupsEl) return;
+      const term = query.trim().toLowerCase();
+      const matches = groupsCache.filter((g) => !term || g.name.toLowerCase().includes(term));
+      groupsEl.innerHTML = matches.length
+        ? matches.map((g) => `<label class="aud-row"><input type="checkbox" data-kind="group" value="${g.id}" /><span>${escapeHtml(g.name)}</span></label>`).join("")
+        : `<div class="text-muted" style="padding:10px 0;font-size:0.85rem;">No matches</div>`;
+      syncChecks();
+    }
+    renderGroups();
 
     backdrop.addEventListener("change", (e) => {
       const cb = e.target;
@@ -146,6 +157,7 @@ function audienceDialog(current) {
       syncChecks();
     });
     backdrop.querySelector("#aud-search").addEventListener("input", (e) => renderPeople(e.target.value));
+	backdrop.querySelector("#aud-group-search")?.addEventListener("input", (e) => renderGroups(e.target.value));
 
     const onKey = (e) => { if (e.key === "Escape") close(null); };
     function close(value) {

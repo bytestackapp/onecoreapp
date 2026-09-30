@@ -83,7 +83,8 @@ export async function sendPush(
   token: string,
   title: string,
   body: string,
-  data: Record<string, string> = {}
+  data: Record<string, string> = {},
+  badge?: number
 ): Promise<PushResult> {
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
     method: "POST",
@@ -96,8 +97,11 @@ export async function sendPush(
         token,
         notification: { title, body },
         data,
-        android: { priority: "high", notification: { sound: "default", channel_id: "default" } },
-        apns: { payload: { aps: { sound: "default" } } },
+        android: {
+          priority: "high",
+          notification: { sound: "default", channel_id: "default", ...(badge ? { notification_count: badge } : {}) },
+        },
+        apns: { payload: { aps: { sound: "default", ...(badge !== undefined ? { badge } : {}) } } },
       },
     }),
   });

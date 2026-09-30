@@ -265,6 +265,12 @@ function escapeHtml(str = "") {
 // ---------- Leave types ----------
 let leaveTypesCache = [];
 
+function carryOverText(t) {
+  if (t.carry_over_mode === "all") return "Carried over all unused days";
+  if (t.carry_over_mode === "capped") return `Carried over up to ${+Number(t.carry_over_max || 0).toFixed(2)} days`;
+  return "No carry over";
+}
+
 function leaveTypeDialog(existing) {
   const backdrop = document.createElement("div");
   backdrop.className = "dialog-backdrop";
@@ -287,6 +293,19 @@ function leaveTypeDialog(existing) {
             <option value="monthly" ${existing?.accrual_frequency === "monthly" ? "selected" : ""}>Earned monthly (days ÷ 12 per month)</option>
           </select>
         </div>
+        <div class="field">
+          <label for="lt-carry">Unused days at year end</label>
+          <select id="lt-carry">
+            <option value="none" ${(existing?.carry_over_mode || "none") === "none" ? "selected" : ""}>Don't carry over</option>
+            <option value="capped" ${existing?.carry_over_mode === "capped" ? "selected" : ""}>Carry over up to a maximum</option>
+            <option value="all" ${existing?.carry_over_mode === "all" ? "selected" : ""}>Carry over all unused days</option>
+          </select>
+          <div class="field-hint">Applied automatically every January 1.</div>
+        </div>
+        <div class="field" id="lt-carry-max-field" style="display:none;">
+          <label for="lt-carry-max">Maximum days to carry over</label>
+          <input id="lt-carry-max" type="number" min="0" step="0.25" value="${existing?.carry_over_max ?? ""}" />
+        </div>
         <div class="dialog-actions">
           <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
           <button type="submit" class="btn btn-primary" id="lt-submit">${existing ? "Save changes" : "Add type"}</button>
@@ -305,6 +324,17 @@ function leaveTypeDialog(existing) {
   backdrop.querySelector('[data-act="cancel"]').addEventListener("click", close);
   backdrop.querySelector("#lt-name").focus();
 
+  const carrySelect = backdrop.querySelector("#lt-carry");
+  const carryMaxField = backdrop.querySelector("#lt-carry-max-field");
+  const carryMaxInput = backdrop.querySelector("#lt-carry-max");
+  function syncCarryMax() {
+    const capped = carrySelect.value === "capped";
+    carryMaxField.style.display = capped ? "block" : "none";
+    carryMaxInput.required = capped;
+  }
+  carrySelect.addEventListener("change", syncCarryMax);
+  syncCarryMax();
+
   backdrop.querySelector("#lt-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const submitBtn = backdrop.querySelector("#lt-submit");
@@ -313,6 +343,8 @@ function leaveTypeDialog(existing) {
       name: backdrop.querySelector("#lt-name").value.trim(),
       default_entitlement: parseFloat(backdrop.querySelector("#lt-entitlement").value || "0"),
       accrual_frequency: backdrop.querySelector("#lt-frequency").value,
+      carry_over_mode: carrySelect.value,
+      carry_over_max: carrySelect.value === "capped" ? parseFloat(carryMaxInput.value || "0") : null,
     };
     try {
       if (existing) {
@@ -388,7 +420,8 @@ async function loadLeaveTypesAdmin() {
       <div class="list-row ${t.is_active ? "" : "is-inactive"}">
         <div style="flex:1;min-width:0;">
           <div style="font-weight:600;">${escapeHtml(t.name)}${t.is_active ? "" : ' <span class="text-muted">(deactivated)</span>'}</div>
-          <div class="text-muted" style="font-size:0.82rem;">${t.default_entitlement} days/year${t.accrual_frequency === "monthly" ? " · earned monthly" : ""}</div>
+          <div class="text-muted" style="font-size:0.82rem;">${t.default_entitlement} days/year${t.accrual_frequency === "monthly" ? " · earned monthly" : " · earned annually"}</div>
+          <div class="text-muted" style="font-size:0.82rem;">${carryOverText(t)}</div>
         </div>
         <button type="button" class="icon-action sm edit-lt-btn" data-id="${t.id}" title="Edit" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
         <button type="button" class="icon-action sm danger delete-lt-btn" data-id="${t.id}" data-name="${escapeHtml(t.name)}" title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
@@ -426,6 +459,11 @@ function newDeviceDialog() {
           <label for="dev-name">Name</label>
           <input id="dev-name" required placeholder="e.g. Main Gate, Grade 3 room" />
         </div>
+        <div class="field">
+          <label for="dev-passcode">Scanner passcode</label>
+          <input id="dev-passcode" type="text" required minlength="4" placeholder="4+ digits or characters" />
+          <div class="field-hint">Whoever sets up this device will need this, along with its device code, to activate it.</div>
+        </div>
         <div class="dialog-actions">
           <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
           <button type="submit" class="btn btn-primary" id="dev-submit">Create</button>
@@ -449,14 +487,14 @@ function newDeviceDialog() {
     const submitBtn = backdrop.querySelector("#dev-submit");
     submitBtn.disabled = true;
     try {
-      const { data, error } = await supabase
-        .from("scanner_devices")
-        .insert({ organization_id: profile.organization_id, name: backdrop.querySelector("#dev-name").value.trim(), created_by: profile.id })
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc("create_scanner_device", {
+        p_name: backdrop.querySelector("#dev-name").value.trim(),
+        p_passcode: backdrop.querySelector("#dev-passcode").value,
+      });
       if (error) throw error;
+      const created = data?.[0];
       close();
-      showTokenDialog(data.name, data.token);
+      showCredentialsDialog(created.name, created.device_code, backdrop.querySelector("#dev-passcode")?.value);
       loadDevices();
     } catch (err) {
       console.error(err);
@@ -466,14 +504,21 @@ function newDeviceDialog() {
   });
 }
 
-function showTokenDialog(name, token) {
+function showCredentialsDialog(name, deviceCode, passcode) {
   const backdrop = document.createElement("div");
   backdrop.className = "dialog-backdrop";
   backdrop.innerHTML = `
     <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="tok-title">
       <h3 id="tok-title">${escapeHtml(name)}</h3>
-      <p>Enter this token into the scanner device. It won't be shown again — if you lose it, revoke this device and create a new one.</p>
-      <div class="field"><input readonly value="${escapeHtml(token)}" onclick="this.select()" /></div>
+      <p>Enter these details in “Scanner Mode” to activate the device. The device code is shown only once. If lost, revoke the device and create a new one. The passcode is the one you just entered.</p>
+      <div class="field">
+        <label>Device code</label>
+        <input readonly value="${escapeHtml(deviceCode)}" onclick="this.select()" style="font-size:1.1rem;letter-spacing:0.1em;text-align:left;" />
+      </div>
+      <div class="field">
+        <label>Passcode</label>
+        <input readonly value="${escapeHtml(passcode || "")}" onclick="this.select()" />
+      </div>
       <div class="dialog-actions"><button type="button" class="btn btn-primary" data-act="close">Done</button></div>
     </div>`;
   document.body.appendChild(backdrop);

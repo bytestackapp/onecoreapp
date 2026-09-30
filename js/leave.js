@@ -9,6 +9,9 @@ if (!profile) throw new Error("redirecting");
 const isAdmin = profile.role === "admin";
 let leaveTypes = []; // all active types in the org (admin overview)
 let myLeaveTypes = []; // only the types assigned to me this year
+let myRequests = []; // all of my leave requests, newest filed first
+const MY_REQUESTS_PREVIEW = 5; // how many show on the card
+const ADMIN_PENDING_PREVIEW = 5; // pending requests shown on the admin card
 
 function escapeHtml(str = "") {
   return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -23,7 +26,7 @@ document.getElementById("requests-head").innerHTML = sectionHead({
   title: "My Leave Requests",
   tone: "primary",
   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16M6 19V9a2 2 0 012-2h4l6 6v6"/><path d="M12 7v6h6"/></svg>`,
-  linkHtml: `<button type="button" class="icon-action primary" id="file-btn" title="File a leave request" aria-label="File a leave request" style="margin-left:auto;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>`,
+  linkHtml: `<span style="margin-left:auto;display:flex;gap:6px;"><button type="button" class="icon-action" id="view-my-requests-btn" title="View all my leave requests" aria-label="View all my leave requests"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button type="button" class="icon-action primary" id="file-btn" title="File a leave request" aria-label="File a leave request"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button></span>`,
 });
 
 await loadLeaveTypes();
@@ -52,6 +55,7 @@ if (isAdmin) {
 }
 
 document.getElementById("file-btn").addEventListener("click", fileLeaveDialog);
+document.getElementById("view-my-requests-btn").addEventListener("click", openMyRequestsListDialog);
 
 async function loadLeaveTypes() {
   const { data, error } = await supabase.from("leave_types").select("*").eq("is_active", true).order("name");
@@ -89,7 +93,7 @@ function renderLeaveTypesReadOnly() {
       (t) => `
       <div class="list-row">
         <div style="flex:1;min-width:0;font-weight:600;">${escapeHtml(t.name)}</div>
-        <div class="text-muted" style="font-size:0.85rem;">${t.default_entitlement} days/year${t.accrual_frequency === "monthly" ? " · earned monthly" : ""}</div>
+        <div class="text-muted" style="font-size:0.85rem;">${t.default_entitlement} days/year${t.accrual_frequency === "monthly" ? " · earned monthly" : ""}${carryOverText(t)}</div>
       </div>`
     )
     .join("");
@@ -97,13 +101,19 @@ function renderLeaveTypesReadOnly() {
 
 const fmtNum = (n) => +Number(n || 0).toFixed(2);
 
+function carryOverText(t) {
+  if (t.carry_over_mode === "all") return " · carries over all unused days";
+  if (t.carry_over_mode === "capped") return ` · carries over up to ${+Number(t.carry_over_max || 0).toFixed(2)} days`;
+  return "";
+}
+
 async function loadBalances() {
   const el = document.getElementById("balances-list");
   const year = new Date().getFullYear();
   try {
     const { data, error } = await supabase
       .from("leave_balances")
-      .select("entitled, used, pending, leave_types(name, accrual_frequency, default_entitlement)")
+      .select("entitled, used, pending, carried_over, leave_types(name, accrual_frequency, default_entitlement)")
       .eq("profile_id", profile.id)
       .eq("period_year", year);
     if (error) throw error;
@@ -135,12 +145,12 @@ async function loadBalances() {
             ${rows
               .map((b) => {
                 const available = (b.entitled || 0) - (b.used || 0) - (b.pending || 0);
-                const total = b.leave_types?.default_entitlement ?? b.entitled;
+                const total = (b.leave_types?.default_entitlement ?? b.entitled) + (b.carried_over || 0);
                 return `<tr style="${line}">
                   <td style="${td}text-align:left;font-weight:600;">${escapeHtml(b.leave_types?.name || "Leave")}</td>
                   <td style="${td}font-weight:600;">${fmtNum(available)}</td>
                   <td style="${td}">${fmtNum(b.used)}</td>
-                  <td style="${td}">${fmtNum(b.entitled)}</td>
+                  <td style="${td}">${fmtNum(b.entitled)}${b.carried_over > 0 ? `<div class="text-muted" style="font-size:0.72rem;font-weight:500;">incl. ${fmtNum(b.carried_over)} carried</div>` : ""}</td>
                   <td style="${td}">${fmtNum(total)}</td>
                 </tr>`;
               })
@@ -263,8 +273,90 @@ function fileLeaveDialog() {
 }
 
 // -----------------------------------------------------------------
-// My requests — approvals now happen from Notifications
+// Shared helpers for request lists and the details dialog
 // -----------------------------------------------------------------
+function statusTagHtml(status) {
+  const kind = status === "approved" ? "approved" : status === "rejected" ? "rejected" : "pending";
+  return `<span class="tag tag-${kind}">${escapeHtml(status)}</span>`;
+}
+
+function monthLabel(dateStr) {
+  const [y, m] = String(dateStr).slice(0, 10).split("-").map(Number);
+  return new Date(y, (m || 1) - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+// rows must already be sorted by dateKey; a month header is inserted whenever the month changes.
+function groupedByMonth(rows, dateKey, rowHtml) {
+  let current = "";
+  return rows
+    .map((r) => {
+      const label = monthLabel(r[dateKey]);
+      const header = label !== current ? `<div class="ack-group-title">${label}</div>` : "";
+      current = label;
+      return header + rowHtml(r);
+    })
+    .join("");
+}
+
+function byStartDateDesc(a, b) {
+  return String(b.start_date).localeCompare(String(a.start_date));
+}
+
+// Details dialog: title on the left, status badge on the top right.
+function leaveDialogHead(statusHtml = "") {
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;">
+      <h3 id="lv-title" style="margin:0;">Leave request</h3>
+      <span id="lv-status">${statusHtml}</span>
+    </div>`;
+}
+
+function leaveDetailsHtml(d) {
+  const days = Math.round((new Date(d.end_date) - new Date(d.start_date)) / 86400000) + 1;
+  return `
+    <p><strong>${escapeHtml(d.full_name)}</strong> · ${escapeHtml(d.leave_type_name)}</p>
+    <p><strong>Date:</strong> ${formatDate(d.start_date)} – ${formatDate(d.end_date)} (${days} day${days === 1 ? "" : "s"})</p>
+    <p><strong>Reason:</strong> ${escapeHtml(d.reason)}</p>
+    ${d.status !== "pending" && d.reviewer_remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(d.reviewer_remarks)}</p>` : ""}`;
+}
+
+// -----------------------------------------------------------------
+// My requests — card shows the 5 newest; the eye button opens the full list
+// -----------------------------------------------------------------
+function myRequestRow(r) {
+  return `
+    <div class="list-row" style="cursor:pointer;" data-my-req="${r.id}">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;">${escapeHtml(r.leave_types?.name || "Leave")} · ${formatDate(r.start_date)} – ${formatDate(r.end_date)}</div>
+        <div class="text-muted" style="font-size:0.85rem;">${escapeHtml(r.reason)}</div>
+      </div>
+      ${statusTagHtml(r.status)}
+    </div>`;
+}
+
+// Row layout used inside the "My leave requests" modal:
+// dates + status on top, then leave type, reason and remarks in muted text.
+function myRequestModalRow(r) {
+  return `
+    <div class="list-row" style="cursor:pointer;" data-my-req="${r.id}">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;">${formatDate(r.start_date)} – ${formatDate(r.end_date)}</div>
+        <div class="text-muted" style="font-size:0.85rem;">${escapeHtml(r.leave_types?.name || "Leave")}</div>
+        <div class="text-muted" style="font-size:0.85rem;">${escapeHtml(r.reason)}</div>
+      </div>
+      ${statusTagHtml(r.status)}
+    </div>`;
+}
+
+function bindMyRequestRows(container) {
+  container.querySelectorAll("[data-my-req]").forEach((row) => {
+    row.addEventListener("click", () => {
+      const r = myRequests.find((x) => String(x.id) === row.getAttribute("data-my-req"));
+      if (r) openMyRequestDialog(r);
+    });
+  });
+}
+
 async function loadMyRequests() {
   const el = document.getElementById("my-requests");
   try {
@@ -275,24 +367,14 @@ async function loadMyRequests() {
       .order("created_at", { ascending: false });
     if (error) throw error;
 
-    if (!data || data.length === 0) {
+    myRequests = data || [];
+    if (myRequests.length === 0) {
       el.innerHTML = `<div class="empty-state"><h3>No leave applications yet</h3><p>Requests you file will show up here with their approval status.</p></div>`;
       return;
     }
 
-    el.innerHTML = data
-      .map(
-        (r) => `
-        <div class="list-row">
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:600;">${escapeHtml(r.leave_types?.name || "Leave")} · ${formatDate(r.start_date)} – ${formatDate(r.end_date)}</div>
-            <div class="text-muted" style="font-size:0.85rem;">${escapeHtml(r.reason)}</div>
-            ${r.reviewer_remarks ? `<div class="text-muted" style="font-size:0.8rem;margin-top:2px;">Remarks: ${escapeHtml(r.reviewer_remarks)}</div>` : ""}
-          </div>
-          <span class="tag tag-${r.status === "approved" ? "approved" : r.status === "rejected" ? "rejected" : "pending"}">${escapeHtml(r.status)}</span>
-        </div>`
-      )
-      .join("");
+    el.innerHTML = myRequests.slice(0, MY_REQUESTS_PREVIEW).map(myRequestRow).join("");
+    bindMyRequestRows(el);
   } catch (err) {
     console.error(err);
     el.innerHTML = `<div class="empty-state"><h3>Unable to load your requests</h3></div>`;
@@ -300,15 +382,44 @@ async function loadMyRequests() {
   }
 }
 
+function openMyRequestsListDialog() {
+  const sorted = [...myRequests].sort(byStartDateDesc);
+  const { backdrop, close } = openDialogShell(`
+    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="mr-title">
+      <h3 id="mr-title">My leave requests</h3>
+      <div class="aud-body" id="mr-body">${
+        sorted.length
+          ? groupedByMonth(sorted, "start_date", myRequestModalRow)
+          : `<div class="text-muted" style="padding:8px 0;">No leave applications yet.</div>`
+      }</div>
+      <div class="dialog-actions"><button type="button" class="btn btn-primary" data-act="close">Close</button></div>
+    </div>`);
+  backdrop.querySelector('[data-act="close"]').addEventListener("click", close);
+  bindMyRequestRows(backdrop.querySelector("#mr-body"));
+}
+
+// Read-only details for one of my own requests (same layout as the review dialog).
+function openMyRequestDialog(r) {
+  const { backdrop, close } = openDialogShell(`
+    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="lv-title">
+      ${leaveDialogHead(statusTagHtml(r.status))}
+      ${leaveDetailsHtml({ ...r, full_name: profile.full_name || "You", leave_type_name: r.leave_types?.name || "Leave" })}
+      <div class="dialog-actions"><button type="button" class="btn btn-primary" data-act="close">Close</button></div>
+    </div>`);
+  backdrop.querySelector('[data-act="close"]').addEventListener("click", close);
+}
+
 // -----------------------------------------------------------------
 // Admin: leave requests from all staff
 // -----------------------------------------------------------------
-async function fetchAdminRequests(limit) {
-  const { data, error } = await supabase
+async function fetchAdminRequests(limit, { pendingOnly = false } = {}) {
+  let query = supabase
     .from("leave_requests")
-    .select("id, profile_id, start_date, end_date, reason, status, created_at, leave_types(name)")
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    .select("id, profile_id, start_date, end_date, reason, status, created_at, leave_types(name)");
+  query = pendingOnly
+    ? query.eq("status", "pending").order("created_at", { ascending: false })
+    : query.order("start_date", { ascending: false }).order("created_at", { ascending: false });
+  const { data, error } = await query.limit(limit);
   if (error) throw error;
   const rows = data || [];
   const ids = [...new Set(rows.map((r) => r.profile_id))];
@@ -320,31 +431,28 @@ async function fetchAdminRequests(limit) {
   return rows.map((r) => ({ ...r, full_name: names[r.profile_id] || "Unknown" }));
 }
 
-function adminRequestRows(rows) {
-  return rows
-    .map(
-      (r) => `
-      <div class="list-row" style="cursor:pointer;" data-req="${r.id}">
-        <div style="flex:1;min-width:0;">
-          <div style="font-weight:600;">${escapeHtml(r.full_name)} · ${escapeHtml(r.leave_types?.name || "Leave")}</div>
-          <div class="text-muted" style="font-size:0.85rem;">${formatDate(r.start_date)} – ${formatDate(r.end_date)}</div>
-          <div class="text-muted" style="font-size:0.8rem;">${escapeHtml(r.reason)}</div>
-        </div>
-        <span class="tag tag-${r.status === "approved" ? "approved" : r.status === "rejected" ? "rejected" : "pending"}">${escapeHtml(r.status)}</span>
-      </div>`
-    )
-    .join("");
+function adminRequestRow(r) {
+  return `
+    <div class="list-row" style="cursor:pointer;" data-req="${r.id}">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;">${escapeHtml(r.full_name)} · ${escapeHtml(r.leave_types?.name || "Leave")}</div>
+        <div class="text-muted" style="font-size:0.85rem;">${formatDate(r.start_date)} – ${formatDate(r.end_date)}</div>
+        <div class="text-muted" style="font-size:0.8rem;">${escapeHtml(r.reason)}</div>
+      </div>
+      ${statusTagHtml(r.status)}
+    </div>`;
 }
 
+// Card: pending requests only, in the order they were submitted (newest first).
 async function loadAdminRequests() {
   const el = document.getElementById("admin-requests-list");
   try {
-    const rows = await fetchAdminRequests(5);
+    const rows = await fetchAdminRequests(ADMIN_PENDING_PREVIEW, { pendingOnly: true });
     if (rows.length === 0) {
-      el.innerHTML = `<div class="empty-state"><h3>No leave requests yet</h3><p>Requests filed by staff will show up here.</p></div>`;
+      el.innerHTML = `<div class="empty-state"><h3>No pending leave requests</h3><p>New requests from staff will show up here for review.</p></div>`;
       return;
     }
-    el.innerHTML = adminRequestRows(rows);
+    el.innerHTML = rows.map(adminRequestRow).join("");
     el.querySelectorAll("[data-req]").forEach((row) => {
       row.addEventListener("click", () => openReviewDialog(row.getAttribute("data-req"), loadAdminRequests));
     });
@@ -355,6 +463,7 @@ async function loadAdminRequests() {
   }
 }
 
+// Modal: every request, by leave start date, with month headers.
 async function openAllRequestsDialog() {
   const { backdrop, close } = openDialogShell(`
     <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="ar-title">
@@ -368,7 +477,9 @@ async function openAllRequestsDialog() {
     const bodyEl = backdrop.querySelector("#ar-body");
     try {
       const rows = await fetchAdminRequests(200);
-      bodyEl.innerHTML = rows.length ? adminRequestRows(rows) : `<div class="text-muted" style="padding:8px 0;">No leave requests yet.</div>`;
+      bodyEl.innerHTML = rows.length
+        ? groupedByMonth(rows, "start_date", adminRequestRow)
+        : `<div class="text-muted" style="padding:8px 0;">No leave requests yet.</div>`;
       bodyEl.querySelectorAll("[data-req]").forEach((row) => {
         row.addEventListener("click", () =>
           openReviewDialog(row.getAttribute("data-req"), () => {
@@ -388,7 +499,7 @@ async function openAllRequestsDialog() {
 async function openReviewDialog(requestId, onDone) {
   const { backdrop, close } = openDialogShell(`
     <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="lv-title">
-      <h3 id="lv-title">Leave request</h3>
+      ${leaveDialogHead()}
       <div id="lv-body"><div class="skeleton" style="height:60px;"></div></div>
     </div>`);
 
@@ -399,18 +510,9 @@ async function openReviewDialog(requestId, onDone) {
     if (!data) throw new Error("not found");
 
     const isPending = data.status === "pending";
-    const days = Math.round((new Date(data.end_date) - new Date(data.start_date)) / 86400000) + 1;
+    backdrop.querySelector("#lv-status").innerHTML = statusTagHtml(data.status);
     bodyEl.innerHTML = `
-      <p><strong>${escapeHtml(data.full_name)}</strong> · ${escapeHtml(data.leave_type_name)}</p>
-      <p>${formatDate(data.start_date)} – ${formatDate(data.end_date)} (${days} day${days === 1 ? "" : "s"})</p>
-      <p><strong>Reason:</strong> ${escapeHtml(data.reason)}</p>
-      ${
-        !isPending
-          ? `<p><span class="tag tag-${data.status === "approved" ? "approved" : "rejected"}">${escapeHtml(data.status)}</span>${
-              data.reviewer_remarks ? ` <span class="text-muted">${escapeHtml(data.reviewer_remarks)}</span>` : ""
-            }</p>`
-          : ""
-      }
+      ${leaveDetailsHtml(data)}
       ${
         isPending
           ? `<div class="field">

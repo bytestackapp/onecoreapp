@@ -50,11 +50,36 @@ export async function initPushNotifications(profile) {
     // Tapping a notification while the app is backgrounded/closed lands
     // here — route to the relevant page the same way notifications.html does.
     PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
-      const relatedType = action.notification?.data?.related_type;
-      const relatedPage = { announcement: "announcements.html", event: "events.html", leave_request: "leave.html", attendance_correction: "attendance.html" }[relatedType];
+      const data = action.notification?.data || {};
+      if (data.profile_id && data.profile_id !== profile.id) {
+        window.location.href = "notifications.html";
+        return;
+      }
+      const relatedPage = {
+        announcement: "announcements.html",
+        event: "events.html",
+        leave_request: "leave.html",
+        attendance_correction: "attendance.html",
+        signup: "admin-users.html",
+      }[data.related_type];
       if (relatedPage) window.location.href = relatedPage;
     });
 
+	if (capacitor.getPlatform() === "android") {
+      try {
+        await PushNotifications.createChannel({
+          id: "default",
+          name: "OneCore notifications",
+          description: "Leave, attendance, announcements, events and requests",
+          importance: 5, // pop-up banner + sound
+          visibility: 1,
+          vibration: true,
+        });
+      } catch (err) {
+        console.warn("Could not create notification channel:", err);
+      }
+    }
+	
     await PushNotifications.register();
   } catch (err) {
     console.error("initPushNotifications failed:", err);

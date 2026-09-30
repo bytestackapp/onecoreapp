@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+  <title>Scanner — OneCore</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="stylesheet" href="../css/global.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    /* Scanner page — built only from global.css tokens (light theme) */
+    .scanner-page { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+
+    /* Top bar: same look as the app's #app-topbar */
+    .scanner-topbar {
+      height: var(--topbar-h);
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 16px;
+      padding-top: env(safe-area-inset-top, 0px);
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+    .scanner-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .scanner-brand .tag { background: var(--primary-light); color: var(--primary); }
+    .scanner-device { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .scanner-device-name {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 0.85rem; font-weight: 600; color: var(--text);
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .scanner-device-name::before {
+      content: ""; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      background: var(--success); box-shadow: 0 0 0 3px var(--success-bg);
+    }
+
+    .scanner-body {
+      width: 100%; max-width: 480px; margin: 0 auto;
+      padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      display: flex; flex-direction: column; gap: 14px;
+    }
+
+    /* Mode selector */
+    .scanner-modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .scanner-mode-btn {
+      padding: 11px 4px;
+      border-radius: var(--radius-btn);
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-secondary);
+      font-weight: 600; font-size: 0.82rem;
+      cursor: pointer;
+      transition: background 0.12s var(--ease), border-color 0.12s var(--ease), color 0.12s var(--ease);
+    }
+    .scanner-mode-btn:hover { background: var(--bg); color: var(--text); }
+    .scanner-mode-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .scanner-mode-btn.active:hover { background: var(--primary-hover); }
+
+    /* Camera */
+    .scanner-camera { padding: 10px; }
+    #qr-reader {
+      width: 100%;
+      border: none !important;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #0f172a;
+    }
+
+    /* Result panel */
+    .scanner-result {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      min-height: 84px; padding: 16px;
+      border: 1px solid var(--border); border-radius: var(--radius-card);
+      text-align: center; font-weight: 600;
+      transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
+    }
+    .scanner-result > div:first-child { font-size: 1.05rem; font-weight: 700; }
+    .scanner-result > div + div { font-size: 0.88rem; font-weight: 500; opacity: 0.9; }
+    .scanner-result.idle { background: var(--card); color: var(--text-muted); font-weight: 500; box-shadow: var(--shadow-card); }
+    .scanner-result.idle > div:first-child { font-size: 0.92rem; font-weight: 500; }
+    .scanner-result.ok { background: var(--success-bg); border-color: var(--success); color: var(--success); }
+    .scanner-result.queued { background: var(--warning-bg); border-color: var(--warning); color: var(--warning); }
+    .scanner-result.error { background: var(--error-bg); border-color: var(--error); color: var(--error); }
+    .scanner-result:not(.idle)::before {
+      display: flex; align-items: center; justify-content: center;
+      width: 26px; height: 26px; margin-bottom: 4px; border-radius: 50%;
+      background: currentColor; font-size: 0.9rem; line-height: 1;
+    }
+    .scanner-result.ok::before { content: "✓"; -webkit-text-fill-color: #fff; }
+    .scanner-result.queued::before { content: "↻"; -webkit-text-fill-color: #fff; }
+    .scanner-result.error::before { content: "✕"; -webkit-text-fill-color: #fff; }
+
+    /* Footer */
+    .scanner-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    #queue-status { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); }
+
+    /* Activation screen reuses .auth-page / .auth-card */
+
+    /* Close-scanner modal (built on .dialog-backdrop / .dialog-modal) */
+    .close-modal-icon {
+      width: 44px; height: 44px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--error-bg); color: var(--error);
+      margin-bottom: 14px;
+    }
+    .close-modal-icon svg { width: 22px; height: 22px; }
+    #deactivate-modal .dialog-modal p { margin-bottom: 0; }
+    #deactivate-modal .banner { margin: 14px 0 0; }
+    .scanner-setup-hint { text-align: center; margin-bottom: 20px; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="scanner-page">
+
+    <!-- Activation -->
+    <div id="setup-view" style="display:none;">
+      <div class="auth-page">
+        <div class="auth-card card">
+          <div class="auth-brand">
+            <img src="../images/logo-vert.png" alt="OneCore" class="auth-brand-logo" />
+          </div>
+          <h2 style="text-align:center;margin-top:12px;">Scanner mode</h2>
+          <p class="scanner-setup-hint">Enter the device code and passcode provided by your admin.</p>
+          <form id="setup-form">
+            <div class="field">
+              <label for="setup-code">Device code</label>
+              <input id="setup-code" required autocomplete="off" style="text-transform:uppercase;" />
+            </div>
+            <div class="field">
+              <label for="setup-passcode">Passcode</label>
+              <input id="setup-passcode" type="password" required autocomplete="off" />
+            </div>
+            <button class="btn btn-primary" type="submit" id="setup-submit" style="width:100%;">Activate</button>
+          </form>
+
+          <div class="auth-meta-links">
+            <a href="login.html">Back to login</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scanning -->
+    <div id="scan-view" style="display:none;flex-direction:column;width:100%;">
+      <header class="scanner-topbar">
+        <div class="scanner-brand">
+          <img src="../images/logo-horiz.png" alt="OneCore" class="sidebar-brand-logo" />
+          <span class="tag">Scanner</span>
+        </div>
+        <div class="scanner-device">
+          <span class="scanner-device-name" id="device-name-label"></span>
+          <button type="button" class="icon-action danger" id="deactivate-btn" title="Close scanner" aria-label="Close scanner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" /><path d="M9 12h12l-3 -3" /><path d="M18 15l3 -3" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="scanner-body">
+        <div class="scanner-modes" id="mode-buttons">
+          <button type="button" class="scanner-mode-btn active" data-mode="time_in">Time In</button>
+          <button type="button" class="scanner-mode-btn" data-mode="break_out">Break Out</button>
+          <button type="button" class="scanner-mode-btn" data-mode="break_in">Break In</button>
+          <button type="button" class="scanner-mode-btn" data-mode="time_out">Time Out</button>
+        </div>
+
+        <div class="card scanner-camera">
+          <div id="qr-reader"></div>
+        </div>
+
+        <div id="scanner-result" class="scanner-result idle"><div>Point the camera at a QR code</div></div>
+
+        <div class="scanner-footer">
+          <span id="queue-status">Roster: — · Queue: 0</span>
+          <button type="button" class="btn btn-secondary btn-sm" id="sync-now-btn">Sync roster now</button>
+        </div>
+      </main>
+    </div>
+
+  </div>
+
+  <!-- Close scanner modal -->
+  <div id="deactivate-modal" class="dialog-backdrop" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="deactivate-title">
+    <div class="dialog-modal">
+      <h3 id="deactivate-title">Close scanner mode</h3>
+      <p>This device will be deactivated and stop recording attendance. Reactivation requires the device code and passcode.</p>
+      <div id="deactivate-queue-note" class="banner banner-info" style="display:none;"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-secondary" id="deactivate-cancel-btn">Keep scanning</button>
+        <button type="button" class="btn btn-danger-solid" id="deactivate-confirm-btn">Close scanner</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="../js/scanner.js"></script>
+</body>
+</html>

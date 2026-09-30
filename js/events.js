@@ -1,6 +1,7 @@
 import { mountLayout } from "./layout.js";
 import { supabase, formatDate, friendlyError, logAudit } from "./supabase-client.js";
 import { showToast } from "./toast.js";
+import { confirmDialog } from "./dialog.js";
 
 const profile = await mountLayout({ activeKey: "events", pageTitle: "Events" });
 if (!profile) throw new Error("redirecting");
@@ -8,6 +9,20 @@ if (!profile) throw new Error("redirecting");
 const canCreate = profile.role === "admin" || profile.role === "teacher";
 const listEl = document.getElementById("events-list");
 const newBtn = document.getElementById("new-btn");
+
+const ICON = {
+  edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`,
+  delete: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg>`,
+};
+let eventsCache = [];
+
+function audienceFromEvent(e) {
+  return {
+    types: new Set(e.audience_types || []),
+    groups: new Set(e.audience_group_ids || []),
+    users: new Set(e.audience_user_ids || []),
+  };
+}
 
 function localDate(d = new Date()) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -26,7 +41,7 @@ const cap = (s = "") => s.charAt(0).toUpperCase() + s.slice(1);
 const PLATFORMS = [
   { id: "zoom", label: "Zoom", hosts: ["zoom.us", "zoom.com"] },
   { id: "meet", label: "Google Meet", hosts: ["meet.google.com"] },
-  { id: "teams", label: "Microsoft Teams", hosts: ["teams.microsoft.com", "teams.live.com"] },
+  { id: "teams", label: "Teams", hosts: ["teams.microsoft.com", "teams.live.com"] },
   { id: "webex", label: "Webex", hosts: ["webex.com"] },
   { id: "other", label: "Other", hosts: [] },
 ];
@@ -321,15 +336,15 @@ function meetingDialog(current) {
 // -----------------------------------------------------------------
 // New-event modal
 // -----------------------------------------------------------------
-async function newEventDialog() {
+async function newEventDialog(existing = null) {
   if (groupsCache.length === 0 && peopleCache.length === 0) await loadAudienceOptions();
-  let audienceSel = defaultAudience();
+  let audienceSel = existing ? audienceFromEvent(existing) : defaultAudience();
 
   const backdrop = document.createElement("div");
   backdrop.className = "dialog-backdrop";
   backdrop.innerHTML = `
-    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="ev-title">
-      <h3 id="ev-title">New event</h3>
+    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="ev-title" style="max-width:460px;">
+      <h3 id="ev-title">${existing ? "Edit event" : "New event"}</h3>
       <form id="ev-form">
         <div class="field">
           <label for="ev-title-input">Title</label>
@@ -339,20 +354,12 @@ async function newEventDialog() {
           <label for="ev-description">Description</label>
           <textarea id="ev-description" rows="3"></textarea>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-          <div class="field">
-            <label for="ev-date">Date</label>
-            <input id="ev-date" type="date" required />
-          </div>
-          <div class="field">
-            <label for="ev-location">Location</label>
-            <div style="display:flex;gap:6px;margin-bottom:6px;">
-              <button type="button" class="btn btn-sm btn-primary" id="ev-loc-inperson">In person</button>
-              <button type="button" class="btn btn-sm btn-secondary" id="ev-loc-online">Online</button>
-            </div>
-            <input id="ev-location" />
-            <button type="button" id="ev-meeting-btn" class="audience-btn" style="display:none;"></button>
-          </div>
+
+        <div class="field">
+          <label for="ev-date">Date</label>
+          <input id="ev-date" type="date" required />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div class="field">
             <label for="ev-start">Start time</label>
             <input id="ev-start" type="time" />
@@ -361,6 +368,19 @@ async function newEventDialog() {
             <label for="ev-end">End time</label>
             <input id="ev-end" type="time" />
           </div>
+        </div>
+
+        <div class="field">
+          <label for="ev-location">Location</label>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <button type="button" class="btn btn-sm btn-primary" id="ev-loc-inperson" style="flex:1;">In person</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="ev-loc-online" style="flex:1;">Online</button>
+          </div>
+          <input id="ev-location" placeholder="Room, building or address" />
+          <button type="button" id="ev-meeting-btn" class="audience-btn" style="display:none;"></button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div class="field">
             <label for="ev-audience-btn">Audience</label>
             <button type="button" id="ev-audience-btn" class="audience-btn"></button>
@@ -372,7 +392,7 @@ async function newEventDialog() {
         </div>
         <div class="dialog-actions">
           <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="ev-submit">Create event</button>
+          <button type="submit" class="btn btn-primary" id="ev-submit">${existing ? "Save changes" : "Create event"}</button>
         </div>
       </form>
     </div>`;
@@ -392,9 +412,20 @@ async function newEventDialog() {
   });
 
   // Location: typed place (In person) or an online meeting (Online).
-  let locMode = "in_person";
-  let meeting = null; // { platform, link, details }
+  let locMode = existing?.is_online ? "online" : "in_person";
+  let meeting = existing?.is_online
+    ? { platform: existing.meeting_platform, link: existing.meeting_link, details: existing.meeting_details }
+    : null; // { platform, link, details }
   const locInput = backdrop.querySelector("#ev-location");
+  if (existing) {
+    backdrop.querySelector("#ev-title-input").value = existing.title || "";
+    backdrop.querySelector("#ev-description").value = existing.description || "";
+    backdrop.querySelector("#ev-date").value = existing.event_date || "";
+    backdrop.querySelector("#ev-start").value = (existing.start_time || "").slice(0, 5);
+    backdrop.querySelector("#ev-end").value = (existing.end_time || "").slice(0, 5);
+    backdrop.querySelector("#ev-max").value = existing.max_participants ?? "";
+    if (!existing.is_online) locInput.value = existing.location || "";
+  }
   const meetingBtn = backdrop.querySelector("#ev-meeting-btn");
   const inPersonBtn = backdrop.querySelector("#ev-loc-inperson");
   const onlineBtn = backdrop.querySelector("#ev-loc-online");
@@ -459,7 +490,7 @@ async function newEventDialog() {
     }
     const submitBtn = backdrop.querySelector("#ev-submit");
     submitBtn.disabled = true;
-    submitBtn.textContent = "Creating…";
+    submitBtn.textContent = existing ? "Saving…" : "Creating…";
 
     const maxParticipants = backdrop.querySelector("#ev-max").value;
     const payload = {
@@ -483,22 +514,37 @@ async function newEventDialog() {
     };
 
     try {
-      const { data, error } = await supabase.from("events").insert(payload).select().single();
-      if (error) throw error;
-      await logAudit({ action: "event.created", recordType: "event", recordId: data.id, details: { title: payload.title } });
-      close();
-      showToast("Event created.", "success");
+      if (existing) {
+        // The creator and organization never change when editing.
+        const { organization_id, organizer_id, ...changes } = payload;
+        const { data, error } = await supabase
+          .from("events")
+          .update({ ...changes, updated_at: new Date().toISOString() })
+          .eq("id", existing.id)
+          .select("id");
+        if (error) throw error;
+        if (!data || data.length === 0) throw new Error("row-level security"); // blocked silently by RLS
+        await logAudit({ action: "event.updated", recordType: "event", recordId: existing.id, details: { title: payload.title } });
+        close();
+        showToast("Event updated.", "success");
+      } else {
+        const { data, error } = await supabase.from("events").insert(payload).select().single();
+        if (error) throw error;
+        await logAudit({ action: "event.created", recordType: "event", recordId: data.id, details: { title: payload.title } });
+        close();
+        showToast("Event created.", "success");
+      }
       loadEvents();
     } catch (err) {
       console.error(err);
-      showToast(friendlyError(err, "Unable to create this event. Please try again."), "error");
+      showToast(friendlyError(err, existing ? "Unable to save your changes. Please try again." : "Unable to create this event. Please try again."), "error");
       submitBtn.disabled = false;
-      submitBtn.textContent = "Create event";
+      submitBtn.textContent = existing ? "Save changes" : "Create event";
     }
   });
 }
 
-newBtn?.addEventListener("click", newEventDialog);
+newBtn?.addEventListener("click", () => newEventDialog());
 
 // -----------------------------------------------------------------
 // List + RSVP
@@ -509,12 +555,13 @@ async function loadEvents() {
     const today = localDate();
     const { data, error } = await supabase
       .from("events")
-      .select("id, title, description, event_date, start_time, end_time, location, is_online, meeting_platform, meeting_link, meeting_details, rsvp_enabled, max_participants, status, organizer_id, profiles!events_organizer_id_fkey(full_name)")
+      .select("id, title, description, event_date, start_time, end_time, location, is_online, meeting_platform, meeting_link, meeting_details, rsvp_enabled, max_participants, status, organizer_id, audience_types, audience_group_ids, audience_user_ids, profiles!events_organizer_id_fkey(full_name)")
       .gte("event_date", today)
       .order("event_date", { ascending: true });
     if (error) throw error;
 
     const events = (data || []).filter((e) => e.status !== "cancelled");
+    eventsCache = events;
     if (events.length === 0) {
       listEl.innerHTML = `<div class="card empty-state">
         <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
@@ -528,9 +575,10 @@ async function loadEvents() {
     listEl.innerHTML = events
       .map((e) => {
         const myRsvp = rsvps[e.id]?.rsvp_status;
+        const canManage = profile.role === "admin" || e.organizer_id === profile.id;
         return `
         <div class="card" style="margin-bottom:12px;">
-          <div style="display:flex;justify-content:space-between;gap:10px;">
+          <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
             <div style="min-width:0;">
               <h3 style="margin:0;">${escapeHtml(e.title)}</h3>
               ${e.profiles?.full_name ? `<div class="text-muted" style="font-size:0.82rem;margin-top:2px;">${escapeHtml(e.profiles.full_name)}</div>` : ""}
@@ -539,6 +587,14 @@ async function loadEvents() {
                 ${!e.is_online && e.location ? " · " + escapeHtml(e.location) : ""}
               </div>
             </div>
+            ${
+              canManage
+                ? `<div class="card-actions">
+                    <button type="button" class="icon-action sm edit-event-btn" data-id="${e.id}" title="Edit" aria-label="Edit">${ICON.edit}</button>
+                    <button type="button" class="icon-action sm danger delete-event-btn" data-id="${e.id}" title="Delete" aria-label="Delete">${ICON.delete}</button>
+                  </div>`
+                : ""
+            }
           </div>
           ${e.description ? `<p style="margin-top:10px;">${escapeHtml(e.description)}</p>` : ""}
           ${e.is_online ? meetingBlock(e) : ""}
@@ -555,6 +611,15 @@ async function loadEvents() {
       })
       .join("");
 
+    listEl.querySelectorAll(".edit-event-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const ev = eventsCache.find((x) => x.id === btn.getAttribute("data-id"));
+        if (ev) newEventDialog(ev);
+      });
+    });
+    listEl.querySelectorAll(".delete-event-btn").forEach((btn) => {
+      btn.addEventListener("click", () => deleteEvent(btn.getAttribute("data-id")));
+    });
     listEl.querySelectorAll(".rsvp-btn").forEach((btn) => {
       btn.addEventListener("click", () => rsvp(btn.getAttribute("data-event"), btn.getAttribute("data-status")));
     });
@@ -572,6 +637,29 @@ async function loadEvents() {
     console.error(err);
     listEl.innerHTML = `<div class="card empty-state"><h3>Events couldn't be loaded</h3><p>Please refresh the page.</p></div>`;
     showToast("Events couldn't be loaded.", "error");
+  }
+}
+
+async function deleteEvent(id) {
+  const ev = eventsCache.find((x) => x.id === id);
+  const ok = await confirmDialog({
+    title: "Delete this event?",
+    message: "It will be removed for everyone, along with any RSVPs. This cannot be undone.",
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!ok) return;
+
+  try {
+    const { data, error } = await supabase.from("events").delete().eq("id", id).select("id");
+    if (error) throw error;
+    if (!data || data.length === 0) throw new Error("row-level security");
+    await logAudit({ action: "event.deleted", recordType: "event", recordId: id, details: { title: ev?.title } });
+    showToast("Event deleted.", "success");
+    loadEvents();
+  } catch (err) {
+    console.error(err);
+    showToast(friendlyError(err, "Unable to delete this event."), "error");
   }
 }
 
