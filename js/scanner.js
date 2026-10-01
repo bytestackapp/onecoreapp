@@ -292,9 +292,9 @@ async function startCamera() {
       { facingMode: "environment" },
       {
         fps: 10,
-        aspectRatio: 1.333, // landscape 4:3 feed, much shorter than portrait
+        aspectRatio: 1,
         qrbox: (w, h) => {
-          const size = Math.floor(Math.min(w, h) * 0.9); // box fills 90% of the frame, so the shaded border is thin
+          const size = Math.floor(Math.min(w, h) * 0.85);
           return { width: size, height: size };
         },
       },
