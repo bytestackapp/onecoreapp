@@ -343,7 +343,10 @@ function localCheck(qrToken, mode) {
     if (!rec.break_out) return "No break in progress.";
     if (rec.break_in) return "Break already completed today.";
   }
-  if (mode === "time_out" && !rec.time_in) return "Time in first.";
+  if (mode === "time_out") {
+  if (!rec.time_in) return "Time in first.";
+  if (rec.time_out) return "Already timed out today.";
+}
   return null;
 }
 
