@@ -8,7 +8,7 @@
 const MOBILE_QUERY = "(max-width: 880px)"; // same breakpoint as the bottom nav
 const INSTALLED_APP_ONLY = false; // true = only when installed to the home screen
 const TRIGGER = 64; // how far (px) the page must be pulled to count as a refresh
-const HOLD = 60; // where the page rests while it reloads
+const HOLD = 70; // where the page rests while it reloads
 const MAX_PULL = 120; // furthest the page can be pulled
 const RESISTANCE = 0.55; // finger distance -> page distance
 const RADIUS = 22; // rounded top corners of the sliding page (px)
@@ -48,7 +48,8 @@ function initPullToRefresh() {
       transition: transform .22s ease, opacity .22s ease;
     }
     #ptr-reveal.ready #ptr-circle { opacity: 1; transform: scale(1); }
-    #ptr-circle svg { width: 22px; height: 22px; }
+	#ptr-reveal.spinning #ptr-circle { transform: scale(.72); }
+    #ptr-circle svg { width: 26px; height: 26px; }
     #ptr-reveal.spinning #ptr-circle svg { animation: ptr-spin .8s linear infinite; }
     @keyframes ptr-spin { to { transform: rotate(360deg); } }`;
   document.head.appendChild(style);
