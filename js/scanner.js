@@ -47,6 +47,8 @@ function clearDevice() {
   localStorage.removeItem(STORAGE_DEVICE);
   localStorage.removeItem(STORAGE_ROSTER);
   localStorage.removeItem(STORAGE_ROSTER_SYNCED_AT);
+  localStorage.removeItem(STORAGE_TODAY);
+  localStorage.removeItem(STORAGE_REJECTED);
 }
 
 function loadRoster() {
@@ -138,11 +140,13 @@ const deactivateCancelBtn = document.getElementById("deactivate-cancel-btn");
 const deactivateConfirmBtn = document.getElementById("deactivate-confirm-btn");
 const deactivateQueueNote = document.getElementById("deactivate-queue-note");
 
+let closing = false; // true while "Close scanner" is waiting for queued scans to be sent
+
 function openDeactivateModal() {
   setMenu(false);
   const queued = loadQueue().length;
   if (queued > 0) {
-    deactivateQueueNote.textContent = `${queued} queued scan${queued === 1 ? "" : "s"} will stay saved on this device and send once it is activated again.`;
+    deactivateQueueNote.textContent = `${queued} scan${queued === 1 ? "" : "s"} still waiting to be sent. They will be sent first, then the scanner closes.`;
     deactivateQueueNote.style.display = "flex";
   } else {
     deactivateQueueNote.style.display = "none";
@@ -151,9 +155,16 @@ function openDeactivateModal() {
   deactivateCancelBtn.focus();
 }
 
-function closeDeactivateModal() {
+async function closeDeactivateModal() {
   deactivateModal.style.display = "none";
   deactivateBtn.focus();
+  if (closing) {
+    // Cancelled while still sending: go back to scanning.
+    closing = false;
+    deactivateConfirmBtn.disabled = false;
+    deactivateConfirmBtn.textContent = "Close scanner";
+    await startCamera();
+  }
 }
 
 deactivateBtn.addEventListener("click", openDeactivateModal);
@@ -165,12 +176,30 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && deactivateModal.style.display !== "none") closeDeactivateModal();
 });
 
-// Confirming deactivates immediately and returns to the scanner login screen.
+// Confirming sends every queued scan first, then deactivates and returns to the
+// scanner login screen. Offline: keeps trying every few seconds and closes by itself
+// once the queue is empty. "Keep scanning" cancels (see closeDeactivateModal).
 deactivateConfirmBtn.addEventListener("click", async () => {
+  closing = true;
   deactivateConfirmBtn.disabled = true;
-  deactivateCancelBtn.disabled = true;
   deactivateConfirmBtn.textContent = "Closing…";
   await stopCamera();
+
+  while (loadQueue().length > 0) {
+    const n = loadQueue().length;
+    deactivateQueueNote.textContent = navigator.onLine
+      ? `Sending ${n} saved scan${n === 1 ? "" : "s"} before closing…`
+      : `${n} saved scan${n === 1 ? "" : "s"} still waiting. Connect to the internet. The scanner will close itself once they are sent.`;
+    deactivateQueueNote.style.display = "flex";
+
+    await drainQueue();
+    if (!closing) return; // cancelled
+    if (loadQueue().length === 0) break;
+
+    await new Promise((r) => setTimeout(r, 3000));
+    if (!closing) return; // cancelled
+  }
+
   clearDevice();
   location.reload();
 });
@@ -283,8 +312,8 @@ function deviceRevoked() {
 }
 
 // -----------------------------------------------------------------
-// Today's scans made on this phone — used for the instant checks in local-first
-// mode. Same rules as record_attendance_scan; the server stays the final authority.
+// Today's scans made on this phone — used for the instant duplicate checks.
+// Same rules as record_attendance_scan; the server stays the final authority.
 // -----------------------------------------------------------------
 function manilaDate(d = new Date()) {
   return d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }); // YYYY-MM-DD
@@ -430,6 +459,7 @@ function beep(kind) {
 // Camera scanning
 // -----------------------------------------------------------------
 async function onDecoded(decodedText) {
+  if (closing) return;
   const qrToken = decodedText.trim();
   const now = Date.now();
   if (lastScan.code === qrToken && now - lastScan.at < RESCAN_COOLDOWN_MS) return;
