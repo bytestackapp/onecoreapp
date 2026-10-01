@@ -9,21 +9,35 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
   <style>
     /* Scanner page — built only from global.css tokens (light theme) */
-    .scanner-page { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 
-    /* Top bar: same look as the app's #app-topbar */
+    /* One screen, no scrolling: header + modes + result are fixed height,
+       the camera card takes whatever is left. */
+    .scanner-page { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+    #setup-view { flex: 1; overflow-y: auto; }
+    #scan-view { flex: 1; min-height: 0; }
+
+    /* Top bar — row 1: wordmark + badge, settings, exit. Row 2: device, roster/queue */
     .scanner-topbar {
-      height: var(--topbar-h);
+      position: relative;
       flex-shrink: 0;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0 16px;
-      padding-top: env(safe-area-inset-top, 0px);
+      display: flex; flex-direction: column; gap: 6px;
+      padding: 8px 16px;
+      padding-top: calc(8px + env(safe-area-inset-top, 0px));
       background: var(--card);
       border-bottom: 1px solid var(--border);
     }
+    .scanner-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
     .scanner-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .scanner-brand .tag { background: var(--primary-light); color: var(--primary); }
-    .scanner-device { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .scanner-wordmark { font-size: 1.3rem; font-weight: 800; line-height: 1; letter-spacing: 0.01em; color: var(--text); }
+    .scanner-wordmark span {
+      background: linear-gradient(90deg, #2952e3, #1fc6c6);
+      -webkit-background-clip: text; background-clip: text;
+      color: transparent; -webkit-text-fill-color: transparent;
+    }
+    .scanner-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+    .scanner-row-sub { font-size: 0.8rem; }
     .scanner-device-name {
       display: flex; align-items: center; gap: 7px;
       font-size: 0.85rem; font-weight: 600; color: var(--text);
@@ -33,15 +47,38 @@
       content: ""; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
       background: var(--success); box-shadow: 0 0 0 3px var(--success-bg);
     }
+    #queue-status { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap; flex-shrink: 0; }
+
+    /* Settings menu */
+    .scanner-menu {
+      position: absolute; right: 16px; top: calc(100% + 6px); z-index: 20;
+      width: min(280px, calc(100vw - 32px));
+      display: flex; flex-direction: column; gap: 2px; padding: 6px;
+      background: var(--card);
+      border: 1px solid var(--border); border-radius: var(--radius-card);
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+    }
+    .scanner-menu[hidden] { display: none; }
+    .scanner-menu-item {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+      width: 100%; padding: 10px 12px;
+      border: none; border-radius: 8px; background: transparent;
+      text-align: left; font: inherit; color: var(--text); cursor: pointer;
+    }
+    .scanner-menu-item:hover:not(:disabled) { background: var(--bg); }
+    .scanner-menu-item:disabled { opacity: 0.55; cursor: default; }
+    .scanner-menu-item .t { font-weight: 600; font-size: 0.9rem; }
+    .scanner-menu-item .d { font-size: 0.78rem; color: var(--text-muted); }
 
     .scanner-body {
+      flex: 1; min-height: 0;
       width: 100%; max-width: 480px; margin: 0 auto;
-      padding: 10px 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      padding: 10px 16px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
       display: flex; flex-direction: column; gap: 10px;
     }
 
     /* Mode selector */
-    .scanner-modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .scanner-modes { flex-shrink: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
     .scanner-mode-btn {
       padding: 11px 4px;
       border-radius: var(--radius-btn);
@@ -56,27 +93,31 @@
     .scanner-mode-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
     .scanner-mode-btn.active:hover { background: var(--primary-hover); }
 
-    /* Camera */
-    .scanner-camera { padding: 6px; }
+    /* Camera — fills the leftover height. scanner.js sizes #qr-reader to a
+       square that fits this card, so nothing is cropped and nothing scrolls. */
+    .scanner-camera {
+      flex: 1; min-height: 0;
+      display: flex; align-items: center; justify-content: center;
+      padding: 6px; overflow: hidden;
+    }
     #qr-reader {
-      width: 100%;
-	  max-width: min(100%, 52dvh);
-	  margin: 0 auto;
       border: none !important;
       border-radius: 10px;
       overflow: hidden;
       background: #0f172a;
     }
-	#qr-reader video { object-fit: cover; }
 
-    /* Result panel */
+    /* Result panel — one fixed height for idle, ok, queued and error,
+       so the page never shifts. */
     .scanner-result {
+      flex-shrink: 0; box-sizing: border-box;
+      height: 96px; padding: 8px 12px; overflow: hidden;
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-      min-height: 84px; padding: 16px;
       border: 1px solid var(--border); border-radius: var(--radius-card);
       text-align: center; font-weight: 600;
       transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
     }
+    .scanner-result > div { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .scanner-result > div:first-child { font-size: 1.05rem; font-weight: 700; }
     .scanner-result > div + div { font-size: 0.88rem; font-weight: 500; opacity: 0.9; }
     .scanner-result.idle { background: var(--card); color: var(--text-muted); font-weight: 500; box-shadow: var(--shadow-card); }
@@ -85,17 +126,13 @@
     .scanner-result.queued { background: var(--warning-bg); border-color: var(--warning); color: var(--warning); }
     .scanner-result.error { background: var(--error-bg); border-color: var(--error); color: var(--error); }
     .scanner-result:not(.idle)::before {
-      display: flex; align-items: center; justify-content: center;
-      width: 26px; height: 26px; margin-bottom: 4px; border-radius: 50%;
-      background: currentColor; font-size: 0.9rem; line-height: 1;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      width: 22px; height: 22px; margin-bottom: 2px; border-radius: 50%;
+      background: currentColor; font-size: 0.8rem; line-height: 1;
     }
     .scanner-result.ok::before { content: "✓"; -webkit-text-fill-color: #fff; }
     .scanner-result.queued::before { content: "↻"; -webkit-text-fill-color: #fff; }
     .scanner-result.error::before { content: "✕"; -webkit-text-fill-color: #fff; }
-
-    /* Footer */
-    .scanner-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    #queue-status { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); }
 
     /* Activation screen reuses .auth-page / .auth-card */
 
@@ -146,14 +183,33 @@
     <!-- Scanning -->
     <div id="scan-view" style="display:none;flex-direction:column;width:100%;">
       <header class="scanner-topbar">
-        <div class="scanner-brand">
-          <img src="../images/logo-horiz.png" alt="OneCore" class="sidebar-brand-logo" />
-          <span class="tag">Scanner</span>
+        <div class="scanner-row">
+          <div class="scanner-brand">
+            <span class="scanner-wordmark">ONE<span>CORE</span></span>
+            <span class="tag">Scanner</span>
+          </div>
+          <div class="scanner-actions">
+            <button type="button" class="icon-action" id="settings-btn" title="Settings" aria-label="Settings" aria-haspopup="true" aria-expanded="false" aria-controls="settings-menu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" /><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /></svg>
+            </button>
+            <button type="button" class="icon-action danger" id="deactivate-btn" title="Close scanner" aria-label="Close scanner">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" /><path d="M9 12h12l-3 -3" /><path d="M18 15l3 -3" /></svg>
+            </button>
+          </div>
         </div>
-        <div class="scanner-device">
+        <div class="scanner-row scanner-row-sub">
           <span class="scanner-device-name" id="device-name-label"></span>
-          <button type="button" class="icon-action danger" id="deactivate-btn" title="Close scanner" aria-label="Close scanner">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" /><path d="M9 12h12l-3 -3" /><path d="M18 15l3 -3" /></svg>
+          <span id="queue-status">Roster: — · Queue: 0</span>
+        </div>
+
+        <div class="scanner-menu" id="settings-menu" role="menu" hidden>
+          <button type="button" class="scanner-menu-item" id="sync-now-btn" role="menuitem">
+            <span class="t">Sync roster now</span>
+            <span class="d">Adds new or changed people. Doesn't remove anyone.</span>
+          </button>
+          <button type="button" class="scanner-menu-item" id="refresh-data-btn" role="menuitem">
+            <span class="t">Refresh data now</span>
+            <span class="d">Replaces the whole roster. Removes retired codes and deactivated people.</span>
           </button>
         </div>
       </header>
@@ -166,16 +222,11 @@
           <button type="button" class="scanner-mode-btn" data-mode="time_out">Time Out</button>
         </div>
 
-        <div class="card scanner-camera">
+        <div class="card scanner-camera" id="camera-card">
           <div id="qr-reader"></div>
         </div>
 
         <div id="scanner-result" class="scanner-result idle"><div>Point the camera at a QR code</div></div>
-
-        <div class="scanner-footer">
-          <span id="queue-status">Roster: — · Queue: 0</span>
-          <button type="button" class="btn btn-secondary btn-sm" id="sync-now-btn">Sync roster now</button>
-        </div>
       </main>
     </div>
 
