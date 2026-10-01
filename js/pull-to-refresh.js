@@ -32,10 +32,12 @@ function initPullToRefresh() {
       top: calc(var(--topbar-h, 64px) + env(safe-area-inset-top, 0px));
       height: 0; overflow: hidden; box-sizing: border-box;
       padding-bottom: ${RADIUS}px; /* keeps the circle centred in the visible gap only */
-      display: flex; align-items: center; justify-content: center;
+      display: none; /* shown only while pulling (class "on") */
+      align-items: center; justify-content: center;
       background: linear-gradient(135deg, #2952e3 0%, #1fc6c6 100%);
       pointer-events: none;
     }
+    #ptr-reveal.on { display: flex; }
     #ptr-reveal.snap { transition: height .2s ease; }
     #ptr-circle {
       flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%;
@@ -98,7 +100,8 @@ function initPullToRefresh() {
   function render(distance) {
     const el = content();
     if (el) el.style.transform = `translateY(${distance}px)`;
-    reveal.style.height = distance > 0 ? `${distance + RADIUS}px` : "0";
+    reveal.classList.add("on");
+    reveal.style.height = `${distance + RADIUS}px`;
     circle.style.opacity = String(Math.min(1, distance / (TRIGGER * 0.6)));
     icon.style.transform = `rotate(${distance * 5}deg)`;
     reveal.classList.toggle("ready", distance >= TRIGGER);
@@ -117,7 +120,7 @@ function initPullToRefresh() {
     circle.style.opacity = "0";
     reveal.classList.remove("ready");
     setTimeout(() => {
-      reveal.classList.remove("snap");
+      reveal.classList.remove("snap", "on");
       circle.classList.remove("snap");
     }, 220);
     pull = 0;

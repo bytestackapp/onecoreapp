@@ -13,7 +13,7 @@ import { showToast } from "./toast.js";
 
 // TEMPORARY: while true, every registration step shows as a small toast so you
 // can see exactly where it stops. Set to false once push notifications work.
-const DEBUG_PUSH = true;
+const DEBUG_PUSH = false;
 function dbg(message, kind = "info") {
   console.log("[push]", message);
   if (DEBUG_PUSH) showToast(`Push: ${message}`, kind);
