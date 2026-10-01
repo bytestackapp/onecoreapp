@@ -57,7 +57,11 @@ function initPullToRefresh() {
   reveal.id = "ptr-reveal";
   reveal.setAttribute("aria-hidden", "true");
   reveal.innerHTML = `<div id="ptr-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.85-3.36L23 10M1 14l4.65 4.36A9 9 0 0020.5 15"/></svg></div>`;
-  document.body.appendChild(reveal);
+
+  function attachReveal() {
+    if (reveal.isConnected) return;
+    (document.getElementById("app-main") || document.body).appendChild(reveal);
+  }
   const circle = reveal.querySelector("#ptr-circle");
   const icon = circle.querySelector("svg");
   const content = () => document.getElementById("app-content");
@@ -135,6 +139,7 @@ function initPullToRefresh() {
       pull = 0;
       reveal.classList.remove("snap");
       circle.classList.remove("snap");
+	  attachReveal();
       prepareSheet();
     },
     { passive: true }
