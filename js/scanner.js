@@ -192,25 +192,28 @@ function deviceRevoked() {
 // timestamp, and replayed in order once the connection returns.
 // -----------------------------------------------------------------
 async function submitScan(qrToken, scanType, scannedAt) {
-  try {
-    const { data, error } = await supabase.rpc("record_attendance_scan", {
-      p_device_token: device.token,
-      p_qr_token: qrToken,
-      p_scan_type: scanType,
-      p_scanned_at: scannedAt,
-    });
-    if (error) throw error;
-    return { queued: false, result: data };
-  } catch (err) {
-    // Network-ish failure: queue it. A real rejection (already timed in,
-    // etc.) comes back as { ok:false, message } above, not an exception,
-    // so queuing here means "we couldn't reach the server," not "denied."
-    const queue = loadQueue();
-    queue.push({ id: crypto.randomUUID(), qr_token: qrToken, scan_type: scanType, scanned_at: scannedAt });
-    saveQueue(queue);
-    updateFooter();
-    return { queued: true };
+  const { data, error } = await supabase.rpc("record_attendance_scan", {
+    p_device_token: device.token,
+    p_qr_token: qrToken,
+    p_scan_type: scanType,
+    p_scanned_at: scannedAt,
+  });
+
+  if (!error) return { queued: false, result: data };
+
+  console.error("record_attendance_scan failed:", error);
+
+  // A server-side error (has a code) is a rejection, not "offline"
+  const isNetwork = !error.code && /fetch|network/i.test(error.message || "");
+  if (!isNetwork) {
+    return { queued: false, result: { ok: false, message: `${error.code || ""} ${error.message}`.trim() } };
   }
+
+  const queue = loadQueue();
+  queue.push({ id: crypto.randomUUID(), qr_token: qrToken, scan_type: scanType, scanned_at: scannedAt });
+  saveQueue(queue);
+  updateFooter();
+  return { queued: true };
 }
 
 async function drainQueue() {
@@ -287,9 +290,16 @@ async function startCamera() {
   try {
     await html5Qrcode.start(
       { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 240, height: 240 } },
+      {
+        fps: 10,
+        aspectRatio: 1.333, // landscape 4:3 feed, much shorter than portrait
+        qrbox: (w, h) => {
+          const size = Math.floor(Math.min(w, h) * 0.9); // box fills 90% of the frame, so the shaded border is thin
+          return { width: size, height: size };
+        },
+      },
       (decodedText) => onDecoded(decodedText),
-      () => {} // per-frame "no code found" — ignored, not an error
+      () => {}
     );
   } catch (err) {
     console.error("Camera start failed:", err);

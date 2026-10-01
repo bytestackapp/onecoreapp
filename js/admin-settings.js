@@ -636,4 +636,132 @@ document.getElementById("refresh-qr-btn").addEventListener("click", async () => 
   }
 });
 
+// ---------- Print QR codes ----------
+const ROLE_LABELS = { admin: "Admins", teacher: "Teachers", student: "Students", parent: "Parents", guest: "Guests" };
+
+function printQrDialog() {
+  const backdrop = document.createElement("div");
+  backdrop.className = "dialog-backdrop";
+  backdrop.innerHTML = `
+    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="pq-title">
+      <h3 id="pq-title">Print QR codes</h3>
+      <div class="field">
+        <label for="pq-scope">Who</label>
+        <select id="pq-scope">
+          <option value="all">Everyone active</option>
+          <option value="role">By role</option>
+          <option value="group">By group</option>
+          <option value="people">Specific people</option>
+        </select>
+      </div>
+      <div id="pq-detail"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="pq-go">Continue</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    backdrop.remove();
+  }
+  document.addEventListener("keydown", onKey);
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+  backdrop.querySelector('[data-act="cancel"]').addEventListener("click", close);
+
+  const scopeSelect = backdrop.querySelector("#pq-scope");
+  const detailEl = backdrop.querySelector("#pq-detail");
+  let groupsCache = null;
+  let peopleCache = null;
+  const selectedPeople = new Set();
+
+  async function renderDetail() {
+    const scope = scopeSelect.value;
+    if (scope === "role") {
+      detailEl.innerHTML = `
+        <div class="field">
+          <label for="pq-role">Role</label>
+          <select id="pq-role">${Object.entries(ROLE_LABELS).map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select>
+        </div>`;
+    } else if (scope === "group") {
+      if (!groupsCache) {
+        const { data } = await supabase.from("groups").select("id, name").order("name");
+        groupsCache = data || [];
+      }
+      detailEl.innerHTML = groupsCache.length
+        ? `<div class="field">
+            <label for="pq-group">Group</label>
+            <select id="pq-group">${groupsCache.map((g) => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("")}</select>
+          </div>`
+        : `<p class="text-muted">No groups yet.</p>`;
+    } else if (scope === "people") {
+      if (!peopleCache) {
+        const { data } = await supabase.from("profiles").select("id, full_name, role").eq("is_active", true).order("full_name");
+        peopleCache = data || [];
+      }
+      detailEl.innerHTML = `
+        <div class="field aud-search"><input type="search" id="pq-search" placeholder="Search by name…" autocomplete="off" /></div>
+        <div class="aud-list" id="pq-people" style="max-height:220px;"></div>
+        <p class="text-muted" style="font-size:0.8rem;margin-top:4px;">${selectedPeople.size} selected</p>`;
+      renderPeopleList("");
+      detailEl.querySelector("#pq-search").addEventListener("input", (e) => renderPeopleList(e.target.value));
+    } else {
+      detailEl.innerHTML = "";
+    }
+  }
+
+  function renderPeopleList(term) {
+    const listEl = detailEl.querySelector("#pq-people");
+    const q = term.trim().toLowerCase();
+    const matches = peopleCache.filter((p) => !q || p.full_name.toLowerCase().includes(q)).slice(0, 100);
+    listEl.innerHTML = matches
+      .map(
+        (p) => `<label class="aud-row"><input type="checkbox" value="${p.id}" ${selectedPeople.has(p.id) ? "checked" : ""} /><span>${escapeHtml(p.full_name)}</span><span class="aud-meta">${escapeHtml(p.role)}</span></label>`
+      )
+      .join("");
+    listEl.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+      cb.addEventListener("change", () => {
+        if (cb.checked) selectedPeople.add(cb.value);
+        else selectedPeople.delete(cb.value);
+        detailEl.querySelector("p.text-muted").textContent = `${selectedPeople.size} selected`;
+      });
+    });
+  }
+
+  scopeSelect.addEventListener("change", renderDetail);
+  renderDetail();
+
+  backdrop.querySelector("#pq-go").addEventListener("click", () => {
+    const scope = scopeSelect.value;
+    if (scope === "all") {
+      window.open("print-qr.html?scope=all", "_blank");
+      close();
+    } else if (scope === "role") {
+      const role = detailEl.querySelector("#pq-role").value;
+      window.open(`print-qr.html?scope=role&role=${encodeURIComponent(role)}`, "_blank");
+      close();
+    } else if (scope === "group") {
+      const groupId = detailEl.querySelector("#pq-group")?.value;
+      if (!groupId) {
+        showToast("No group available.", "error");
+        return;
+      }
+      window.open(`print-qr.html?scope=group&id=${encodeURIComponent(groupId)}`, "_blank");
+      close();
+    } else if (scope === "people") {
+      if (selectedPeople.size === 0) {
+        showToast("Select at least one person.", "error");
+        return;
+      }
+      sessionStorage.setItem("onecore_print_qr_ids", JSON.stringify([...selectedPeople]));
+      window.open("print-qr.html?scope=people", "_blank");
+      close();
+    }
+  });
+}
+
+document.getElementById("print-qr-btn").addEventListener("click", printQrDialog);
+
 loadAudit();

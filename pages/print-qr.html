@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Print QR codes — OneCore</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="stylesheet" href="../css/global.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    body { background: var(--bg); }
+    .print-toolbar {
+      position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center;
+      padding: 14px 20px; background: #fff; border-bottom: 1px solid var(--border);
+    }
+    .print-toolbar h1 { font-size: 1rem; margin: 0; }
+    .print-sheet { max-width: 900px; margin: 20px auto; padding: 0 20px 40px; }
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+    .id-card {
+      border: 1px solid var(--border); border-radius: var(--radius-card); padding: 14px;
+      display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; background: #fff;
+      break-inside: avoid;
+    }
+    .id-card .photo-placeholder {
+      width: 48px; height: 48px; border-radius: 8px; background: var(--bg);
+      border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text-muted);
+    }
+    .id-card .qr-box { margin: 2px 0; }
+    .id-card .id-name { font-weight: 700; font-size: 0.9rem; line-height: 1.2; }
+    .id-card .id-org { font-size: 0.76rem; color: var(--text-secondary); }
+
+    @media print {
+      .print-toolbar { display: none; }
+      body { background: #fff; }
+      .print-sheet { margin: 0; padding: 0; max-width: none; }
+      .card-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+      .id-card { border: 1px dashed #999; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-toolbar">
+    <h1 id="toolbar-title">Print QR codes</h1>
+    <button class="btn btn-primary" id="print-btn">Print</button>
+  </div>
+  <div class="print-sheet">
+    <div id="card-grid" class="card-grid">
+      <div class="skeleton" style="height:180px;"></div>
+    </div>
+  </div>
+
+  <script type="module" src="../js/print-qr.js"></script>
+</body>
+</html>

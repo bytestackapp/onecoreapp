@@ -49,7 +49,7 @@ function initPullToRefresh() {
     }
     #ptr-reveal.ready #ptr-circle { opacity: 1; transform: scale(1); }
 	#ptr-reveal.spinning #ptr-circle { transform: scale(.72); }
-    #ptr-circle svg { width: 26px; height: 26px; }
+    #ptr-circle svg { width: 28px; height: 28px; }
     #ptr-reveal.spinning #ptr-circle svg { animation: ptr-spin .8s linear infinite; }
     @keyframes ptr-spin { to { transform: rotate(360deg); } }`;
   document.head.appendChild(style);
