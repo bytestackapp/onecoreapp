@@ -385,6 +385,48 @@ document.getElementById("mode-buttons").addEventListener("click", (e) => {
 });
 
 // -----------------------------------------------------------------
+// Sound — short tones generated in the browser, no audio files needed
+// -----------------------------------------------------------------
+let audioCtx = null;
+
+// Browsers only allow sound after the person has touched the page once.
+function unlockAudio() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  } catch {
+    // no audio support — scanning still works silently
+  }
+}
+["pointerdown", "touchend", "click", "keydown"].forEach((evt) =>
+  document.addEventListener(evt, unlockAudio, { passive: true })
+);
+
+function tone(freq, start, duration, type = "sine", volume = 0.35) {
+  const t0 = audioCtx.currentTime + start;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(volume, t0 + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+
+function beep(kind) {
+  if (!audioCtx || audioCtx.state !== "running") return;
+  if (kind === "ok") {
+    tone(1200, 0, 0.12); // one short, high beep
+  } else {
+    tone(220, 0, 0.18, "square", 0.25); // two low buzzes
+    tone(220, 0.24, 0.18, "square", 0.25);
+  }
+}
+
+// -----------------------------------------------------------------
 // Camera scanning
 // -----------------------------------------------------------------
 async function onDecoded(decodedText) {
@@ -398,16 +440,18 @@ async function onDecoded(decodedText) {
   const person = roster[qrToken];
 
   if (!person) {
-    // Not in the saved roster: declined right away, nothing is recorded or queued.
     showResult("error", ["Not in roster", "Sync roster, then scan again"]);
+    beep("error");
   } else {
     const problem = localCheck(qrToken, currentMode);
     if (problem) {
       showResult("error", [escapeHtml(person.full_name), problem]);
+      beep("error");
     } else {
       markLocal(qrToken, currentMode, scannedAt);
       enqueueScan(qrToken, currentMode, scannedAt);
       showResult("ok", [escapeHtml(person.full_name), `${label} recorded`]);
+      beep("ok");
       drainQueue();
     }
   }
