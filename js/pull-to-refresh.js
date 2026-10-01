@@ -44,10 +44,10 @@ function initPullToRefresh() {
       display: flex; align-items: center; justify-content: center;
       background: #fff; color: #2952e3;
       box-shadow: 0 3px 10px rgba(15, 23, 42, 0.22);
-      opacity: 0; transform: scale(.7);
+      opacity: 0; transform: scale(.6);
+      transition: transform .22s ease, opacity .22s ease;
     }
-    #ptr-reveal.ready #ptr-circle { transform: scale(1.08); }
-    #ptr-circle.snap { transition: transform .15s ease, opacity .15s ease; }
+    #ptr-reveal.ready #ptr-circle { opacity: 1; transform: scale(1); }
     #ptr-circle svg { width: 22px; height: 22px; }
     #ptr-reveal.spinning #ptr-circle svg { animation: ptr-spin .8s linear infinite; }
     @keyframes ptr-spin { to { transform: rotate(360deg); } }`;
@@ -56,7 +56,7 @@ function initPullToRefresh() {
   const reveal = document.createElement("div");
   reveal.id = "ptr-reveal";
   reveal.setAttribute("aria-hidden", "true");
-  reveal.innerHTML = `<div id="ptr-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.85-3.36L23 10M1 14l4.65 4.36A9 9 0 0020.5 15"/></svg></div>`;
+  reveal.innerHTML = `<div id="ptr-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">  <path d="M 12 3 C 14.52 3 16.93 4 18.74 5.74" /><path d="M 18.74 5.74 L 21 8" /><path d="M16.5 19.789 A9 9 0 1 1 12 3" /><path d="M21 3v5h-5" /></svg></div>`;
 
   function attachReveal() {
     if (reveal.isConnected) return;
@@ -106,7 +106,6 @@ function initPullToRefresh() {
     if (el) el.style.transform = `translateY(${distance}px)`;
     reveal.classList.add("on");
     reveal.style.height = `${distance + RADIUS}px`;
-    circle.style.opacity = String(Math.min(1, distance / (TRIGGER * 0.6)));
     icon.style.transform = `rotate(${distance * 5}deg)`;
     reveal.classList.toggle("ready", distance >= TRIGGER);
   }
@@ -121,7 +120,6 @@ function initPullToRefresh() {
     reveal.classList.add("snap");
     circle.classList.add("snap");
     reveal.style.height = "0";
-    circle.style.opacity = "0";
     reveal.classList.remove("ready");
     setTimeout(() => {
       reveal.classList.remove("snap", "on");
@@ -177,7 +175,6 @@ function initPullToRefresh() {
       reveal.classList.add("snap", "ready", "spinning");
       circle.classList.add("snap");
       reveal.style.height = `${HOLD + RADIUS}px`;
-      circle.style.opacity = "1";
       icon.style.transform = "";
       setTimeout(() => window.location.reload(), 500);
     } else if (pull > 0) {
