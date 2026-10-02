@@ -2,6 +2,7 @@ import { mountLayout } from "./layout.js";
 import { supabase, initials, friendlyError, getCurrentProfile } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { sectionHead } from "./ui.js";
+import { initChildDeviceCard, openFindMyChild, FMC_ICON } from "./find-my-child.js";
 
 const profile = await mountLayout({ activeKey: "profile", pageTitle: "Profile" });
 if (!profile) throw new Error("redirecting");
@@ -142,30 +143,46 @@ async function loadLinkedStudents() {
   try {
     const { data, error } = await supabase
       .from("guardians")
-      .select("id, profiles!guardians_student_id_fkey(full_name)")
+      .select("id, student_id, profiles!guardians_student_id_fkey(full_name)")
       .eq("parent_id", profile.id);
     if (error) throw error;
 
-    const names = (data || [])
-      .map((l) => l.profiles?.full_name)
-      .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    const students = (data || [])
+      .map((l) => ({ id: l.student_id, name: l.profiles?.full_name }))
+      .filter((s) => s.name)
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 
     // Parents always see the block; teachers/admins only when they have a linked student
-    if (!isParent && names.length === 0) return;
+    if (!isParent && students.length === 0) return;
 
     show(() => {
-      if (names.length === 0) {
+      if (students.length === 0) {
         note("No student linked yet. Contact an administrator to link your child.");
-      } else {
-        names.forEach((name) => {
-          const row = document.createElement("div");
-          row.className = "info-row";
-          row.innerHTML = `<div class="info-value"></div>`;
-          row.firstChild.textContent = name;
-          listEl.appendChild(row);
-        });
+        return;
       }
+      students.forEach((student) => {
+        const row = document.createElement("div");
+        row.className = "info-row";
+        row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:12px;";
+
+        const nameEl = document.createElement("div");
+        nameEl.className = "info-value";
+        nameEl.textContent = student.name;
+        row.appendChild(nameEl);
+
+        // Find My Child: only parents get the button
+        if (isParent) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "btn btn-primary btn-sm fmc-btn";
+          btn.setAttribute("aria-label", `Find My Child: ${student.name}`);
+          btn.innerHTML = `${FMC_ICON}<span>Find My Child</span>`;
+          btn.addEventListener("click", () => openFindMyChild({ childId: student.id, childName: student.name }));
+          row.appendChild(btn);
+        }
+
+        listEl.appendChild(row);
+      });
     });
   } catch (err) {
     console.error(err);
@@ -175,3 +192,4 @@ async function loadLinkedStudents() {
 }
 
 loadLinkedStudents();
+initChildDeviceCard(profile);

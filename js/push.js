@@ -10,6 +10,7 @@
 
 import { supabase } from "./supabase-client.js";
 import { showToast } from "./toast.js";
+import { registerChildDevice } from "./find-my-child.js";
 
 // TEMPORARY: while true, every registration step shows as a small toast so you
 // can see exactly where it stops. Set to false once push notifications work.
@@ -53,6 +54,7 @@ export async function initPushNotifications(profile) {
           p_platform: capacitor.getPlatform(), // "android" or "ios"
         });
         if (error) throw error;
+		if (profile.role === "student") registerChildDevice(token.value);
         dbg("token saved", "success");
       } catch (err) {
         console.error("Failed to save push token:", err);
