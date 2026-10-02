@@ -593,12 +593,211 @@ function openCorrectionDialog(recordId, date) {
       if (error) throw error;
       close();
       showToast("Correction request submitted.", "success");
+      loadCorrections();
     } catch (err) {
       console.error(err);
       showToast(friendlyError(err, "Unable to submit your correction request. Please try again."), "error");
       submit.disabled = false;
     }
   });
+}
+
+// -----------------------------------------------------------------
+// Attendance corrections: pending requests + full list in a pop-up
+// -----------------------------------------------------------------
+const isAdmin = profile.role === "admin";
+let allCorrections = [];
+let refreshAllModal = null; // set while the "all requests" pop-up is open
+
+// "Time in: 4:42 PM → 3:33 PM"  ->  { field: "Time in", detail: "4:42 PM → 3:33 PM" }
+function splitChange(text) {
+  const t = String(text || "");
+  const i = t.indexOf(": ");
+  return i < 0 ? { field: "", detail: t } : { field: t.slice(0, i), detail: t.slice(i + 2) };
+}
+
+function monthLabel(dateStr) {
+  const [y, m] = String(dateStr).split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase();
+}
+
+function correctionCard(c, clickable) {
+  const { field, detail } = splitChange(c.requested_change);
+  const kind = c.status === "approved" ? "approved" : c.status === "rejected" ? "rejected" : "pending";
+  const muted = "font-size:0.85rem;margin-top:2px;overflow-wrap:anywhere;";
+  return `
+    <div class="correction-card" data-id="${c.id}" ${clickable ? `role="button" tabindex="0"` : ""}
+      style="padding:12px 0;border-bottom:1px solid var(--border);${clickable ? "cursor:pointer;" : ""}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="font-weight:600;min-width:0;">${escapeHtml(c.name)}</div>
+        <span class="tag tag-${kind}">${escapeHtml(c.status || "pending")}</span>
+      </div>
+      <div class="text-muted" style="${muted}">${field ? `${escapeHtml(field)} · ` : ""}${escapeHtml(formatDate(c.record_date))}</div>
+      <div class="text-muted" style="${muted}">Changes: ${escapeHtml(detail)}</div>
+      <div class="text-muted" style="${muted}">Reason: ${escapeHtml(c.reason || "—")}</div>
+    </div>`;
+}
+
+// Admins can tap a pending request to review it
+function wireCorrectionCards(container) {
+  if (!isAdmin) return;
+  container.querySelectorAll(".correction-card[role=\"button\"]").forEach((card) => {
+    const open = () => {
+      const c = allCorrections.find((x) => x.id === card.getAttribute("data-id"));
+      if (c && c.status === "pending") openReviewDialog(c);
+    };
+    card.addEventListener("click", open);
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        open();
+      }
+    });
+  });
+}
+
+async function loadCorrections() {
+  const el = document.getElementById("corrections-list");
+  const viewBtn = document.getElementById("corrections-view-btn");
+  try {
+    let q = supabase
+      .from("attendance_corrections")
+      .select("id, profile_id, record_date, requested_change, reason, status, reviewer_remarks, created_at")
+      .eq("organization_id", profile.organization_id)
+      .order("created_at", { ascending: false })
+      .limit(300);
+    if (!isAdmin) q = q.eq("profile_id", profile.id); // everyone else only sees their own requests
+    const { data, error } = await q;
+    if (error) throw error;
+
+    // Look up the requesters' names
+    const names = { [profile.id]: profile.full_name };
+    const missing = [...new Set((data || []).map((c) => c.profile_id))].filter((id) => !names[id]);
+    if (missing.length) {
+      const { data: people, error: pErr } = await supabase.from("profiles").select("id, full_name").in("id", missing);
+      if (pErr) console.error(pErr);
+      (people || []).forEach((p) => (names[p.id] = p.full_name));
+    }
+
+    allCorrections = (data || []).map((c) => ({ ...c, name: names[c.profile_id] || "Unknown" }));
+    const pending = allCorrections.filter((c) => c.status === "pending");
+
+    viewBtn.style.display = allCorrections.length ? "inline-flex" : "none";
+    el.innerHTML = pending.length
+      ? pending.map((c) => correctionCard(c, isAdmin)).join("")
+      : `<div class="empty-state"><h3>No pending requests</h3><p>${isAdmin ? "Correction requests waiting for review will show up here." : "Your pending correction requests will show up here."}</p></div>`;
+    wireCorrectionCards(el);
+    if (refreshAllModal) refreshAllModal();
+  } catch (err) {
+    console.error(err);
+    el.innerHTML = `<div class="empty-state"><h3>Requests couldn't be loaded</h3><p>Please refresh the page.</p></div>`;
+  }
+}
+
+// Pop-up with every request (pending, approved, rejected), grouped by month
+function openAllCorrectionsDialog() {
+  const backdrop = document.createElement("div");
+  backdrop.className = "dialog-backdrop";
+  backdrop.innerHTML = `
+    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="allcorr-title">
+      <h3 id="allcorr-title">All correction requests</h3>
+      <div class="ack-list" id="allcorr-list" style="max-height:60vh;"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-primary" data-act="close">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  attachDialogClose(backdrop); // Escape, click-outside and the Close button
+
+  const listEl = backdrop.querySelector("#allcorr-list");
+  function renderList() {
+    if (!allCorrections.length) {
+      listEl.innerHTML = `<p class="text-muted" style="margin:0;">No correction requests yet.</p>`;
+      return;
+    }
+    const sorted = [...allCorrections].sort(
+      (a, b) => b.record_date.localeCompare(a.record_date) || String(b.created_at).localeCompare(String(a.created_at))
+    );
+    let html = "";
+    let current = "";
+    for (const c of sorted) {
+      const label = monthLabel(c.record_date);
+      if (label !== current) {
+        current = label;
+        html += `<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.06em;opacity:0.65;padding:14px 0 2px;">${label}</div>`;
+      }
+      html += correctionCard(c, isAdmin && c.status === "pending");
+    }
+    listEl.innerHTML = html;
+    wireCorrectionCards(listEl);
+  }
+  refreshAllModal = () => {
+    if (document.body.contains(backdrop)) renderList();
+    else refreshAllModal = null;
+  };
+  renderList();
+}
+
+// Admin: approve or reject one pending request
+function openReviewDialog(c) {
+  const { field, detail } = splitChange(c.requested_change);
+  const hasParts = detail.includes("→");
+  const backdrop = document.createElement("div");
+  backdrop.className = "dialog-backdrop";
+  backdrop.innerHTML = `
+    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="rev-title">
+      <h3 id="rev-title" style="margin-bottom:16px;">Correction request</h3>
+      <p><strong>Name:</strong> ${escapeHtml(c.name)}</p>
+      <p><strong>Date to Adjust:</strong> ${escapeHtml(formatDate(c.record_date))}</p>
+      ${
+        hasParts
+          ? `<p><strong>Requested Change:</strong> ${escapeHtml(field)}</p><p><strong>Changes:</strong> ${escapeHtml(detail)}</p>`
+          : `<p><strong>Requested Change:</strong> ${escapeHtml(c.requested_change)}</p>`
+      }
+      <p><strong>Reason:</strong> ${escapeHtml(c.reason || "—")}</p>
+      <div class="field">
+        <label for="rev-remarks">Remarks (optional)</label>
+        <textarea id="rev-remarks" rows="2"></textarea>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" style="background:var(--error);border-color:var(--error);color:#fff;" data-act="reject">Reject</button>
+        <button type="button" class="btn btn-primary" data-act="approve">Approve</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  const close = attachDialogClose(backdrop);
+  const approveBtn = backdrop.querySelector('[data-act="approve"]');
+  const rejectBtn = backdrop.querySelector('[data-act="reject"]');
+
+  async function review(approve) {
+    const remarks = backdrop.querySelector("#rev-remarks").value.trim() || null;
+    approveBtn.disabled = true;
+    rejectBtn.disabled = true;
+    try {
+      const { error } = await supabase.rpc("review_attendance_correction", {
+        p_correction_id: c.id,
+        p_approve: approve,
+        p_remarks: remarks,
+      });
+      if (error) throw error;
+      await logAudit({
+        action: approve ? "attendance.correction_approved" : "attendance.correction_rejected",
+        recordType: "attendance_correction",
+        recordId: c.id,
+        details: { student: c.name, date: c.record_date },
+      });
+      showToast(approve ? "Correction approved." : "Correction rejected.", "success");
+      close();
+      await loadCorrections();
+    } catch (err) {
+      console.error(err);
+      showToast(friendlyError(err, "Unable to save this decision."), "error");
+      approveBtn.disabled = false;
+      rejectBtn.disabled = false;
+    }
+  }
+  approveBtn.addEventListener("click", () => review(true));
+  rejectBtn.addEventListener("click", () => review(false));
 }
 
 // -----------------------------------------------------------------
@@ -620,3 +819,10 @@ if (profile.role === "parent") {
 
 document.getElementById("history-view-btn").addEventListener("click", openHistoryDialog);
 loadHistory();
+
+document.getElementById("corrections-view-btn").addEventListener("click", openAllCorrectionsDialog);
+loadCorrections().then(() => {
+  // Arriving from a notification (attendance.html#corrections): bring the block into view
+  if (location.hash === "#corrections") document.getElementById("corrections-section").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+if (isAdmin) every(REFRESH_MS, () => loadCorrections());

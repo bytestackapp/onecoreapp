@@ -15,7 +15,7 @@ async function load() {
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, email, role")
+      .select("id, full_name, email, phone, role")
       .eq("is_active", true)
       .order("full_name");
     if (error) throw error;
@@ -53,6 +53,7 @@ function render() {
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;">${escapeHtml(p.full_name)}${p.id === profile.id ? " (you)" : ""}</div>
         <div class="text-muted" style="font-size:0.82rem;">${escapeHtml(p.email)}</div>
+        <div class="text-muted" style="font-size:0.82rem;">${p.phone ? escapeHtml(p.phone) : "not yet provided"}</div>
       </div>
       <span class="tag tag-normal">${p.role}</span>
     </div>`

@@ -2,6 +2,7 @@ import { mountLayout } from "./layout.js";
 import { supabase, timeAgo, friendlyError, getCurrentProfile, logAudit } from "./supabase-client.js";
 import { confirmDialog } from "./dialog.js";
 import { showToast } from "./toast.js";
+import { currentPlatform } from "./version.js";
 
 const profile = await mountLayout({ activeKey: "admin-settings", pageTitle: "Settings", allowedRoles: ["admin"] });
 if (!profile) throw new Error("redirecting");
@@ -765,3 +766,445 @@ function printQrDialog() {
 document.getElementById("print-qr-btn").addEventListener("click", printQrDialog);
 
 loadAudit();
+
+// ---------- Yearly archive ----------
+// Flow (all inside one modal): preview counts -> type the confirmation -> export to ZIP -> verify ->
+// download the ZIP (it is NOT kept in Supabase) -> admin confirms the file is saved -> delete on the server
+// in one all-or-nothing step. Only the selected year (Jan 1 - Dec 31) is archived.
+const ARC_ORG = profile.organization_id;
+const arcYearSel = document.getElementById("archive-year");
+const arcPreviewBtn = document.getElementById("archive-preview-btn");
+const arcInfoBtn = document.getElementById("archive-info-btn");
+let arcBusy = false;
+let arcRuns = []; // small history rows: who archived which year
+let arcFirstYear = null; // first year that has any data
+
+// Tables in the same order the server uses (children first).
+const ARC_TABLES = {
+  events: ["event_reminder_log", "event_participants", "events"],
+  announcements: ["announcement_acknowledgments", "announcements"],
+  attendance: ["attendance_corrections", "attendance_records"],
+  leave: ["leave_requests"],
+};
+const ARC_LABELS = { attendance: "Attendance", events: "Events", announcements: "Announcements", leave: "Leave requests" };
+
+if (currentPlatform() !== "web") {
+  // File downloads are unreliable inside the phone app, so archiving is a web-only action.
+  document.getElementById("archive-form").style.display = "none";
+  document.getElementById("archive-web-only").style.display = "block";
+}
+
+function arcCategories() {
+  return Object.keys(ARC_TABLES).filter((k) => document.getElementById(`arc-cat-${k}`)?.checked);
+}
+function arcTablesFor(categories) {
+  return [...categories.flatMap((c) => ARC_TABLES[c]), "notifications", "audit_logs"];
+}
+const arcRunYear = (r) => Number(String(r.through_date).slice(0, 4));
+// A year counts as archived when at least one archive ran for exactly that year.
+const arcRunsFor = (y) => arcRuns.filter((r) => arcRunYear(r) === y).sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
+const arcWho = (r) => r.performer?.full_name || "an admin (name unavailable)";
+
+// Every year from the first year with data up to last year (so archived years stay in the list).
+function arcRenderYearOptions() {
+  const keep = arcYearSel.value;
+  const thisYear = new Date().getFullYear();
+  const first = Math.min(arcFirstYear ?? thisYear, thisYear, ...arcRuns.map(arcRunYear));
+  let html = "";
+  for (let y = thisYear - 1; y >= first; y--) {
+    html += `<option value="${y}">Year ${y}${arcRunsFor(y).length ? " (archived)" : ""}</option>`;
+  }
+  const none = html === "";
+  arcYearSel.innerHTML = none ? `<option value="">No completed years yet</option>` : html;
+  arcYearSel.disabled = none;
+  arcPreviewBtn.disabled = none;
+  if (keep && [...arcYearSel.options].some((o) => o.value === keep)) arcYearSel.value = keep;
+  arcSyncInfoBtn();
+}
+// The info icon lights up only for a year that has already been archived.
+function arcSyncInfoBtn() {
+  const has = arcRunsFor(Number(arcYearSel.value)).length > 0;
+  arcInfoBtn.disabled = !has;
+  arcInfoBtn.classList.toggle("primary", has);
+  arcInfoBtn.style.opacity = has ? "" : "0.45";
+}
+
+// ----- tiny modal helper (one modal can show several steps) -----
+function arcOpenModal() {
+  const backdrop = document.createElement("div");
+  backdrop.className = "dialog-backdrop";
+  backdrop.innerHTML = `<div class="dialog-modal" role="dialog" aria-modal="true"></div>`;
+  document.body.appendChild(backdrop);
+  const box = backdrop.firstElementChild;
+  let locked = false;
+  const onKey = (e) => {
+    if (e.key === "Escape" && !locked) m.close();
+  };
+  const m = {
+    box,
+    set: (html) => (box.innerHTML = html),
+    lock: (v) => (locked = v),
+    close: () => {
+      document.removeEventListener("keydown", onKey);
+      backdrop.remove();
+    },
+  };
+  document.addEventListener("keydown", onKey);
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop && !locked) m.close();
+  });
+  return m;
+}
+
+function arcSummaryHtml(c) {
+  const n = (k) => Number(c[k] || 0);
+  const rows = [];
+  if ("events" in c) rows.push(["Events", n("events"), `${n("event_participants")} responses, ${n("event_reminder_log")} reminder logs`]);
+  if ("announcements" in c) rows.push(["Announcements", n("announcements"), `${n("announcement_acknowledgments")} acknowledgments`]);
+  if ("attendance_records" in c) rows.push(["Attendance", n("attendance_records"), `time-in, break and time-out records + ${n("attendance_corrections")} corrections`]);
+  if ("leave_requests" in c) rows.push(["Leave requests", n("leave_requests"), "balances and carry-over are not touched"]);
+  rows.push(["Notifications", n("notifications"), "those still waiting for a decision are kept"]);
+  rows.push(["Recent activity", n("audit_logs"), "history is cleared"]);
+  return rows
+    .map(
+      ([title, count, sub]) => `
+      <div class="list-row">
+        <div style="flex:1;min-width:0;"><div style="font-weight:600;">${title}</div><div class="text-muted" style="font-size:0.8rem;">${escapeHtml(sub)}</div></div>
+        <div style="font-weight:700;">${count.toLocaleString()}</div>
+      </div>`
+    )
+    .join("");
+}
+
+// ----- Step 1: preview (opened by the eye icon) -----
+async function openArchivePreview() {
+  if (arcBusy) return;
+  const year = Number(arcYearSel.value);
+  if (!year) return;
+  const cats = arcCategories();
+  const through = `${year}-12-31`;
+  const m = arcOpenModal();
+  m.set(`<h3 style="margin-top:0;">Archive preview · Year ${year}</h3><div class="skeleton" style="height:120px;"></div>`);
+  try {
+    const { data, error } = await supabase.rpc("archive_preview", { p_org: ARC_ORG, p_through: through, p_categories: cats });
+    if (error) throw error;
+    arcShowSummary(m, { through, year, cats, cutoff: data.cutoff, counts: data.counts });
+  } catch (err) {
+    console.error(err);
+    m.set(`<h3 style="margin-top:0;">Archive preview</h3>
+      <p>${escapeHtml(friendlyError(err, "Unable to preview the archive."))}</p>
+      <div class="dialog-actions"><button type="button" class="btn btn-primary" data-act="close">Close</button></div>`);
+    m.box.querySelector('[data-act="close"]').addEventListener("click", m.close);
+  }
+}
+
+function arcShowSummary(m, a) {
+  const total = Object.values(a.counts).reduce((x, y) => x + Number(y), 0);
+  m.set(`
+    <h3 style="margin-top:0;">Archive preview · Year ${a.year}</h3>
+    <div>${arcSummaryHtml(a.counts)}</div>
+    ${
+      total === 0
+        ? `<p class="text-muted" style="margin:12px 0 0;">Nothing to archive for this period.</p>`
+        : `<p class="field-hint" style="margin-top:12px;">Only Year ${a.year} is archived. A ZIP file is downloaded first, and records are deleted only after you confirm the file is saved.</p>`
+    }
+    <div class="dialog-actions">
+      <button type="button" class="btn btn-secondary" data-act="close">${total === 0 ? "Close" : "Cancel"}</button>
+      ${total === 0 ? "" : `<button type="button" class="btn btn-primary" data-act="next" style="background:var(--error);border-color:var(--error);">Archive and delete</button>`}
+    </div>`);
+  m.box.querySelector('[data-act="close"]').addEventListener("click", m.close);
+  m.box.querySelector('[data-act="next"]')?.addEventListener("click", () => arcShowConfirm(m, a));
+}
+
+// ----- Step 2: typed confirmation -----
+function arcShowConfirm(m, a) {
+  const phrase = `ARCHIVE ${a.year}`;
+  m.set(`
+    <h3 style="margin-top:0;">Archive Year ${a.year}?</h3>
+    <p style="font-size:0.92rem;">This permanently deletes the Year ${a.year} records listed in the preview from the database. A ZIP file is downloaded to your device first, and nothing is deleted until you confirm you have it. Leave balances and carry-over are not touched.</p>
+    <div class="field" style="margin-top:12px;">
+      <label for="arc-phrase">Type <strong>${escapeHtml(phrase)}</strong> to confirm</label>
+      <input id="arc-phrase" autocomplete="off" />
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="btn btn-secondary" data-act="back">Back</button>
+      <button type="button" class="btn btn-primary" data-act="go" disabled style="background:var(--error);border-color:var(--error);">Archive and delete</button>
+    </div>`);
+  const input = m.box.querySelector("#arc-phrase");
+  const go = m.box.querySelector('[data-act="go"]');
+  input.addEventListener("input", () => (go.disabled = input.value.trim() !== phrase));
+  m.box.querySelector('[data-act="back"]').addEventListener("click", () => arcShowSummary(m, a));
+  go.addEventListener("click", () => arcRun(m, a));
+  input.focus();
+}
+
+// ----- export helpers -----
+function csvCell(v) {
+  if (v === null || v === undefined) return "";
+  const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function rowsToCsv(rows) {
+  if (!rows.length) return "";
+  const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))];
+  const lines = [cols.join(",")];
+  rows.forEach((r) => lines.push(cols.map((c) => csvCell(r[c])).join(",")));
+  return "\uFEFF" + lines.join("\n");
+}
+function arcSetStatus(text) {
+  const el = document.getElementById("arc-progress");
+  if (el) el.textContent = text || "";
+}
+async function arcFetchAll(table, a) {
+  const rows = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase.rpc("archive_export_page", {
+      p_org: ARC_ORG, p_through: a.through, p_cutoff: a.cutoff, p_table: table, p_offset: offset, p_limit: 1000,
+    });
+    if (error) throw error;
+    rows.push(...data);
+    arcSetStatus(`Exporting ${table.replace(/_/g, " ")}… ${rows.length.toLocaleString()} rows`);
+    if (data.length < 1000) break;
+  }
+  return rows;
+}
+async function arcFetchPeople() {
+  const rows = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from("profiles").select("id, full_name, email, role, is_active").eq("organization_id", ARC_ORG).order("id").range(from, from + 999);
+    if (error) throw error;
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
+  return rows;
+}
+// ----- Readable names: replace ids with people / event / leave-type names in the exported files -----
+// Columns that hold a person's profile id -> the readable column name that replaces them.
+const ARC_PERSON_COLS = {
+  profile_id: "person", actor_id: "actor", created_by: "created_by", reviewed_by: "reviewed_by", recorded_by: "recorded_by", organizer_id: "organizer",
+};
+const ARC_DROP_COLS = new Set(["id", "organization_id", "related_id", "record_id"]); // internal ids that mean nothing to a reader
+
+async function arcFetchNames(table) {
+  const map = new Map();
+  try {
+    const { data, error } = await supabase.from(table).select("id, name").eq("organization_id", ARC_ORG).range(0, 4999);
+    if (error) throw error;
+    (data || []).forEach((r) => map.set(r.id, r.name));
+  } catch (err) {
+    console.warn(`Couldn't load ${table} names`, err);
+  }
+  return map;
+}
+
+async function arcBuildLookups(raw) {
+  const peopleRows = await arcFetchPeople();
+  const titles = (rows = []) => new Map(rows.map((r) => [r.id, r.title]));
+  return {
+    peopleRows,
+    people: new Map(peopleRows.map((p) => [p.id, p.full_name])),
+    leaveTypes: await arcFetchNames("leave_types"),
+    groups: await arcFetchNames("groups"),
+    events: titles(raw.events),
+    announcements: titles(raw.announcements),
+    attendanceDates: new Map((raw.attendance_records || []).map((r) => [r.id, r.record_date])),
+  };
+}
+
+function arcNameOf(map, id) {
+  if (id === null || id === undefined || id === "") return "";
+  return map.get(id) ?? `Unknown (${String(id).slice(0, 8)})`;
+}
+
+function arcMakeReadable(rows, L) {
+  return rows.map((row) => {
+    const out = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (ARC_DROP_COLS.has(key)) continue;
+      if (ARC_PERSON_COLS[key]) out[ARC_PERSON_COLS[key]] = arcNameOf(L.people, value);
+      else if (key === "leave_type_id") out.leave_type = arcNameOf(L.leaveTypes, value);
+      else if (key === "group_id") out.group = arcNameOf(L.groups, value);
+      else if (key === "audience_group_id") out.audience_group = arcNameOf(L.groups, value);
+      else if (key === "event_id") out.event = arcNameOf(L.events, value);
+      else if (key === "announcement_id") out.announcement = arcNameOf(L.announcements, value);
+      else if (key === "attendance_record_id") out.attendance_date = value ? L.attendanceDates.get(value) ?? "" : "";
+      else if (key === "audience_user_ids") out.audience_people = (value || []).map((v) => arcNameOf(L.people, v)).join("; ");
+      else if (key === "audience_group_ids") out.audience_groups = (value || []).map((v) => arcNameOf(L.groups, v)).join("; ");
+      else out[key] = value;
+    }
+    return out;
+  });
+}
+
+function arcDownload(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+const arcGuard = (e) => {
+  e.preventDefault();
+  e.returnValue = "";
+};
+
+// ----- Step 3: export, download, confirm, delete -----
+const arcProgressHtml = (year) => `
+  <h3 style="margin-top:0;">Archiving Year ${year}…</h3>
+  <p id="arc-progress" class="text-muted" style="margin:8px 0;">Starting…</p>
+  <p class="field-hint">Please keep this page open until it finishes.</p>`;
+
+// The ZIP only exists on this device, so the admin confirms it before anything is deleted.
+function arcAskFileSaved(m, fileName) {
+  return new Promise((resolve) => {
+    m.set(`
+      <h3 style="margin-top:0;">Is the file saved?</h3>
+      <p style="font-size:0.92rem;">Your archive was downloaded as <strong>${escapeHtml(fileName)}</strong>. Check your Downloads folder and make sure the file is there. The records are deleted only after you confirm, and this cannot be undone.</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-secondary" data-act="no">No, don't delete</button>
+        <button type="button" class="btn btn-primary" data-act="yes" style="background:var(--error);border-color:var(--error);">Yes, delete the records</button>
+      </div>`);
+    m.box.querySelector('[data-act="no"]').addEventListener("click", () => resolve(false));
+    m.box.querySelector('[data-act="yes"]').addEventListener("click", () => resolve(true));
+  });
+}
+
+async function arcRun(m, a) {
+  if (arcBusy) return;
+  if (!window.JSZip) {
+    showToast("The ZIP tool couldn't be loaded. Check your connection and reload the page.", "error");
+    return;
+  }
+  arcBusy = true;
+  m.lock(true);
+  window.addEventListener("beforeunload", arcGuard);
+  m.set(arcProgressHtml(a.year));
+
+  let failure = null;
+  let cancelled = false;
+  try {
+    // 1) Export everything and check the numbers match the preview.
+    const zip = new window.JSZip();
+    const exported = {};
+    const raw = {};
+    for (const table of arcTablesFor(a.cats)) {
+      const rows = await arcFetchAll(table, a);
+      if (rows.length !== Number(a.counts[table])) {
+        throw new Error(`Export check failed for ${table} (${rows.length} exported, ${a.counts[table]} expected). Nothing was deleted.`);
+      }
+      raw[table] = rows;
+      exported[table] = rows.length;
+    }
+    arcSetStatus("Adding names…");
+    const lookups = await arcBuildLookups(raw);
+    for (const [table, rows] of Object.entries(raw)) {
+      if (rows.length) zip.file(`${table}.csv`, rowsToCsv(arcMakeReadable(rows, lookups)));
+    }
+    zip.file("people.csv", rowsToCsv(lookups.peopleRows.map(({ full_name, email, role, is_active }) => ({ full_name, email, role, is_active }))));
+    zip.file(
+      "manifest.json",
+      JSON.stringify({ organization: profile.organizations?.name || null, year: a.year, categories: a.cats, exported, createdAt: new Date().toISOString(), note: "Ids are replaced with names. people.csv lists everyone in the academy." }, null, 2)
+    );
+
+    // 2) Build the ZIP and download it.
+    arcSetStatus("Building the ZIP file…");
+    const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+    const fileName = `onecore-archive-${a.year}.zip`;
+    arcDownload(blob, fileName);
+
+    // 3) Wait for the admin to confirm the file is saved, then delete in one all-or-nothing step.
+    if (!(await arcAskFileSaved(m, fileName))) {
+      cancelled = true;
+    } else {
+      m.set(arcProgressHtml(a.year));
+      arcSetStatus("Deleting archived records…");
+      const { data, error } = await supabase.rpc("run_archive", {
+        p_org: ARC_ORG, p_through: a.through, p_categories: a.cats, p_cutoff: a.cutoff, p_expected: exported,
+      });
+      if (error) throw error;
+      const removed = Object.values(data).reduce((x, y) => x + Number(y), 0);
+      showToast(`Archive complete. ${removed.toLocaleString()} records removed.`, "success");
+    }
+  } catch (err) {
+    console.error(err);
+    failure = friendlyError(err, "The archive did not finish.");
+  } finally {
+    window.removeEventListener("beforeunload", arcGuard);
+    arcBusy = false;
+    m.lock(false);
+  }
+
+  if (failure) {
+    m.set(`
+      <h3 style="margin-top:0;">The archive did not finish</h3>
+      <p>${escapeHtml(failure)}</p>
+      <p class="text-muted" style="font-size:0.85rem;">Nothing is deleted unless the archive is marked complete. The year list shows "(archived)" for years that finished.</p>
+      <div class="dialog-actions"><button type="button" class="btn btn-primary" data-act="close">Close</button></div>`);
+    m.box.querySelector('[data-act="close"]').addEventListener("click", m.close);
+  } else {
+    m.close();
+    if (cancelled) showToast("Nothing was deleted.", "info");
+  }
+  loadArchiveRuns();
+  if (!failure && !cancelled) loadAudit();
+}
+
+// ----- Archived-year details (info icon) -----
+function arcRunCard(r) {
+  const total = Object.values(r.counts || {}).reduce((x, y) => x + Number(y), 0);
+  const included = [...(r.categories || []).map((c) => ARC_LABELS[c] || c), "Notifications", "Recent activity"].join(", ");
+  return `<div class="list-row" style="display:block;">
+    <div style="font-weight:600;">Archived by ${escapeHtml(arcWho(r))}</div>
+    <div class="text-muted" style="font-size:0.8rem;">${escapeHtml(new Date(r.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }))}</div>
+    <div class="text-muted" style="font-size:0.8rem;">Included: ${escapeHtml(included)}</div>
+    <div style="font-size:0.85rem;margin-top:4px;">${total.toLocaleString()} records removed</div>
+  </div>`;
+}
+
+function openArchiveInfo() {
+  const year = Number(arcYearSel.value);
+  const runs = arcRunsFor(year);
+  if (!runs.length) return;
+  const m = arcOpenModal();
+  m.set(`
+    <h3 style="margin-top:0;">Year ${year} · archive details</h3>
+    <div style="max-height:55vh;overflow-y:auto;">${runs.map(arcRunCard).join("")}</div>
+    <div class="dialog-actions"><button type="button" class="btn btn-primary" data-act="close">Close</button></div>`);
+  m.box.querySelector('[data-act="close"]').addEventListener("click", m.close);
+}
+
+// ----- Load the small history (for "(archived)" labels) and the first year with data -----
+async function loadArchiveRuns() {
+  const cols = "id, through_date, categories, counts, created_at";
+  try {
+    const [firstRes, runsRes] = await Promise.all([
+      supabase.rpc("archive_first_year", { p_org: ARC_ORG }),
+      supabase.from("archive_runs").select(`${cols}, performer:profiles!performed_by(full_name)`).eq("organization_id", ARC_ORG).order("created_at", { ascending: false }).limit(200),
+    ]);
+    let runs = runsRes;
+    if (runs.error) {
+      // Names couldn't be joined: still show which years are archived, without names.
+      runs = await supabase.from("archive_runs").select(cols).eq("organization_id", ARC_ORG).order("created_at", { ascending: false }).limit(200);
+    }
+    if (firstRes.error) throw firstRes.error;
+    if (runs.error) throw runs.error;
+    arcFirstYear = firstRes.data;
+    arcRuns = runs.data || [];
+  } catch (err) {
+    console.error(err);
+    showToast(friendlyError(err, "Couldn't load the archive years."), "error");
+  }
+  arcRenderYearOptions();
+}
+
+arcYearSel.addEventListener("change", arcSyncInfoBtn);
+arcPreviewBtn.addEventListener("click", openArchivePreview);
+arcInfoBtn.addEventListener("click", openArchiveInfo);
+if (currentPlatform() === "web") {
+  arcYearSel.innerHTML = `<option value="">Loading…</option>`;
+  arcPreviewBtn.disabled = true;
+  loadArchiveRuns();
+}

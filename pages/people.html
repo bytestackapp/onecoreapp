@@ -35,14 +35,14 @@
 </div>
   <div id="page-content">
     <div class="card" style="margin-bottom:16px;">
-      <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+      <div style="display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:12px;">
         <div class="field" style="margin-bottom:0;">
           <label for="search">Search</label>
-          <input id="search" placeholder="Search by name or email…" />
+          <input id="search" style="width:100%;min-width:0;box-sizing:border-box;" placeholder="Search by name or email…" />
         </div>
         <div class="field" style="margin-bottom:0;">
           <label for="role-filter">Role</label>
-          <select id="role-filter">
+          <select id="role-filter" style="width:100%;min-width:0;box-sizing:border-box;">
             <option value="">All roles</option>
             <option value="admin">Admin</option>
             <option value="teacher">Teacher</option>

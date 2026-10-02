@@ -116,6 +116,36 @@ export async function sendPush(
   return { token, ok: false, shouldDelete };
 }
 
+export async function sendDataPush(
+  accessToken: string,
+  projectId: string,
+  token: string,
+  data: Record<string, string>,
+  ttlSeconds = 120
+): Promise<PushResult> {
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      message: {
+        token,
+        data, // every value must be a string
+        android: { priority: "high", ttl: `${ttlSeconds}s` },
+      },
+    }),
+  });
+ 
+  if (res.ok) return { token, ok: true, shouldDelete: false };
+ 
+  const errText = await res.text();
+  console.error(`FCM data send failed for token ${token}: ${res.status} ${errText}`);
+  const shouldDelete = res.status === 404 || errText.includes("UNREGISTERED") || errText.includes("NOT_FOUND");
+  return { token, ok: false, shouldDelete };
+}
+
 export function loadServiceAccount(): ServiceAccount {
   const raw = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON");
   if (!raw) throw new Error("FCM_SERVICE_ACCOUNT_JSON secret is not set.");

@@ -6,6 +6,15 @@
   <title>Profile</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="../css/global.css" />
+  <style>
+    .head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .head-row-title { flex: 1; min-width: 0; }
+    .info-row { padding: 10px 0; border-bottom: 1px solid rgba(128,128,128,.2); }
+    .info-row:first-child { padding-top: 0; }
+    .info-row:last-child { padding-bottom: 0; border-bottom: 0; }
+    .info-label { font-size: 0.78rem; opacity: .65; margin-bottom: 2px; }
+    .info-value { font-weight: 600; overflow-wrap: anywhere; }
+  </style>
 </head>
 <body>
 <div id="page-loader" class="page-loader">
@@ -34,39 +43,45 @@
   </div>
 </div>
   <div id="page-content" style="max-width:520px;">
-    <div id="form-banner" class="banner banner-success" style="display:none;"></div>
+    <!-- Block 1: identity -->
     <div class="card">
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:14px;">
         <div class="avatar" id="profile-avatar" style="width:56px;height:56px;font-size:1.2rem;"></div>
-        <div>
+        <div style="min-width:0;">
           <h2 style="margin:0;" id="profile-name">—</h2>
           <span class="tag tag-normal" id="profile-role">—</span>
           <div class="text-muted" id="profile-academy" style="font-size:0.82rem;margin-top:4px;"></div>
         </div>
       </div>
-
-      <form id="profile-form">
-        <div class="field">
-          <label for="full_name">Full name</label>
-          <input id="full_name" required />
-        </div>
-        <div class="field">
-          <label for="email">Email</label>
-          <input id="email" disabled />
-          <div class="field-hint">Contact an administrator to change your email.</div>
-        </div>
-        <div class="field">
-          <label for="phone">Phone</label>
-          <input id="phone" />
-        </div>
-        <button class="btn btn-primary" type="submit" id="save-btn">Save changes</button>
-      </form>
     </div>
 
-    <div class="card" style="margin-top:16px;">
-      <h3>Password</h3>
-      <p>Update the password you use to sign in.</p>
-      <a class="btn btn-secondary" href="reset-password.html">Send password reset email</a>
+    <!-- Block 2: basic information -->
+    <div class="section" style="margin-top:16px;">
+      <div class="head-row">
+        <div class="head-row-title" id="basic-head"></div>
+        <button type="button" class="icon-action" id="edit-profile-btn" title="Edit" aria-label="Edit basic information"></button>
+      </div>
+      <div class="card">
+        <div class="info-row"><div class="info-label">Full name</div><div class="info-value" id="view-full-name">—</div></div>
+        <div class="info-row"><div class="info-label">Email</div><div class="info-value" id="view-email">—</div></div>
+        <div class="info-row"><div class="info-label">Phone</div><div class="info-value" id="view-phone">—</div></div>
+      </div>
+    </div>
+
+    <!-- Linked students (parents, or anyone who has a linked student) -->
+    <div class="section" id="linked-students-section" style="margin-top:16px;display:none;">
+      <div id="linked-head"></div>
+      <div class="card" id="linked-students-list"></div>
+    </div>
+
+    <!-- Block 3: security -->
+    <div class="section" style="margin-top:16px;">
+      <div id="security-head"></div>
+      <div class="card">
+        <h3>Password</h3>
+        <p>Update the password you use to sign in.</p>
+        <a class="btn btn-secondary" href="reset-password.html">Send password reset email</a>
+      </div>
     </div>
   </div>
 

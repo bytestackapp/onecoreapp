@@ -6,6 +6,26 @@
   <title>Users</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="../css/global.css" />
+  <style>
+    /* Search + role filter row: minmax(0, ...) lets the columns shrink so nothing overflows the screen */
+    .user-filters { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 12px; margin: 0 0 12px; }
+    .user-filters input, .user-filters select { display: block; width: 100%; min-width: 0; box-sizing: border-box; padding: 10px 14px; border: 1px solid rgba(128,128,128,.35); border-radius: 10px; background: transparent; color: inherit; font: inherit; }
+
+    /* Keep user cards inside the screen on phones: the text column shrinks, the action icons stay on the same row */
+    #users-list { max-width: 100%; overflow-x: hidden; }
+    .user-meta { flex: 1 1 0; min-width: 0; }
+    .user-name, .user-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-actions { flex-shrink: 0; flex-wrap: nowrap; }
+
+    /* Linked Student modal */
+    .linked-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .linked-head h3 { margin: 0; }
+    .picker-scroll { max-height: 50vh; overflow-y: auto; margin-top: 8px; }
+    .picker-table { width: 100%; border-collapse: collapse; }
+    .picker-table th { position: sticky; top: 0; background: var(--card-bg, #fff); text-align: left; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; opacity: .65; padding: 8px 6px; border-bottom: 1px solid rgba(128,128,128,.3); }
+    .picker-table td { padding: 8px 6px; border-bottom: 1px solid rgba(128,128,128,.18); }
+    .picker-table .picker-action { width: 1%; white-space: nowrap; text-align: right; }
+  </style>
 </head>
 <body>
 <div id="page-loader" class="page-loader">

@@ -15,12 +15,13 @@ const RELATED_PAGE = {
   announcement: "announcements.html",
   event: "events.html",
   leave_request: "leave.html",
-  attendance_correction: "attendance.html",
+  attendance_correction: "attendance.html#corrections", // reviewed on the Attendance page
   signup: "admin-users.html", // new account waiting for approval
 };
 
 // Related types an admin reviews inline instead of navigating away.
-const ADMIN_REVIEW_TYPES = new Set(["attendance_correction", "leave_request"]);
+// (Attendance corrections are reviewed on the Attendance page, so they just link there.)
+const ADMIN_REVIEW_TYPES = new Set(["leave_request"]);
 
 // These three types show a fixed label + requester name on the card, instead of
 // the raw title/body sentence. Everything else (announcements, events) is unchanged.
@@ -146,10 +147,6 @@ function render() {
       const id = row.getAttribute("data-id");
       await markRead(id);
       const reviewType = row.getAttribute("data-review-type");
-      if (reviewType === "attendance_correction") {
-        openCorrectionDialog(row.getAttribute("data-related-id"));
-        return;
-      }
       if (reviewType === "leave_request") {
         openLeaveDialog(row.getAttribute("data-related-id"));
         return;
@@ -249,99 +246,6 @@ function openDialog(titleId, html) {
     if (e.target === backdrop) close();
   });
   return { backdrop, close };
-}
-
-// -----------------------------------------------------------------
-// Admin: review an attendance correction without leaving this page
-// -----------------------------------------------------------------
-async function openCorrectionDialog(correctionId) {
-  if (!correctionId) return;
-  const { backdrop, close } = openDialog(
-    "cr-title",
-    `<div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="cr-title">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;">
-        <h3 id="cr-title" style="margin:0;">Correction request</h3>
-        <span id="cr-badge"></span>
-      </div>
-      <div id="cr-body"><div class="skeleton" style="height:60px;"></div></div>
-    </div>`
-  );
-
-  try {
-    const { data, error } = await supabase.rpc("get_attendance_correction", { p_id: correctionId }).single();
-    if (error) throw error;
-    if (!data) throw new Error("not found");
-
-    const bodyEl = backdrop.querySelector("#cr-body");
-
-    function renderBody() {
-      const isPending = data.status === "pending";
-      const [changeField, ...changeRest] = String(data.requested_change || "").split(": ");
-      const changeDetail = changeRest.join(": ");
-      const hasParts = changeDetail.includes("→");
-      const badge = !isPending
-        ? `<span class="tag tag-${data.status === "approved" ? "approved" : "rejected"}">${escapeHtml(data.status)}</span>`
-        : "";
-      backdrop.querySelector("#cr-badge").innerHTML = badge;
-      bodyEl.innerHTML = `
-        <p><strong>Name:</strong> ${escapeHtml(data.full_name)}</p>
-        <p><strong>Date to Adjust:</strong> ${escapeHtml(data.record_date)}</p>
-        ${
-          hasParts
-            ? `<p><strong>Requested Change:</strong> ${escapeHtml(changeField)}</p>
-               <p><strong>Changes:</strong> ${escapeHtml(changeDetail)}</p>`
-            : `<p><strong>Requested Change:</strong> ${escapeHtml(data.requested_change)}</p>`
-        }
-        <p><strong>Reason:</strong> ${escapeHtml(data.reason)}</p>
-        ${!isPending && data.reviewer_remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(data.reviewer_remarks)}</p>` : ""}
-        ${
-          isPending
-            ? `<div class="field">
-                <label for="cr-remarks">Remarks (optional)</label>
-                <textarea id="cr-remarks" rows="2"></textarea>
-              </div>
-              <div class="dialog-actions">
-                <button type="button" class="btn" style="background:var(--error);border-color:var(--error);color:#fff;" data-act="reject">Reject</button>
-                <button type="button" class="btn btn-primary" data-act="approve">Approve</button>
-              </div>`
-            : `<div class="dialog-actions"><button type="button" class="btn btn-primary" data-act="close">Close</button></div>`
-        }
-      `;
-
-      bodyEl.querySelector('[data-act="close"]')?.addEventListener("click", close);
-      bodyEl.querySelector('[data-act="approve"]')?.addEventListener("click", () => review(true));
-      bodyEl.querySelector('[data-act="reject"]')?.addEventListener("click", () => review(false));
-    }
-
-    async function review(approve) {
-      const remarks = bodyEl.querySelector("#cr-remarks")?.value.trim() || null;
-      try {
-        const { error: rErr } = await supabase.rpc("review_attendance_correction", {
-          p_correction_id: correctionId,
-          p_approve: approve,
-          p_remarks: remarks,
-        });
-        if (rErr) throw rErr;
-        await logAudit({
-          action: approve ? "attendance.correction_approved" : "attendance.correction_rejected",
-          recordType: "attendance_correction",
-          recordId: correctionId,
-          details: { student: data.full_name, date: data.record_date },
-        });
-        showToast(approve ? "Correction approved." : "Correction rejected.", "success");
-        close();
-      } catch (err) {
-        console.error(err);
-        showToast(friendlyError(err, "Unable to save this decision."), "error");
-      }
-    }
-
-    renderBody();
-  } catch (err) {
-    console.error(err);
-    backdrop.querySelector("#cr-body").innerHTML = `<p class="text-muted">This request couldn't be loaded.</p>`;
-    showToast("Unable to load this request.", "error");
-  }
 }
 
 // -----------------------------------------------------------------

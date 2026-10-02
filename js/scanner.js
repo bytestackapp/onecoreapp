@@ -28,6 +28,12 @@ const setupView = document.getElementById("setup-view");
 const scanView = document.getElementById("scan-view");
 const resultEl = document.getElementById("scanner-result");
 const queueStatusEl = document.getElementById("queue-status");
+const rejectedBtn = document.getElementById("rejected-btn");
+const rejectedMenuDesc = document.getElementById("rejected-menu-desc");
+const rejectedModal = document.getElementById("rejected-modal");
+const rejectedList = document.getElementById("rejected-list");
+const rejectedClearBtn = document.getElementById("rejected-clear-btn");
+const rejectedCloseBtn = document.getElementById("rejected-close-btn");
 
 // -----------------------------------------------------------------
 // Local storage helpers
@@ -89,6 +95,7 @@ function updateFooter() {
   const queueCount = loadQueue().length;
   const rejected = loadRejected().length;
   queueStatusEl.textContent = `Roster: ${rosterCount} · Queue: ${queueCount}` + (rejected ? ` · Rejected: ${rejected}` : "");
+  refreshRejectedMenuText();
 }
 
 function showResult(kind, lines) {
@@ -246,6 +253,70 @@ syncNowBtn.addEventListener("click", () => runSync(false));
 refreshDataBtn.addEventListener("click", () => runSync(true));
 
 // -----------------------------------------------------------------
+// Rejected scans (gear menu) — scans this phone accepted that the server later
+// refused for a real reason. Duplicates are not listed.
+// -----------------------------------------------------------------
+function formatWhen(iso) {
+  return new Date(iso).toLocaleString("en-US", {
+    timeZone: "Asia/Manila",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function refreshRejectedMenuText() {
+  const n = loadRejected().length;
+  rejectedMenuDesc.textContent = n ? `${n} scan${n === 1 ? "" : "s"} the server refused` : "Nothing to review";
+}
+
+function renderRejected() {
+  const items = loadRejected().slice().reverse(); // newest first
+  if (items.length === 0) {
+    rejectedList.innerHTML = `<div class="rejected-empty">No rejected scans.</div>`;
+    rejectedClearBtn.disabled = true;
+    return;
+  }
+  rejectedClearBtn.disabled = false;
+  rejectedList.innerHTML = items
+    .map(
+      (item) => `
+    <div class="rejected-item">
+      <div class="who">${escapeHtml(item.name || "Unknown ID")}</div>
+      <div class="what">${escapeHtml(MODE_LABEL[item.scan_type] || item.scan_type)} · ${escapeHtml(formatWhen(item.scanned_at))}</div>
+      <div class="why">${escapeHtml(item.message || "Rejected by the server.")}</div>
+    </div>`
+    )
+    .join("");
+}
+
+function openRejected() {
+  setMenu(false);
+  renderRejected();
+  rejectedModal.style.display = "flex";
+  rejectedCloseBtn.focus();
+}
+function closeRejected() {
+  rejectedModal.style.display = "none";
+  settingsBtn.focus();
+}
+
+rejectedBtn.addEventListener("click", openRejected);
+rejectedCloseBtn.addEventListener("click", closeRejected);
+rejectedModal.addEventListener("click", (e) => {
+  if (e.target === rejectedModal) closeRejected();
+});
+rejectedClearBtn.addEventListener("click", () => {
+  saveRejected([]);
+  renderRejected();
+  updateFooter();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && rejectedModal.style.display !== "none") closeRejected();
+});
+
+// -----------------------------------------------------------------
 // Roster sync
 //   incremental (default): only people added or changed since the last sync are
 //                          downloaded and merged into the saved roster.
@@ -344,20 +415,35 @@ function localCheck(qrToken, mode) {
     if (rec.break_in) return "Break already completed today.";
   }
   if (mode === "time_out") {
-  if (!rec.time_in) return "Time in first.";
-  if (rec.time_out) return "Already timed out today.";
-}
+    if (!rec.time_in) return "Time in first.";
+    if (rec.time_out) return "Already timed out today.";
+  }
   return null;
+}
+
+function logRejected(name, scanType, scannedAt, message) {
+  const rejected = loadRejected();
+  rejected.push({ name, scan_type: scanType, scanned_at: scannedAt, message });
+  saveRejected(rejected);
+  updateFooter();
 }
 
 // -----------------------------------------------------------------
 // Upload queue — scans wait here with their real timestamp and are sent in
-// order. A scan the server rejects (already timed in, retired ID, etc.) is
-// moved to the rejected log instead of being dropped silently.
+// order. If the server says "already recorded" the scan is dropped. Any other
+// refusal or repeated system error goes to the rejected log (gear menu).
+// No connection: the scan simply stays queued and is sent when it returns.
 // -----------------------------------------------------------------
 function enqueueScan(qrToken, scanType, scannedAt) {
   const queue = loadQueue();
-  queue.push({ id: crypto.randomUUID(), qr_token: qrToken, scan_type: scanType, scanned_at: scannedAt, attempts: 0 });
+  queue.push({
+    id: crypto.randomUUID(),
+    qr_token: qrToken,
+    scan_type: scanType,
+    scanned_at: scannedAt,
+    name: roster[qrToken]?.full_name || null,
+    attempts: 0,
+  });
   saveQueue(queue);
   updateFooter();
 }
@@ -382,8 +468,11 @@ async function drainQueue() {
           p_scanned_at: item.scanned_at,
         });
         if (error) throw error;
+        // A duplicate ("already recorded") is simply dropped. Any other refusal
+        // (ID not recognized, retired ID, removed account, wrong order...) is kept for review.
         if (data?.ok === false) {
-          rejected.push({ ...item, name: data.name || null, message: data.message || "Rejected by the server." });
+          rejected.push({ ...item, name: item.name || data.name || null, message: data.message || "Rejected by the server." });
+        }
         }
       } catch (err) {
         item.attempts = (item.attempts || 0) + 1;
@@ -475,11 +564,13 @@ async function onDecoded(decodedText) {
   if (!person) {
     showResult("error", ["Not in roster", "Sync roster, then scan again"]);
     beep("error");
+    logRejected(null, currentMode, scannedAt, "Not in roster — sync and try again.");
   } else {
     const problem = localCheck(qrToken, currentMode);
     if (problem) {
       showResult("error", [escapeHtml(person.full_name), problem]);
       beep("error");
+      logRejected(person.full_name, currentMode, scannedAt, problem);
     } else {
       markLocal(qrToken, currentMode, scannedAt);
       enqueueScan(qrToken, currentMode, scannedAt);

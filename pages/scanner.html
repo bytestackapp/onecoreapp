@@ -134,6 +134,15 @@
     .scanner-result.queued::before { content: "↻"; -webkit-text-fill-color: #fff; }
     .scanner-result.error::before { content: "✕"; -webkit-text-fill-color: #fff; }
 
+    /* Rejected scans dialog (built on .dialog-backdrop / .dialog-modal) */
+    .rejected-hint { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; }
+    .rejected-list { max-height: 50dvh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+    .rejected-item { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+    .rejected-item .who { font-weight: 700; font-size: 0.92rem; }
+    .rejected-item .what { font-size: 0.8rem; color: var(--text-secondary); }
+    .rejected-item .why { font-size: 0.82rem; color: var(--error); margin-top: 2px; }
+    .rejected-empty { text-align: center; padding: 18px 0; color: var(--text-muted); font-size: 0.9rem; }
+
     /* Activation screen reuses .auth-page / .auth-card */
 
     /* Close-scanner modal (built on .dialog-backdrop / .dialog-modal) */
@@ -205,11 +214,15 @@
         <div class="scanner-menu" id="settings-menu" role="menu" hidden>
           <button type="button" class="scanner-menu-item" id="sync-now-btn" role="menuitem">
             <span class="t">Sync roster now</span>
-            <span class="d">Adds new or changed people. Doesn't remove anyone.</span>
+            <span class="d">Download people who were added or changed</span>
           </button>
           <button type="button" class="scanner-menu-item" id="refresh-data-btn" role="menuitem">
             <span class="t">Refresh data now</span>
-            <span class="d">Replaces the whole roster. Removes retired codes and deactivated people.</span>
+            <span class="d">Replace the whole roster, including new QR codes</span>
+          </button>
+          <button type="button" class="scanner-menu-item" id="rejected-btn" role="menuitem">
+            <span class="t">Rejected scans</span>
+            <span class="d" id="rejected-menu-desc">Nothing to review</span>
           </button>
         </div>
       </header>
@@ -241,6 +254,19 @@
       <div class="dialog-actions">
         <button type="button" class="btn btn-secondary" id="deactivate-cancel-btn">Keep scanning</button>
         <button type="button" class="btn btn-danger-solid" id="deactivate-confirm-btn">Close scanner</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rejected scans modal -->
+  <div id="rejected-modal" class="dialog-backdrop" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="rejected-title">
+    <div class="dialog-modal">
+      <h3 id="rejected-title">Rejected scans</h3>
+      <p class="rejected-hint">Scans the server could not accept. Duplicates are not listed.</p>
+      <div id="rejected-list" class="rejected-list"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-secondary" id="rejected-clear-btn">Clear list</button>
+        <button type="button" class="btn btn-primary" id="rejected-close-btn">Close</button>
       </div>
     </div>
   </div>

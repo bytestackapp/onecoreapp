@@ -7,7 +7,6 @@ const profile = await mountLayout({ activeKey: "leave", pageTitle: "Leave", allo
 if (!profile) throw new Error("redirecting");
 
 const isAdmin = profile.role === "admin";
-let leaveTypes = []; // all active types in the org (admin overview)
 let myLeaveTypes = []; // only the types assigned to me this year
 let myRequests = []; // all of my leave requests, newest filed first
 const MY_REQUESTS_PREVIEW = 5; // how many show on the card
@@ -29,7 +28,6 @@ document.getElementById("requests-head").innerHTML = sectionHead({
   linkHtml: `<span style="margin-left:auto;display:flex;gap:6px;"><button type="button" class="icon-action" id="view-my-requests-btn" title="View all my leave requests" aria-label="View all my leave requests"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button type="button" class="icon-action primary" id="file-btn" title="File a leave request" aria-label="File a leave request"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button></span>`,
 });
 
-await loadLeaveTypes();
 await loadMyLeaveTypes();
 loadBalances();
 loadMyRequests();
@@ -44,27 +42,10 @@ if (isAdmin) {
   });
   document.getElementById("view-all-requests-btn").addEventListener("click", openAllRequestsDialog);
   loadAdminRequests();
-
-  document.getElementById("types-section").style.display = "block";
-  document.getElementById("types-head").innerHTML = sectionHead({
-    title: "Leave types",
-    tone: "muted",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41L11 3.83A2 2 0 009.59 3.24L4 3a1 1 0 00-1 1l.24 5.59a2 2 0 00.58 1.42l9.59 9.58a2 2 0 002.83 0l4.35-4.35a2 2 0 000-2.83z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>`,
-  });
-  renderLeaveTypesReadOnly();
 }
 
 document.getElementById("file-btn").addEventListener("click", fileLeaveDialog);
 document.getElementById("view-my-requests-btn").addEventListener("click", openMyRequestsListDialog);
-
-async function loadLeaveTypes() {
-  const { data, error } = await supabase.from("leave_types").select("*").eq("is_active", true).order("name");
-  if (error) {
-    console.error(error);
-    return;
-  }
-  leaveTypes = data || [];
-}
 
 async function loadMyLeaveTypes() {
   const { data, error } = await supabase
@@ -82,30 +63,7 @@ async function loadMyLeaveTypes() {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function renderLeaveTypesReadOnly() {
-  const el = document.getElementById("leave-types-list");
-  if (leaveTypes.length === 0) {
-    el.innerHTML = `<div class="empty-state"><h3>No leave types yet</h3><p>Set these up in Settings → Leave types.</p></div>`;
-    return;
-  }
-  el.innerHTML = leaveTypes
-    .map(
-      (t) => `
-      <div class="list-row">
-        <div style="flex:1;min-width:0;font-weight:600;">${escapeHtml(t.name)}</div>
-        <div class="text-muted" style="font-size:0.85rem;">${t.default_entitlement} days/year${t.accrual_frequency === "monthly" ? " · earned monthly" : ""}${carryOverText(t)}</div>
-      </div>`
-    )
-    .join("");
-}
-
 const fmtNum = (n) => +Number(n || 0).toFixed(2);
-
-function carryOverText(t) {
-  if (t.carry_over_mode === "all") return " · carries over all unused days";
-  if (t.carry_over_mode === "capped") return ` · carries over up to ${+Number(t.carry_over_max || 0).toFixed(2)} days`;
-  return "";
-}
 
 async function loadBalances() {
   const el = document.getElementById("balances-list");
@@ -144,13 +102,15 @@ async function loadBalances() {
           <tbody>
             ${rows
               .map((b) => {
-                const available = (b.entitled || 0) - (b.used || 0) - (b.pending || 0);
+                // Total = the full-year credit + carried-over days (what the staff member can use this year)
                 const total = (b.leave_types?.default_entitlement ?? b.entitled) + (b.carried_over || 0);
+                // Available is measured against the Total, not against what has been earned so far
+                const available = total - (b.used || 0) - (b.pending || 0);
                 return `<tr style="${line}">
                   <td style="${td}text-align:left;font-weight:600;">${escapeHtml(b.leave_types?.name || "Leave")}</td>
                   <td style="${td}font-weight:600;">${fmtNum(available)}</td>
                   <td style="${td}">${fmtNum(b.used)}</td>
-                  <td style="${td}">${fmtNum(b.entitled)}${b.carried_over > 0 ? `<div class="text-muted" style="font-size:0.72rem;font-weight:500;">incl. ${fmtNum(b.carried_over)} carried</div>` : ""}</td>
+                  <td style="${td}">${fmtNum(b.entitled)}</td>
                   <td style="${td}">${fmtNum(total)}</td>
                 </tr>`;
               })

@@ -28,15 +28,17 @@ function sortUsers(list) {
 let allActive = [];
 let allInactive = [];
 const searchTerms = { active: "", inactive: "" };
+const roleFilters = { active: "", inactive: "" };
 
 const ICON = {
   approve:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
+  add:        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`,
   reject:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
   edit:       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`,
   deactivate: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>`,
   activate:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1011.4 0"/></svg>`,
   delete:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg>`,
-  guardians:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>`,
+  children:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5.5" r="2.5"/><path d="M12 8.5v6M7.5 11l4.5 1.5 4.5-1.5M9 21l3-6.5 3 6.5"/></svg>`,
   leaveType:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M9 15l2 2 4-4"/></svg>`,
 };
 
@@ -59,13 +61,12 @@ function userRow(u, mode) {
   const isSelf = u.id === profile.id;
   const adminLocked = u.role === "admin" && !isOwner; // academy admins can't change or deactivate other admins
   const name = escapeHtml(u.full_name);
-  const roleLabel = u.role.charAt(0).toUpperCase() + u.role.slice(1);
   const common = `data-id="${u.id}" data-name="${name}" data-role="${escapeHtml(u.role)}" data-guest-until="${escapeHtml(u.guest_until || "")}"`;
 
   const editBtn = actionBtn({ cls: "edit-role-btn", icon: "edit", label: "Edit role", attrs: common, disabled: isSelf || adminLocked });
-  const guardianBtn =
-    mode !== "pending" && u.role === "student"
-      ? actionBtn({ cls: "guardian-btn", icon: "guardians", label: "Guardians", attrs: common })
+  const childBtn =
+    mode !== "pending" && u.role === "parent"
+      ? actionBtn({ cls: "child-btn", icon: "children", label: "Children", attrs: common })
       : "";
   const leaveTypeBtn =
     mode !== "pending" && (u.role === "teacher" || u.role === "admin")
@@ -77,7 +78,9 @@ function userRow(u, mode) {
       ? actionBtn({ cls: "approve approve-btn", icon: "approve", label: "Approve", attrs: common }) +
         actionBtn({ cls: "danger reject-btn", icon: "reject", label: "Reject", attrs: common }) +
         editBtn
-      : actionBtn({
+      : childBtn +
+        leaveTypeBtn +
+        actionBtn({
           cls: "toggle-active-btn",
           icon: u.is_active ? "deactivate" : "activate",
           label: u.is_active ? "Deactivate" : "Activate",
@@ -85,15 +88,13 @@ function userRow(u, mode) {
           disabled: isSelf || adminLocked,
         }) +
         actionBtn({ cls: "danger delete-btn", icon: "delete", label: "Delete", attrs: common, disabled: isSelf || adminLocked }) +
-        guardianBtn +
-        leaveTypeBtn +
         editBtn;
 
+  const roleLabel = u.role.charAt(0).toUpperCase() + u.role.slice(1);
   const roleLine = escapeHtml(roleLabel) + (u.role === "guest" ? (u.guest_until ? ` · until ${escapeHtml(u.guest_until)}` : " · no end date") : "");
 
   return `
     <div class="card user-row ${mode === "inactive" ? "is-inactive" : ""}" data-id="${u.id}">
-      <div class="avatar">${initials(u.full_name)}</div>
       <div class="user-meta">
         <div class="user-name">${name}${isSelf ? " (you)" : ""}</div>
         <div class="user-email">${escapeHtml(u.email)}</div>
@@ -158,24 +159,42 @@ async function editRole(id, name, currentRole, currentGuestUntil) {
   await updateRole(id, result.role, result.guestUntil);
 }
 
-// ---------- Guardians dialog: link/unlink parents for a student ----------
-let parentsCache = [];
+// ---------- Linked Student dialog: the students (children) linked to a parent ----------
+let studentsCache = [];
 
-async function openGuardianDialog(studentId, studentName) {
+async function loadStudents() {
+  if (studentsCache.length) return;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .eq("organization_id", profile.organization_id)
+    .eq("role", "student")
+    .eq("is_active", true);
+  if (error) console.error(error);
+  studentsCache = (data || []).sort((x, y) => (x.full_name || "").localeCompare(y.full_name || "", undefined, { sensitivity: "base" }));
+}
+
+async function openChildDialog(parentId, parentName) {
   const backdrop = document.createElement("div");
   backdrop.className = "dialog-backdrop";
   backdrop.innerHTML = `
-    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="gd-title">
-      <h3 id="gd-title">Guardians</h3>
-      <p>${escapeHtml(studentName)}</p>
-      <div id="gd-body"><div class="skeleton" style="height:50px;"></div></div>
+    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="cd-title">
+      <div class="linked-head">
+        <h3 id="cd-title">Linked Student</h3>
+        <button type="button" class="icon-action approve" data-act="open-picker" title="Add student" aria-label="Add student">${ICON.add}</button>
+      </div>
+      <p>${escapeHtml(parentName)}</p>
+      <div id="cd-body"><div class="skeleton" style="height:50px;"></div></div>
       <div class="dialog-actions">
         <button type="button" class="btn btn-primary" data-act="close">Done</button>
       </div>
     </div>`;
   document.body.appendChild(backdrop);
 
-  const onKey = (e) => { if (e.key === "Escape") close(); };
+  let pickerOpen = false;
+  let linkedIds = new Set();
+
+  const onKey = (e) => { if (e.key === "Escape" && !pickerOpen) close(); };
   function close() {
     document.removeEventListener("keydown", onKey);
     backdrop.remove();
@@ -183,68 +202,48 @@ async function openGuardianDialog(studentId, studentName) {
   document.addEventListener("keydown", onKey);
   backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
   backdrop.querySelector('[data-act="close"]').addEventListener("click", close);
-
-  let showAdd = false;
-  let search = "";
+  backdrop.querySelector('[data-act="open-picker"]').addEventListener("click", openPicker);
 
   async function render() {
-    const bodyEl = backdrop.querySelector("#gd-body");
+    const bodyEl = backdrop.querySelector("#cd-body");
     const { data: links, error } = await supabase
       .from("guardians")
-      .select("id, parent_id, profiles!guardians_parent_id_fkey(full_name, email)")
-      .eq("student_id", studentId);
+      .select("id, student_id, profiles!guardians_student_id_fkey(full_name)")
+      .eq("parent_id", parentId);
     if (error) {
       console.error(error);
-      bodyEl.innerHTML = `<p class="text-muted">Unable to load guardians.</p>`;
+      bodyEl.innerHTML = `<p class="text-muted">Unable to load linked students.</p>`;
       return;
     }
+    linkedIds = new Set((links || []).map((l) => l.student_id));
 
-    if (parentsCache.length === 0) {
-      const { data: parents, error: pErr } = await supabase
-        .from("profiles")
-        .select("id, full_name, email")
-        .eq("organization_id", profile.organization_id)
-        .eq("role", "parent")
-        .eq("is_active", true)
-        .order("full_name");
-      if (pErr) console.error(pErr);
-      parentsCache = parents || [];
-    }
-
-    const linkedIds = new Set((links || []).map((l) => l.parent_id));
+    const sorted = [...(links || [])].sort((x, y) =>
+      (x.profiles?.full_name || "").localeCompare(y.profiles?.full_name || "", undefined, { sensitivity: "base" })
+    );
 
     bodyEl.innerHTML = `
       <div class="aud-list">
         ${
-          links && links.length
-            ? links
+          sorted.length
+            ? sorted
                 .map(
                   (l) => `
               <div class="aud-row" style="cursor:default;">
-                <span>${escapeHtml(l.profiles?.full_name || "Unknown")}</span>
-                <span class="aud-meta">${escapeHtml(l.profiles?.email || "")}</span>
+                <span style="flex:1;min-width:0;">${escapeHtml(l.profiles?.full_name || "Unknown")}</span>
                 <button type="button" class="icon-action sm danger" data-unlink="${l.id}" title="Remove" aria-label="Remove" style="margin-left:8px;">${ICON.reject}</button>
               </div>`
                 )
                 .join("")
-            : `<div class="text-muted" style="padding:8px 0;font-size:0.85rem;">No linked parents yet.</div>`
+            : `<div class="text-muted" style="padding:8px 0;font-size:0.85rem;">No linked students yet. Use the + button to add one.</div>`
         }
-      </div>
-      ${
-        showAdd
-          ? `<div class="field aud-search"><input type="search" id="gd-search" placeholder="Search parents by name or email…" autocomplete="off" value="${escapeHtml(search)}" /></div>
-             <div class="aud-list" id="gd-results"></div>
-             <button type="button" class="btn btn-secondary btn-sm" data-act="cancel-add" style="margin-top:8px;">Cancel</button>`
-          : `<button type="button" class="btn btn-secondary btn-sm" data-act="add" style="margin-top:8px;">Link a parent</button>`
-      }
-    `;
+      </div>`;
 
     bodyEl.querySelectorAll("[data-unlink]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         try {
           const { error: delErr } = await supabase.from("guardians").delete().eq("id", btn.getAttribute("data-unlink"));
           if (delErr) throw delErr;
-          showToast("Parent unlinked.", "success");
+          showToast("Student unlinked.", "success");
           await render();
         } catch (err) {
           console.error(err);
@@ -252,61 +251,89 @@ async function openGuardianDialog(studentId, studentName) {
         }
       });
     });
+  }
 
-    bodyEl.querySelector('[data-act="add"]')?.addEventListener("click", () => { showAdd = true; render(); });
-    bodyEl.querySelector('[data-act="cancel-add"]')?.addEventListener("click", () => { showAdd = false; search = ""; render(); });
+  // Second modal: every active student in a table-style list, searchable by name
+  async function openPicker() {
+    pickerOpen = true;
+    const pBackdrop = document.createElement("div");
+    pBackdrop.className = "dialog-backdrop";
+    pBackdrop.innerHTML = `
+      <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="sp-title">
+        <h3 id="sp-title">Add student</h3>
+        <div class="field aud-search"><input type="search" id="sp-search" placeholder="Search by name…" autocomplete="off" /></div>
+        <div class="picker-scroll"><div id="sp-results"><div class="skeleton" style="height:50px;"></div></div></div>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-primary" data-act="close">Done</button>
+        </div>
+      </div>`;
+    document.body.appendChild(pBackdrop);
 
-    if (showAdd) {
-      const input = bodyEl.querySelector("#gd-search");
-      input.focus();
-      input.setSelectionRange(input.value.length, input.value.length);
-      input.addEventListener("input", (e) => { search = e.target.value; renderResults(); });
-      renderResults();
+    const onPickerKey = (e) => { if (e.key === "Escape") closePicker(); };
+    function closePicker() {
+      document.removeEventListener("keydown", onPickerKey);
+      pBackdrop.remove();
+      pickerOpen = false;
     }
+    document.addEventListener("keydown", onPickerKey);
+    pBackdrop.addEventListener("click", (e) => { if (e.target === pBackdrop) closePicker(); });
+    pBackdrop.querySelector('[data-act="close"]').addEventListener("click", closePicker);
 
-    function renderResults() {
-      const resEl = bodyEl.querySelector("#gd-results");
-      if (!resEl) return;
-      const term = search.trim().toLowerCase();
-      const matches = parentsCache
-        .filter((p) => !linkedIds.has(p.id))
-        .filter((p) => !term || p.full_name.toLowerCase().includes(term) || p.email.toLowerCase().includes(term))
-        .slice(0, 50);
-      resEl.innerHTML = matches.length
-        ? matches
-            .map(
-              (p) => `
-          <div class="aud-row">
-            <span>${escapeHtml(p.full_name)}</span>
-            <span class="aud-meta">${escapeHtml(p.email)}</span>
-            <button type="button" class="icon-action sm approve" data-pick="${p.id}" title="Link" aria-label="Link" style="margin-left:8px;">${ICON.approve}</button>
-          </div>`
-            )
-            .join("")
-        : `<div class="text-muted" style="padding:8px 0;font-size:0.85rem;">No matches.</div>`;
+    const input = pBackdrop.querySelector("#sp-search");
+    const resEl = pBackdrop.querySelector("#sp-results");
+    input.focus();
+
+    await loadStudents();
+
+    function renderRows() {
+      const term = input.value.trim().toLowerCase();
+      const rows = studentsCache.filter((st) => !term || (st.full_name || "").toLowerCase().includes(term));
+      resEl.innerHTML = rows.length
+        ? `<table class="picker-table">
+             <thead><tr><th>Name</th><th></th></tr></thead>
+             <tbody>${rows
+               .map(
+                 (st) => `
+               <tr>
+                 <td>${escapeHtml(st.full_name)}</td>
+                 <td class="picker-action">${
+                   linkedIds.has(st.id)
+                     ? `<span class="text-muted" style="font-size:0.8rem;">Linked</span>`
+                     : `<button type="button" class="icon-action sm approve" data-pick="${st.id}" title="Link" aria-label="Link ${escapeHtml(st.full_name)}">${ICON.add}</button>`
+                 }</td>
+               </tr>`
+               )
+               .join("")}</tbody>
+           </table>`
+        : `<div class="text-muted" style="padding:8px 0;font-size:0.85rem;">No students found.</div>`;
 
       resEl.querySelectorAll("[data-pick]").forEach((btn) => {
         btn.addEventListener("click", async () => {
+          const studentId = btn.getAttribute("data-pick");
+          btn.disabled = true;
           try {
             const { error: insErr } = await supabase.from("guardians").insert({
               organization_id: profile.organization_id,
-              parent_id: btn.getAttribute("data-pick"),
+              parent_id: parentId,
               student_id: studentId,
               relationship: "Parent",
             });
             if (insErr) throw insErr;
-            await logAudit({ action: "user.guardian_linked", recordType: "profile", recordId: studentId });
-            showToast("Parent linked.", "success");
-            showAdd = false;
-            search = "";
-            await render();
+            await logAudit({ action: "user.child_linked", recordType: "profile", recordId: studentId });
+            showToast("Student linked.", "success");
+            await render();   // refresh the Linked Student list behind
+            renderRows();     // mark this student as linked
           } catch (err) {
             console.error(err);
-            showToast(friendlyError(err, "Unable to link this parent."), "error");
+            btn.disabled = false;
+            showToast(friendlyError(err, "Unable to link this student."), "error");
           }
         });
       });
     }
+
+    input.addEventListener("input", renderRows);
+    renderRows();
   }
 
   render();
@@ -452,7 +479,13 @@ async function openLeaveTypeDialog(staffId, staffName) {
 }
 
 function searchBox(mode) {
-  return `<input type="search" id="${mode}-search" class="user-search" placeholder="Search by name, email or role…" aria-label="Search ${mode} users" value="${escapeHtml(searchTerms[mode])}" autocomplete="off" style="display:block;width:100%;box-sizing:border-box;margin:0 0 12px;padding:10px 14px;border:1px solid rgba(128,128,128,.35);border-radius:10px;background:transparent;color:inherit;font:inherit;" />`;
+  const roleOptions = [["", "All roles"], ["admin", "Admin"], ["teacher", "Teacher"], ["parent", "Parent"], ["student", "Student"], ["guest", "Guest"]]
+    .map(([v, l]) => `<option value="${v}" ${roleFilters[mode] === v ? "selected" : ""}>${l}</option>`)
+    .join("");
+  return `<div class="user-filters">
+    <input type="search" id="${mode}-search" class="user-search" placeholder="Search by name or email…" aria-label="Search ${mode} users" value="${escapeHtml(searchTerms[mode])}" autocomplete="off" />
+    <select id="${mode}-role" class="user-role-filter" aria-label="Filter ${mode} users by role">${roleOptions}</select>
+  </div>`;
 }
 
 // Render (or re-render) the cards of the Active / Inactive list, applying the current search
@@ -462,12 +495,13 @@ function renderCards(mode) {
   const source = mode === "active" ? allActive : allInactive; // already sorted by role, then name
   const raw = searchTerms[mode].trim();
   const q = raw.toLowerCase();
-  const list = q
-    ? source.filter((u) => [u.full_name, u.email, u.role].some((v) => (v || "").toLowerCase().includes(q)))
-    : source;
+  const role = roleFilters[mode];
+  const list = source.filter(
+    (u) => (!role || u.role === role) && (!q || [u.full_name, u.email].some((v) => (v || "").toLowerCase().includes(q)))
+  );
   el.innerHTML = list.length
     ? list.map((u) => userRow(u, mode)).join("")
-    : `<div class="card empty-state"><p>No users match &ldquo;${escapeHtml(raw)}&rdquo;.</p></div>`;
+    : `<div class="card empty-state"><p>No users match your search or role filter.</p></div>`;
   bindActions(el);
 }
 
@@ -477,8 +511,8 @@ function bindActions(container) {
       editRole(btn.getAttribute("data-id"), btn.getAttribute("data-name"), btn.getAttribute("data-role"), btn.getAttribute("data-guest-until"))
     );
   });
-  container.querySelectorAll(".guardian-btn").forEach((btn) => {
-    btn.addEventListener("click", () => openGuardianDialog(btn.getAttribute("data-id"), btn.getAttribute("data-name")));
+  container.querySelectorAll(".child-btn").forEach((btn) => {
+    btn.addEventListener("click", () => openChildDialog(btn.getAttribute("data-id"), btn.getAttribute("data-name")));
   });
   container.querySelectorAll(".leave-type-btn").forEach((btn) => {
     btn.addEventListener("click", () => openLeaveTypeDialog(btn.getAttribute("data-id"), btn.getAttribute("data-name")));
@@ -549,6 +583,13 @@ async function load() {
       if (input) {
         input.addEventListener("input", () => {
           searchTerms[mode] = input.value;
+          renderCards(mode);
+        });
+      }
+      const roleSel = document.getElementById(`${mode}-role`);
+      if (roleSel) {
+        roleSel.addEventListener("change", () => {
+          roleFilters[mode] = roleSel.value;
           renderCards(mode);
         });
       }
