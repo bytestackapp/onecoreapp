@@ -208,7 +208,7 @@ function buildTopbar(profile, pageTitle, unread, brandOnMobile, isOwner, otherUn
 
 const SS_STYLES = `
 .ss-native{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;overflow:hidden!important;}
-.ss-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;}
+.ss-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0;flex:1 1 auto;box-sizing:border-box;text-align:left;}
 .ss-btn[disabled]{opacity:.6;cursor:not-allowed;}
 .ss-btn .ss-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .ss-btn .ss-label.ss-placeholder{opacity:.6;}
