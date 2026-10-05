@@ -1,8 +1,7 @@
-import { mountLayout } from "./layout.js";
+import { mountLayout, sectionHead } from "./layout.js";
 import { supabase, initials, friendlyError, logAudit, isPlatformOwner } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { confirmDialog } from "./dialog.js";
-import { sectionHead } from "./ui.js";
 
 const profile = await mountLayout({ activeKey: "admin-users", pageTitle: "Users", allowedRoles: ["admin"] });
 if (!profile) throw new Error("redirecting");
@@ -478,6 +477,16 @@ async function openLeaveTypeDialog(staffId, staffName) {
   render();
 }
 
+// Section header for the Active / Inactive lists. Re-rendered on every filter
+// change so the count matches what is actually shown.
+function userSectionHead(mode, count) {
+  const cfg =
+    mode === "active"
+      ? { title: "Active users", icon: SECTION_ICON.active, tone: "success" }
+      : { title: "Inactive users", icon: SECTION_ICON.inactive, tone: "muted" };
+  return sectionHead({ ...cfg, count });
+}
+
 function searchBox(mode) {
   const roleOptions = [["", "All roles"], ["admin", "Admin"], ["teacher", "Teacher"], ["parent", "Parent"], ["student", "Student"], ["guest", "Guest"]]
     .map(([v, l]) => `<option value="${v}" ${roleFilters[mode] === v ? "selected" : ""}>${l}</option>`)
@@ -499,6 +508,11 @@ function renderCards(mode) {
   const list = source.filter(
     (u) => (!role || u.role === role) && (!q || [u.full_name, u.email].some((v) => (v || "").toLowerCase().includes(q)))
   );
+
+  // Keep the header count in sync with the filtered list
+  const head = document.getElementById(`${mode}-head`);
+  if (head) head.innerHTML = userSectionHead(mode, list.length);
+
   el.innerHTML = list.length
     ? list.map((u) => userRow(u, mode)).join("")
     : `<div class="card empty-state"><p>No users match your search or role filter.</p></div>`;
@@ -558,7 +572,7 @@ async function load() {
     const inactiveSection = allInactive.length
       ? `
       <div class="section">
-        ${sectionHead({ title: "Inactive users", icon: SECTION_ICON.inactive, tone: "muted", count: allInactive.length })}
+        <div id="inactive-head">${userSectionHead("inactive", allInactive.length)}</div>
         ${searchBox("inactive")}
         <div class="user-cards" id="inactive-cards"></div>
       </div>`
@@ -567,7 +581,7 @@ async function load() {
     listEl.innerHTML = `
       ${pendingSection}
       <div class="section">
-        ${sectionHead({ title: "Active users", icon: SECTION_ICON.active, tone: "success", count: allActive.length })}
+        <div id="active-head">${userSectionHead("active", allActive.length)}</div>
         ${searchBox("active")}
         <div class="user-cards" id="active-cards"></div>
       </div>

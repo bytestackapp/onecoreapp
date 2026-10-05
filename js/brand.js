@@ -2,7 +2,7 @@
 // touches one file instead of every page.
 
 export const APP_NAME = "OneCore";
-export const APP_TAGLINE = "Connect. Organize. Operate.";
+export const APP_TAGLINE = "One Core. Everything Connected.";
 
 // Abstract mark: three connected nodes suggesting a network / organization,
 // deliberately not education-specific (no cap, no book) since OneCore also

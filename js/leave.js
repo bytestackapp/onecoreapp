@@ -1,7 +1,6 @@
-import { mountLayout } from "./layout.js";
+import { mountLayout, sectionHead } from "./layout.js";
 import { supabase, formatDate, friendlyError, logAudit } from "./supabase-client.js";
 import { showToast } from "./toast.js";
-import { sectionHead } from "./ui.js";
 
 const profile = await mountLayout({ activeKey: "leave", pageTitle: "Leave", allowedRoles: ["admin", "teacher"] });
 if (!profile) throw new Error("redirecting");

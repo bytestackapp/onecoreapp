@@ -35,17 +35,19 @@ const ICONS = {
 };
 
 // All pages are siblings inside /pages/, so hrefs are plain filenames.
+// `guestBottom: true` puts a guest-visible item in the mobile bottom bar;
+// other guest-visible items (e.g. Announcements) go under "More".
 const NAV_ITEMS = [
-  { key: "dashboard", href: "dashboard.html", label: "Dashboard", mobileLabel: "Home", icon: ICONS.dashboard, roles: ["admin", "teacher", "student", "parent"], bottomNav: true },
+  { key: "dashboard", href: "dashboard.html", label: "Dashboard", mobileLabel: "Home", icon: ICONS.dashboard, roles: ["admin", "teacher", "student", "parent", "guest"], bottomNav: true, guestBottom: true },
   { key: "announcements", href: "announcements.html", label: "Announcements", icon: ICONS.megaphone, roles: ["admin", "teacher", "student", "parent", "guest"] },
-  { key: "notifications", href: "notifications.html", label: "Notifications", icon: ICONS.bell, roles: ["admin", "teacher", "student", "parent", "guest"], bottomNav: true },
+  { key: "notifications", href: "notifications.html", label: "Notifications", icon: ICONS.bell, roles: ["admin", "teacher", "student", "parent", "guest"], bottomNav: true, guestBottom: true },
   { key: "calendar", href: "calendar.html", label: "Calendar", icon: ICONS.calendar, roles: ["admin", "teacher", "student", "parent"], bottomNav: true },
-  { key: "events", href: "events.html", label: "Events", icon: ICONS.event, roles: ["admin", "teacher", "student", "parent", "guest"] },
+  { key: "events", href: "events.html", label: "Events", icon: ICONS.event, roles: ["admin", "teacher", "student", "parent", "guest"], guestBottom: true },
   { key: "groups", href: "groups.html", label: "Groups", icon: ICONS.groups, roles: ["admin", "teacher", "student", "parent"], bottomNav: true },
   { key: "people", href: "people.html", label: "People", icon: ICONS.people, roles: ["admin", "teacher", "student", "parent"] },
   { key: "attendance", href: "attendance.html", label: "Attendance", icon: ICONS.attendance, roles: ["admin", "teacher", "student", "parent"] },
   { key: "leave", href: "leave.html", label: "Leave", icon: ICONS.leave, roles: ["admin", "teacher"] },
-  { key: "profile", href: "profile.html", label: "Profile", icon: ICONS.profile, roles: ["admin", "teacher", "student", "parent", "guest"] },
+  { key: "profile", href: "profile.html", label: "Profile", icon: ICONS.profile, roles: ["admin", "teacher", "student", "parent", "guest"], guestBottom: true },
 ];
 
 const ADMIN_ITEMS = [
@@ -56,8 +58,8 @@ const ADMIN_ITEMS = [
 
 const OWNER_ITEM = { key: "owner", href: "owner.html", label: "Owner console", icon: ICONS.owner };
 
-// Guests only get these pages; anything else bounces them to Announcements.
-const GUEST_KEYS = new Set(["announcements", "notifications", "events", "profile"]);
+// Guests only get these pages; anything else bounces them to the dashboard.
+const GUEST_KEYS = new Set(["dashboard", "announcements", "notifications", "events", "profile"]);
 
 function navLink(item, activeKey, unread) {
   return `
@@ -112,12 +114,12 @@ function buildSidebar(profile, activeKey, unread, isOwner) {
 // Mobile bottom nav: Home, Calendar, Notifications, Groups, More.
 function buildBottomNav(profile, activeKey, isOwner) {
   const isGuest = profile.role === "guest";
-  // Guests have so few pages that they all fit in the bar itself.
+  // Guests: Home, Notifications, Events, Profile in the bar; Announcements in More.
   const primary = isGuest
-    ? NAV_ITEMS.filter((i) => i.roles.includes("guest"))
+    ? NAV_ITEMS.filter((i) => i.guestBottom && i.roles.includes("guest"))
     : NAV_ITEMS.filter((i) => i.bottomNav && i.roles.includes(profile.role));
   const moreItems = isGuest
-    ? []
+    ? NAV_ITEMS.filter((i) => !i.guestBottom && i.roles.includes("guest"))
     : [
         ...NAV_ITEMS.filter((i) => !i.bottomNav && i.roles.includes(profile.role)),
         ...(profile.role === "admin" ? ADMIN_ITEMS : []),
@@ -197,18 +199,206 @@ function buildTopbar(profile, pageTitle, unread, brandOnMobile, isOwner, otherUn
  * @param {string[]} [opts.allowedRoles] - if set, roles not listed are redirected to dashboard
  * @returns {Promise<Object|null>} the signed-in profile, or null if redirected
  */
+// =====================================================================
+// Select pickers. Replaces the browser's native <select> popup (ugly on
+// phones) with the same modal look as the Audience picker. The real
+// <select> stays in the DOM, hidden, so `.value`, "change" listeners and
+// form submits keep working. Opt out with <select data-native>.
+// =====================================================================
+
+const SS_STYLES = `
+.ss-native{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;overflow:hidden!important;}
+.ss-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;}
+.ss-btn[disabled]{opacity:.6;cursor:not-allowed;}
+.ss-btn .ss-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ss-btn .ss-label.ss-placeholder{opacity:.6;}
+.ss-backdrop{animation:ssFade .16s ease-out;}
+.ss-modal{animation:ssRise .22s cubic-bezier(.2,.8,.2,1);}
+.ss-modal .aud-row.ss-disabled{opacity:.45;pointer-events:none;}
+@keyframes ssFade{from{opacity:0}to{opacity:1}}
+@keyframes ssRise{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.ss-backdrop,.ss-modal{animation:none}}
+`;
+
+const ssEsc = (s = "") =>
+  String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const ssNativeValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value");
+
+function ssTitleFor(select) {
+  if (select.dataset.title) return select.dataset.title;
+  if (select.id) {
+    const lab = document.querySelector(`label[for="${CSS.escape(select.id)}"]`);
+    if (lab && lab.textContent.trim()) return lab.textContent.trim();
+  }
+  return select.getAttribute("aria-label") || "Choose an option";
+}
+
+function ssOpen(select, trigger) {
+  const options = Array.from(select.options);
+
+  const rowHtml = (o) => `
+    <label class="aud-row${o.disabled ? " ss-disabled" : ""}">
+      <input type="radio" name="ss-opt" data-index="${options.indexOf(o)}" ${o.selected ? "checked" : ""} ${o.disabled ? "disabled" : ""} />
+      <span>${ssEsc(o.textContent.trim())}</span>
+    </label>`;
+
+  // Supports <optgroup> as well as flat option lists.
+  let body = "";
+  let flat = [];
+  const flush = () => {
+    if (flat.length) body += `<div class="aud-list">${flat.map(rowHtml).join("")}</div>`;
+    flat = [];
+  };
+  for (const child of select.children) {
+    if (child.tagName === "OPTGROUP") {
+      flush();
+      body += `<div class="ack-group-title">${ssEsc(child.label)}</div><div class="aud-list">${Array.from(child.children).map(rowHtml).join("")}</div>`;
+    } else if (child.tagName === "OPTION") {
+      flat.push(child);
+    }
+  }
+  flush();
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "dialog-backdrop ss-backdrop";
+  backdrop.innerHTML = `
+    <div class="dialog-modal ss-modal" role="dialog" aria-modal="true" aria-label="${ssEsc(ssTitleFor(select))}">
+      <h3>${ssEsc(ssTitleFor(select))}</h3>
+      <div class="aud-body">${body}</div>
+    </div>`;
+  document.body.appendChild(backdrop);
+
+  let closing = false;
+  const onKey = (e) => {
+    if (e.key === "Escape") close();
+  };
+  function close() {
+    if (closing) return;
+    closing = true;
+    document.removeEventListener("keydown", onKey);
+    backdrop.remove();
+    trigger.focus({ preventScroll: true });
+  }
+  document.addEventListener("keydown", onKey);
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) close();
+  });
+
+  // One tap picks the option and closes. The short delay lets the tapped
+  // row show as selected first, which feels smoother than vanishing instantly.
+  backdrop.addEventListener("change", (e) => {
+    const input = e.target;
+    if (!input.matches || !input.matches("input[data-index]")) return;
+    const changed = select.selectedIndex !== Number(input.dataset.index);
+    select.selectedIndex = Number(input.dataset.index);
+    if (changed) {
+      select.dispatchEvent(new Event("input", { bubbles: true }));
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    setTimeout(close, 120);
+  });
+
+  const current = backdrop.querySelector("input:checked");
+  if (current) {
+    current.closest("label").scrollIntoView({ block: "center" });
+    current.focus({ preventScroll: true });
+  }
+}
+
+function ssEnhance(select) {
+  if (select.dataset.ssDone || select.multiple || select.size > 1 || "native" in select.dataset) return;
+  select.dataset.ssDone = "1";
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "audience-btn ss-btn";
+  btn.innerHTML = `<span class="ss-label"></span>`; // .audience-btn already draws its own chevron
+  const labelEl = btn.querySelector(".ss-label");
+
+  select.classList.add("ss-native");
+  select.tabIndex = -1;
+  select.setAttribute("aria-hidden", "true");
+  select.after(btn);
+
+  function refresh() {
+    const opt = select.options[select.selectedIndex];
+    labelEl.textContent = opt ? opt.textContent.trim() : "Select…";
+    labelEl.classList.toggle("ss-placeholder", !opt || opt.disabled || opt.hidden);
+    btn.disabled = select.disabled;
+    btn.style.display = select.hidden || select.style.display === "none" ? "none" : "";
+  }
+
+  // Code that sets `select.value = "x"` doesn't fire "change", so intercept it.
+  Object.defineProperty(select, "value", {
+    configurable: true,
+    get() {
+      return ssNativeValue.get.call(this);
+    },
+    set(v) {
+      ssNativeValue.set.call(this, v);
+      refresh();
+    },
+  });
+
+  select.addEventListener("change", refresh);
+  new MutationObserver(refresh).observe(select, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["disabled", "hidden", "style"],
+  });
+
+  btn.addEventListener("click", () => {
+    if (!select.disabled) ssOpen(select, btn);
+  });
+
+  // Clicking the field's <label> opens the picker, like it would focus a native select.
+  if (select.id) {
+    const lab = document.querySelector(`label[for="${CSS.escape(select.id)}"]`);
+    lab?.addEventListener("click", (e) => {
+      e.preventDefault();
+      btn.click();
+    });
+  }
+
+  refresh();
+}
+
+function initSelectSheets() {
+  if (document.getElementById("select-sheet-style")) return; // already initialised
+  const style = document.createElement("style");
+  style.id = "select-sheet-style";
+  style.textContent = SS_STYLES;
+  document.head.appendChild(style);
+
+  const scan = (root) => root.querySelectorAll && root.querySelectorAll("select").forEach(ssEnhance);
+  scan(document);
+
+  // Catch selects added later (e.g. inside modals built with innerHTML).
+  new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      for (const n of m.addedNodes) {
+        if (n.nodeType !== 1) continue;
+        if (n.matches("select")) ssEnhance(n);
+        else scan(n);
+      }
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+}
+
 export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnMobile }) {
   const profile = await requireAuth();
   checkForUpdate(); // fire-and-forget, never blocks the page
   if (!profile) return null;
 
   if (profile.role === "guest" && !GUEST_KEYS.has(activeKey)) {
-    window.location.href = "announcements.html";
+    window.location.href = "dashboard.html";
     return null;
   }
 
   if (allowedRoles && !allowedRoles.includes(profile.role)) {
-    window.location.href = profile.role === "guest" ? "announcements.html" : "dashboard.html";
+    window.location.href = "dashboard.html";
     return null;
   }
 
@@ -246,6 +436,10 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnM
   document.body.innerHTML = "";
   document.body.appendChild(shell);
 
+  // Must run after the page content has been moved into the shell above;
+  // enhancing earlier would copy dead buttons into the rebuilt page.
+  initSelectSheets();
+
   document.getElementById("signout-btn")?.addEventListener("click", signOut);
   document.getElementById("more-signout-btn")?.addEventListener("click", signOut);
   document.getElementById("more-btn")?.addEventListener("click", openSheet);
@@ -273,4 +467,26 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnM
   return profile;
 }
 
-export { ICONS };
+/**
+ * Standard sub-header for a page section (appearance is defined globally
+ * in global.css; each page only chooses its icon, tone and text).
+ *
+ * @param {Object}  opts
+ * @param {string}  opts.title
+ * @param {string}  [opts.icon]      SVG markup, chosen per page (e.g. ICONS.megaphone)
+ * @param {"primary"|"success"|"warning"|"error"|"info"|"muted"} [opts.tone]
+ * @param {number|string} [opts.count]  small count pill after the title
+ * @param {string}  [opts.linkHtml]  right-aligned link markup, e.g. '<a class="link" href="...">View all</a>'
+ */
+function sectionHead({ title, icon = "", tone = "", count, linkHtml = "" }) {
+  const hasCount = count !== undefined && count !== null;
+  return `
+    <div class="section-head ${tone ? `tone-${tone}` : ""}">
+      ${icon ? `<span class="section-icon">${icon}</span>` : ""}
+      <h2>${title}</h2>
+      ${hasCount ? `<span class="section-count">${count}</span>` : ""}
+      ${linkHtml}
+    </div>`;
+}
+
+export { ICONS, sectionHead };

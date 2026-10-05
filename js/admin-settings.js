@@ -118,17 +118,6 @@ async function fetchAudit(limit) {
   return data || [];
 }
 
-function auditRows(data) {
-  return data
-    .map(
-      (a) => `<div class="list-row">
-        <div style="flex:1;min-width:0;"><strong>${escapeHtml(a.profiles?.full_name || "System")}</strong> ${escapeHtml(describeAction(a.action, a.details))}</div>
-        <div class="text-muted" style="font-size:0.8rem;white-space:nowrap;">${timeAgo(a.created_at)}</div>
-      </div>`
-    )
-    .join("");
-}
-
 // Modal layout: line 1 = user + time, line 2 = what they did.
 function auditModalRows(data) {
   return data
@@ -145,22 +134,6 @@ function auditModalRows(data) {
     .join("");
 }
 
-async function loadAudit() {
-  const el = document.getElementById("audit-list");
-  try {
-    const data = await fetchAudit(10);
-    if (data.length === 0) {
-      el.innerHTML = `<div class="empty-state"><h3>No activity recorded yet</h3></div>`;
-      return;
-    }
-    el.innerHTML = auditRows(data);
-  } catch (err) {
-    console.error(err);
-    el.innerHTML = `<div class="empty-state"><h3>Activity couldn't be loaded</h3></div>`;
-    showToast("Activity log couldn't be loaded.", "error");
-  }
-}
-
 async function openAuditDialog() {
   const backdrop = document.createElement("div");
   backdrop.className = "dialog-backdrop";
@@ -169,12 +142,16 @@ async function openAuditDialog() {
       <h3 id="audit-title">Recent activity</h3>
       <div class="aud-body" id="audit-modal-body"><div class="skeleton" style="height:60px;"></div></div>
       <div class="dialog-actions">
+        <button type="button" class="btn btn-secondary" data-act="clear" style="color:var(--error);display:none;">Clear all</button>
         <button type="button" class="btn btn-primary" data-act="close">Close</button>
       </div>
     </div>`;
   document.body.appendChild(backdrop);
 
-  const onKey = (e) => { if (e.key === "Escape") close(); };
+  const onKey = (e) => {
+    // Ignore Escape while the confirm dialog is sitting on top of this one
+    if (e.key === "Escape" && backdrop === [...document.querySelectorAll(".dialog-backdrop")].pop()) close();
+  };
   function close() {
     document.removeEventListener("keydown", onKey);
     backdrop.remove();
@@ -184,38 +161,43 @@ async function openAuditDialog() {
   backdrop.querySelector('[data-act="close"]').addEventListener("click", close);
 
   const bodyEl = backdrop.querySelector("#audit-modal-body");
+  const clearBtn = backdrop.querySelector('[data-act="clear"]');
+  const emptyHtml = `<div class="text-muted" style="padding:8px 0;">No activity recorded yet.</div>`;
+
   try {
     const data = await fetchAudit(100);
-    bodyEl.innerHTML = data.length ? auditModalRows(data) : `<div class="text-muted" style="padding:8px 0;">No activity recorded yet.</div>`;
+    bodyEl.innerHTML = data.length ? auditModalRows(data) : emptyHtml;
+    clearBtn.style.display = data.length ? "" : "none";
   } catch (err) {
     console.error(err);
     bodyEl.innerHTML = `<div class="text-muted" style="padding:8px 0;">Activity couldn't be loaded.</div>`;
   }
+
+  clearBtn.addEventListener("click", async () => {
+    const ok = await confirmDialog({
+      title: "Clear all activity?",
+      message: "This permanently deletes the entire activity log. It can't be undone.",
+      confirmLabel: "Clear",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const { data, error } = await supabase.from("audit_logs").delete().gte("created_at", "1970-01-01").select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        showToast("Nothing was cleared. You may not have permission to delete the activity log.", "error");
+        return;
+      }
+      bodyEl.innerHTML = emptyHtml;
+      clearBtn.style.display = "none";
+      showToast("Activity cleared.", "success");
+    } catch (err) {
+      console.error(err);
+      showToast(friendlyError(err, "Unable to clear the activity log."), "error");
+    }
+  });
 }
 document.getElementById("view-audit-btn").addEventListener("click", openAuditDialog);
-
-document.getElementById("clear-audit-btn").addEventListener("click", async () => {
-  const ok = await confirmDialog({
-    title: "Clear all activity?",
-    message: "This permanently deletes the entire activity log. It can't be undone.",
-    confirmLabel: "Clear",
-    danger: true,
-  });
-  if (!ok) return;
-  try {
-    const { data, error } = await supabase.from("audit_logs").delete().gte("created_at", "1970-01-01").select("id");
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      showToast("Nothing was cleared. You may not have permission to delete the activity log.", "error");
-      return;
-    }
-    showToast("Activity cleared.", "success");
-    loadAudit();
-  } catch (err) {
-    console.error(err);
-    showToast(friendlyError(err, "Unable to clear the activity log."), "error");
-  }
-});
 
 const ACTION_LABELS = {
   "user.approved": "- approved a user",
@@ -396,7 +378,6 @@ async function deleteLeaveType(id, name) {
     await logAudit({ action: "leave_type.deleted", recordType: "leave_type", recordId: id, details: { name } });
     showToast("Leave type deleted.", "success");
     loadLeaveTypesAdmin();
-    loadAudit();
   } catch (err) {
     console.error(err);
     showToast(friendlyError(err, "Unable to delete this leave type."), "error");
@@ -560,7 +541,6 @@ async function deleteDevice(id, name) {
     await logAudit({ action: "device.deleted", recordType: "scanner_device", recordId: id, details: { name } });
     showToast("Device deleted.", "success");
     loadDevices();
-    loadAudit();
   } catch (err) {
     console.error(err);
     if (err?.code === "23503") {
@@ -765,8 +745,6 @@ function printQrDialog() {
 
 document.getElementById("print-qr-btn").addEventListener("click", printQrDialog);
 
-loadAudit();
-
 // ---------- Yearly archive ----------
 // Flow (all inside one modal): preview counts -> type the confirmation -> export to ZIP -> verify ->
 // download the ZIP (it is NOT kept in Supabase) -> admin confirms the file is saved -> delete on the server
@@ -856,13 +834,14 @@ function arcOpenModal() {
   return m;
 }
 
-function arcSummaryHtml(c) {
+function arcSummaryHtml(c, attachments = 0) {
   const n = (k) => Number(c[k] || 0);
   const rows = [];
   if ("events" in c) rows.push(["Events", n("events"), `${n("event_participants")} responses, ${n("event_reminder_log")} reminder logs`]);
   if ("announcements" in c) rows.push(["Announcements", n("announcements"), `${n("announcement_acknowledgments")} acknowledgments`]);
   if ("attendance_records" in c) rows.push(["Attendance", n("attendance_records"), `time-in, break and time-out records + ${n("attendance_corrections")} corrections`]);
   if ("leave_requests" in c) rows.push(["Leave requests", n("leave_requests"), "balances and carry-over are not touched"]);
+  if (attachments > 0) rows.push(["Attachments", attachments, "saved in the ZIP, then removed from storage"]);
   rows.push(["Notifications", n("notifications"), "those still waiting for a decision are kept"]);
   rows.push(["Recent activity", n("audit_logs"), "history is cleared"]);
   return rows
@@ -888,7 +867,7 @@ async function openArchivePreview() {
   try {
     const { data, error } = await supabase.rpc("archive_preview", { p_org: ARC_ORG, p_through: through, p_categories: cats });
     if (error) throw error;
-    arcShowSummary(m, { through, year, cats, cutoff: data.cutoff, counts: data.counts });
+    arcShowSummary(m, { through, year, cats, cutoff: data.cutoff, counts: data.counts, attachments: Number(data.attachments || 0) });
   } catch (err) {
     console.error(err);
     m.set(`<h3 style="margin-top:0;">Archive preview</h3>
@@ -902,11 +881,11 @@ function arcShowSummary(m, a) {
   const total = Object.values(a.counts).reduce((x, y) => x + Number(y), 0);
   m.set(`
     <h3 style="margin-top:0;">Archive preview · Year ${a.year}</h3>
-    <div>${arcSummaryHtml(a.counts)}</div>
+    <div>${arcSummaryHtml(a.counts, a.attachments)}</div>
     ${
       total === 0
         ? `<p class="text-muted" style="margin:12px 0 0;">Nothing to archive for this period.</p>`
-        : `<p class="field-hint" style="margin-top:12px;">Only Year ${a.year} is archived. A ZIP file is downloaded first, and records are deleted only after you confirm the file is saved.</p>`
+        : `<p class="field-hint" style="margin-top:12px;">Only Year ${a.year} is archived. A ZIP file (with the attachments) is downloaded first, and records are deleted only after you confirm the file is saved.</p>`
     }
     <div class="dialog-actions">
       <button type="button" class="btn btn-secondary" data-act="close">${total === 0 ? "Close" : "Cancel"}</button>
@@ -1027,6 +1006,7 @@ function arcMakeReadable(rows, L) {
       else if (key === "audience_group_id") out.audience_group = arcNameOf(L.groups, value);
       else if (key === "event_id") out.event = arcNameOf(L.events, value);
       else if (key === "announcement_id") out.announcement = arcNameOf(L.announcements, value);
+      else if (key === "attachment_url") out.attachment_file = value ? L.attachmentFiles?.get(value) ?? "" : "";
       else if (key === "attendance_record_id") out.attendance_date = value ? L.attendanceDates.get(value) ?? "" : "";
       else if (key === "audience_user_ids") out.audience_people = (value || []).map((v) => arcNameOf(L.people, v)).join("; ");
       else if (key === "audience_group_ids") out.audience_groups = (value || []).map((v) => arcNameOf(L.groups, v)).join("; ");
@@ -1034,6 +1014,76 @@ function arcMakeReadable(rows, L) {
     }
     return out;
   });
+}
+
+// ----- Attachments: saved into the ZIP, then removed from storage after the records are deleted -----
+const ARC_ATTACH_TABLES = ["events", "announcements", "attendance_corrections", "leave_requests"];
+
+function arcParseStorageUrl(url) {
+  try {
+    const m = new URL(url).pathname.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/(.+)$/);
+    if (m) return { bucket: decodeURIComponent(m[1]), path: decodeURIComponent(m[2]) };
+  } catch {
+    // not a full link
+  }
+  return null;
+}
+
+async function arcSaveAttachments(raw, zip) {
+  const files = new Map(); // attachment link -> name inside the ZIP (shown in the CSV)
+  const toRemove = []; // only files that were safely saved into the ZIP
+  const summary = { saved: 0, notFound: 0, notRecognized: 0 };
+  const jobs = [];
+  const seen = new Set();
+  for (const table of ARC_ATTACH_TABLES) {
+    for (const row of raw[table] || []) {
+      if (row.attachment_url && !seen.has(row.attachment_url)) {
+        seen.add(row.attachment_url);
+        jobs.push({ table, url: row.attachment_url });
+      }
+    }
+  }
+  let n = 0;
+  for (const job of jobs) {
+    n++;
+    arcSetStatus(`Saving attachments… ${n} of ${jobs.length}`);
+    const ref = arcParseStorageUrl(job.url);
+    if (!ref) {
+      files.set(job.url, "(link not recognized - file left in storage)");
+      summary.notRecognized++;
+      continue;
+    }
+    const { data, error } = await supabase.storage.from(ref.bucket).download(ref.path);
+    if (error || !data) {
+      files.set(job.url, "(file not found)");
+      summary.notFound++;
+      continue;
+    }
+    const base = ref.path.split("/").pop().replace(/[^\w.\- ]+/g, "_");
+    const name = `attachments/${job.table}/${String(n).padStart(3, "0")}_${base}`;
+    zip.file(name, data);
+    files.set(job.url, name);
+    toRemove.push(ref);
+    summary.saved++;
+  }
+  return { files, toRemove, summary };
+}
+
+async function arcRemoveAttachments(toRemove) {
+  const byBucket = new Map();
+  toRemove.forEach((r) => byBucket.set(r.bucket, [...(byBucket.get(r.bucket) || []), r.path]));
+  let removed = 0;
+  let failed = 0;
+  for (const [bucket, paths] of byBucket) {
+    for (let i = 0; i < paths.length; i += 100) {
+      const chunk = paths.slice(i, i + 100);
+      const { data, error } = await supabase.storage.from(bucket).remove(chunk);
+      const ok = error ? 0 : data?.length ?? 0; // no permission returns an empty list instead of an error
+      removed += ok;
+      failed += chunk.length - ok;
+    }
+  }
+  return { removed, failed };
 }
 
 function arcDownload(blob, name) {
@@ -1062,7 +1112,7 @@ function arcAskFileSaved(m, fileName) {
   return new Promise((resolve) => {
     m.set(`
       <h3 style="margin-top:0;">Is the file saved?</h3>
-      <p style="font-size:0.92rem;">Your archive was downloaded as <strong>${escapeHtml(fileName)}</strong>. Check your Downloads folder and make sure the file is there. The records are deleted only after you confirm, and this cannot be undone.</p>
+      <p style="font-size:0.92rem;">Your archive (with its attachments) was downloaded as <strong>${escapeHtml(fileName)}</strong>. Check your Downloads folder and make sure the file is there. The records are deleted only after you confirm, and this cannot be undone.</p>
       <div class="dialog-actions">
         <button type="button" class="btn btn-secondary" data-act="no">No, don't delete</button>
         <button type="button" class="btn btn-primary" data-act="yes" style="background:var(--error);border-color:var(--error);">Yes, delete the records</button>
@@ -1100,13 +1150,15 @@ async function arcRun(m, a) {
     }
     arcSetStatus("Adding names…");
     const lookups = await arcBuildLookups(raw);
+    const attach = await arcSaveAttachments(raw, zip);
+    lookups.attachmentFiles = attach.files;
     for (const [table, rows] of Object.entries(raw)) {
       if (rows.length) zip.file(`${table}.csv`, rowsToCsv(arcMakeReadable(rows, lookups)));
     }
     zip.file("people.csv", rowsToCsv(lookups.peopleRows.map(({ full_name, email, role, is_active }) => ({ full_name, email, role, is_active }))));
     zip.file(
       "manifest.json",
-      JSON.stringify({ organization: profile.organizations?.name || null, year: a.year, categories: a.cats, exported, createdAt: new Date().toISOString(), note: "Ids are replaced with names. people.csv lists everyone in the academy." }, null, 2)
+      JSON.stringify({ organization: profile.organizations?.name || null, year: a.year, categories: a.cats, exported, createdAt: new Date().toISOString(), attachments: attach.summary, note: "Ids are replaced with names. people.csv lists everyone in the academy. Attachments are in the attachments folder." }, null, 2)
     );
 
     // 2) Build the ZIP and download it.
@@ -1126,7 +1178,24 @@ async function arcRun(m, a) {
       });
       if (error) throw error;
       const removed = Object.values(data).reduce((x, y) => x + Number(y), 0);
-      showToast(`Archive complete. ${removed.toLocaleString()} records removed.`, "success");
+
+      // The records are gone and the files are safe in the ZIP, so now free the storage space they used.
+      let attachNote = "";
+      let attachProblem = false;
+      if (attach.toRemove.length) {
+        m.set(arcProgressHtml(a.year));
+        arcSetStatus("Removing attachments from storage…");
+        try {
+          const r = await arcRemoveAttachments(attach.toRemove);
+          attachProblem = r.failed > 0;
+          attachNote = r.failed ? ` ${r.failed} attachment file(s) could not be removed from storage.` : ` ${r.removed} attachment file(s) removed.`;
+        } catch (e) {
+          console.error(e);
+          attachProblem = true;
+          attachNote = " The attachment files could not be removed from storage.";
+        }
+      }
+      showToast(`Archive complete. ${removed.toLocaleString()} records removed.${attachNote}`, attachProblem ? "info" : "success");
     }
   } catch (err) {
     console.error(err);
@@ -1149,7 +1218,6 @@ async function arcRun(m, a) {
     if (cancelled) showToast("Nothing was deleted.", "info");
   }
   loadArchiveRuns();
-  if (!failure && !cancelled) loadAudit();
 }
 
 // ----- Archived-year details (info icon) -----

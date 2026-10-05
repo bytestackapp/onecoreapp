@@ -420,10 +420,11 @@ async function loadChildren(showErrors = false) {
 // My history (table) + correction requests
 // -----------------------------------------------------------------
 function historyTable(entries) {
+  const canCorrect = isStaff; // corrections are for staff payroll reference only
   return `
     <table class="data-table">
       <thead>
-        <tr><th>Date</th><th>Time</th><th class="col-action">Action</th></tr>
+        <tr><th>Date</th><th>Time</th>${canCorrect ? `<th class="col-action">Action</th>` : ""}</tr>
       </thead>
       <tbody>
         ${entries
@@ -432,9 +433,13 @@ function historyTable(entries) {
           <tr>
             <td>${formatDate(e.date)}</td>
             <td>${daySummary(e)}</td>
-            <td class="col-action">
+            ${
+              canCorrect
+                ? `<td class="col-action">
               <button type="button" class="icon-action sm correction-btn" data-id="${e.id}" data-date="${e.date}" title="Request correction" aria-label="Request correction">${ICON.correction}</button>
-            </td>
+            </td>`
+                : ""
+            }
           </tr>`
           )
           .join("")}
@@ -817,12 +822,22 @@ if (profile.role === "parent") {
   every(REFRESH_MS, () => loadChildren());
 }
 
-document.getElementById("history-view-btn").addEventListener("click", openHistoryDialog);
-loadHistory();
+// Parents have no attendance of their own; they see "Your children" instead.
+if (profile.role === "parent") {
+  document.getElementById("history-section").style.display = "none";
+} else {
+  document.getElementById("history-view-btn").addEventListener("click", openHistoryDialog);
+  loadHistory();
+}
 
-document.getElementById("corrections-view-btn").addEventListener("click", openAllCorrectionsDialog);
-loadCorrections().then(() => {
-  // Arriving from a notification (attendance.html#corrections): bring the block into view
-  if (location.hash === "#corrections") document.getElementById("corrections-section").scrollIntoView({ behavior: "smooth", block: "start" });
-});
-if (isAdmin) every(REFRESH_MS, () => loadCorrections());
+// Corrections are staff-only (payroll reference).
+if (isStaff) {
+  document.getElementById("corrections-view-btn").addEventListener("click", openAllCorrectionsDialog);
+  loadCorrections().then(() => {
+    // Arriving from a notification (attendance.html#corrections): bring the block into view
+    if (location.hash === "#corrections") document.getElementById("corrections-section").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  if (isAdmin) every(REFRESH_MS, () => loadCorrections());
+} else {
+  document.getElementById("corrections-section").style.display = "none";
+}

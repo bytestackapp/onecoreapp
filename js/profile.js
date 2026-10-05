@@ -1,7 +1,6 @@
-import { mountLayout } from "./layout.js";
+import { mountLayout, sectionHead } from "./layout.js";
 import { supabase, initials, friendlyError, getCurrentProfile } from "./supabase-client.js";
 import { showToast } from "./toast.js";
-import { sectionHead } from "./ui.js";
 import { initChildDeviceCard, openFindMyChild, FMC_ICON } from "./find-my-child.js";
 
 const profile = await mountLayout({ activeKey: "profile", pageTitle: "Profile" });
@@ -29,7 +28,17 @@ if (profile.organizations?.name) {
 // ---------- Section headers ----------
 document.getElementById("basic-head").innerHTML = sectionHead({ title: "Basic Information", icon: ICON.user, tone: "muted" });
 document.getElementById("security-head").innerHTML = sectionHead({ title: "Security Details", icon: ICON.lock, tone: "muted" });
-document.getElementById("edit-profile-btn").innerHTML = ICON.edit;
+// Edit button lives inside the section header (same as the eye icon on Attendance)
+const editBtn = document.createElement("button");
+editBtn.type = "button";
+editBtn.id = "edit-profile-btn";
+editBtn.className = "icon-action sm";
+editBtn.title = "Edit";
+editBtn.setAttribute("aria-label", "Edit basic information");
+editBtn.style.marginLeft = "auto";
+editBtn.innerHTML = ICON.edit;
+const basicHead = document.getElementById("basic-head");
+(basicHead.querySelector(".section-head") || basicHead).appendChild(editBtn);
 
 // ---------- Block 2: basic information (read-only view) ----------
 function renderProfile() {

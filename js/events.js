@@ -43,6 +43,7 @@ const PLATFORMS = [
   { id: "meet", label: "Google Meet", hosts: ["meet.google.com"] },
   { id: "teams", label: "Teams", hosts: ["teams.microsoft.com", "teams.live.com"] },
   { id: "webex", label: "Webex", hosts: ["webex.com"] },
+  { id: "messenger", label: "Messenger", hosts: ["messenger.com", "m.me", "facebook.com"] },
   { id: "other", label: "Other", hosts: [] },
 ];
 const platformLabel = (id) => PLATFORMS.find((p) => p.id === id)?.label || "Online";
@@ -355,9 +356,15 @@ async function newEventDialog(existing = null) {
           <textarea id="ev-description" rows="3"></textarea>
         </div>
 
-        <div class="field">
-          <label for="ev-date">Date</label>
-          <input id="ev-date" type="date" required />
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="field">
+            <label for="ev-date">Date</label>
+            <input id="ev-date" type="date" required />
+          </div>
+          <div class="field">
+            <label for="ev-audience-btn">Audience</label>
+            <button type="button" id="ev-audience-btn" class="audience-btn"></button>
+          </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div class="field">
@@ -380,16 +387,6 @@ async function newEventDialog(existing = null) {
           <button type="button" id="ev-meeting-btn" class="audience-btn" style="display:none;"></button>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div class="field">
-            <label for="ev-audience-btn">Audience</label>
-            <button type="button" id="ev-audience-btn" class="audience-btn"></button>
-          </div>
-          <div class="field">
-            <label for="ev-max">Max participants</label>
-            <input id="ev-max" type="number" min="1" placeholder="No limit" />
-          </div>
-        </div>
         <div class="dialog-actions">
           <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
           <button type="submit" class="btn btn-primary" id="ev-submit">${existing ? "Save changes" : "Create event"}</button>
@@ -423,7 +420,6 @@ async function newEventDialog(existing = null) {
     backdrop.querySelector("#ev-date").value = existing.event_date || "";
     backdrop.querySelector("#ev-start").value = (existing.start_time || "").slice(0, 5);
     backdrop.querySelector("#ev-end").value = (existing.end_time || "").slice(0, 5);
-    backdrop.querySelector("#ev-max").value = existing.max_participants ?? "";
     if (!existing.is_online) locInput.value = existing.location || "";
   }
   const meetingBtn = backdrop.querySelector("#ev-meeting-btn");
@@ -492,7 +488,6 @@ async function newEventDialog(existing = null) {
     submitBtn.disabled = true;
     submitBtn.textContent = existing ? "Saving…" : "Creating…";
 
-    const maxParticipants = backdrop.querySelector("#ev-max").value;
     const payload = {
       organization_id: profile.organization_id,
       title: backdrop.querySelector("#ev-title-input").value.trim(),
@@ -509,7 +504,6 @@ async function newEventDialog(existing = null) {
       audience_types: [...audienceSel.types],
       audience_group_ids: [...audienceSel.groups],
       audience_user_ids: [...audienceSel.users],
-      max_participants: maxParticipants ? parseInt(maxParticipants, 10) : null,
       organizer_id: profile.id,
     };
 
@@ -555,7 +549,7 @@ async function loadEvents() {
     const today = localDate();
     const { data, error } = await supabase
       .from("events")
-      .select("id, title, description, event_date, start_time, end_time, location, is_online, meeting_platform, meeting_link, meeting_details, rsvp_enabled, max_participants, status, organizer_id, audience_types, audience_group_ids, audience_user_ids, profiles!events_organizer_id_fkey(full_name)")
+      .select("id, title, description, event_date, start_time, end_time, location, is_online, meeting_platform, meeting_link, meeting_details, rsvp_enabled, status, organizer_id, audience_types, audience_group_ids, audience_user_ids, profiles!events_organizer_id_fkey(full_name)")
       .gte("event_date", today)
       .order("event_date", { ascending: true });
     if (error) throw error;

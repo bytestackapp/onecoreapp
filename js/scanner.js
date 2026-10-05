@@ -473,7 +473,6 @@ async function drainQueue() {
         if (data?.ok === false) {
           rejected.push({ ...item, name: item.name || data.name || null, message: data.message || "Rejected by the server." });
         }
-        }
       } catch (err) {
         item.attempts = (item.attempts || 0) + 1;
         if (err?.code && item.attempts >= MAX_ATTEMPTS) {

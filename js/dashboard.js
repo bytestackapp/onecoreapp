@@ -1,6 +1,5 @@
-import { mountLayout, ICONS } from "./layout.js";
+import { mountLayout, ICONS, sectionHead } from "./layout.js";
 import { supabase, formatDate, timeAgo, priorityLabel } from "./supabase-client.js";
-import { sectionHead } from "./ui.js";
 import { checkForUpdate } from "./version-check.js";
 
 const profile = await mountLayout({ activeKey: "dashboard", pageTitle: "Dashboard", brandOnMobile: true });
@@ -16,8 +15,15 @@ function localDate(d = new Date()) {
 }
 const today = localDate();
 
-document.getElementById("welcome-line").textContent =
-  `Welcome back, ${profile.full_name.split(" ")[0]}. Here's what's happening today.`;
+// Roles not listed here (student, guest) get no cards and no sub-header.
+const STAT_SECTIONS = {
+  admin:   { title: "Pending Actions",     icon: ICONS.leave,   tone: "warning" },
+  teacher: { title: "Pending Actions",     icon: ICONS.leave,   tone: "warning" },
+  parent:  { title: "Children Monitoring", icon: ICONS.profile, tone: "info" },
+};
+
+document.getElementById("welcome-line").innerHTML =
+  `Welcome back, <strong>${escapeHtml(profile.full_name)}</strong>.`;
 
 document.getElementById("announcements-head").innerHTML = sectionHead({
   title: "Recent announcements",
@@ -44,73 +50,53 @@ function tile(label, value) {
   return `<div class="card stat-tile"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
 }
 
-async function myTodayStatus() {
-  const { data } = await supabase
-    .from("attendance_records")
-    .select("time_in,time_out")
-    .eq("profile_id", profile.id)
-    .eq("record_date", today)
-    .is("group_id", null)
-    .maybeSingle();
-  return data?.time_in ? (data?.time_out ? "Complete" : "In progress") : "Not started";
+function pendingCount(table, filters) {
+  let q = supabase.from(table).select("id", { count: "exact", head: true }).eq("status", "pending");
+  for (const [col, val] of Object.entries(filters)) q = q.eq(col, val);
+  return q;
 }
 
 async function renderStatTiles() {
+  const cfg = STAT_SECTIONS[profile.role];
+  if (!cfg) return;
+
+  const section = document.getElementById("stats-section");
   const el = document.getElementById("stat-tiles");
+  document.getElementById("stats-head").innerHTML = sectionHead(cfg);
+  section.style.display = "";
   el.innerHTML = `<div class="skeleton" style="height:80px;grid-column:1/-1;"></div>`;
   let tiles = [];
 
   try {
     if (profile.role === "admin") {
       const orgId = profile.organization_id;
-      const [
-        { count: totalUsers },
-        { count: teachers },
-        { count: students },
-        { count: parents },
-        { count: pendingLeave },
-        { count: pendingApprovals },
-        { count: pendingCorrections },
-        myStatus,
-      ] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("organization_id", orgId),
-        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("role", "teacher"),
-        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("role", "student"),
-        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("role", "parent"),
-        supabase.from("leave_requests").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("status", "pending"),
+      const [{ count: leave }, { count: approvals }, { count: corrections }] = await Promise.all([
+        pendingCount("leave_requests", { organization_id: orgId }),
         supabase.from("profiles").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_approved", false),
-        supabase.from("attendance_corrections").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("status", "pending"),
-        myTodayStatus(),
+        pendingCount("attendance_corrections", { organization_id: orgId }),
       ]);
       tiles = [
-        tile("Total users", totalUsers ?? 0),
-        tile("Teachers", teachers ?? 0),
-        tile("Students", students ?? 0),
-        tile("Parents", parents ?? 0),
-        tile("Today's status", myStatus),
-        tile("Pending leave requests", pendingLeave ?? 0),
-        tile("Pending sign-up approvals", pendingApprovals ?? 0),
-        tile("Pending corrections", pendingCorrections ?? 0),
+        tile("Leave Requests", leave ?? 0),
+        tile("Sign-up Approvals", approvals ?? 0),
+        tile("Attendance Corrections", corrections ?? 0),
       ];
     } else if (profile.role === "teacher") {
-      const [myStatus, { count: pendingLeave }] = await Promise.all([
-        myTodayStatus(),
-        supabase.from("leave_requests").select("id", { count: "exact", head: true }).eq("profile_id", profile.id).eq("status", "pending"),
+      const [{ count: leave }, { count: corrections }] = await Promise.all([
+        pendingCount("leave_requests", { profile_id: profile.id }),
+        pendingCount("attendance_corrections", { profile_id: profile.id }),
       ]);
-      tiles = [tile("Today's status", myStatus), tile("Pending leave requests", pendingLeave ?? 0)];
-    } else if (profile.role === "student") {
-      const { count: presentCount } = await supabase
-        .from("attendance_records")
-        .select("id", { count: "exact", head: true })
-        .eq("profile_id", profile.id)
-        .eq("status", "present");
-      tiles = [tile("Days present (recorded)", presentCount ?? 0)];
+      tiles = [
+        tile("Leave Requests", leave ?? 0),
+        tile("Attendance Corrections", corrections ?? 0),
+      ];
     } else if (profile.role === "parent") {
-      const [{ count: pendingRsvps }, childrenToday] = await Promise.all([
-        supabase.from("event_participants").select("id", { count: "exact", head: true }).eq("profile_id", profile.id).is("rsvp_status", null),
-        childrenCheckedInToday(),
-      ]);
-      tiles = [tile("Pending RSVPs", pendingRsvps ?? 0), tile("Children checked in today", childrenToday)];
+      const c = await childrenActivityToday();
+      tiles = [
+        tile("Time In Today", c.timeIn),
+        tile("Time Out Today", c.timeOut),
+        tile("Break Out Today", c.breakOut),
+        tile("Break In Today", c.breakIn),
+      ];
     }
     el.innerHTML = tiles.join("");
   } catch (err) {
@@ -119,20 +105,29 @@ async function renderStatTiles() {
   }
 }
 
-async function childrenCheckedInToday() {
+async function childrenActivityToday() {
   const { data: links } = await supabase.from("guardians").select("student_id").eq("parent_id", profile.id);
   const ids = (links || []).map((l) => l.student_id);
-  if (ids.length === 0) return "0 of 0";
+  const total = ids.length;
+  if (total === 0) return { timeIn: "0 of 0", timeOut: "0 of 0", breakOut: "0 of 0", breakIn: "0 of 0" };
 
-  const { data: records } = await supabase
+  const { data: records, error } = await supabase
     .from("attendance_records")
-    .select("profile_id")
+    .select("profile_id, time_in, time_out, break_out, break_in")
     .in("profile_id", ids)
     .eq("record_date", today)
-    .is("group_id", null)
-    .not("time_in", "is", null);
-  const checkedIn = new Set((records || []).map((r) => r.profile_id)).size;
-  return `${checkedIn} of ${ids.length}`;
+    .is("group_id", null);
+  if (error) throw error;
+
+  const countOf = (field) =>
+    `${new Set((records || []).filter((r) => r[field]).map((r) => r.profile_id)).size} of ${total}`;
+
+  return {
+    timeIn: countOf("time_in"),
+    timeOut: countOf("time_out"),
+    breakOut: countOf("break_out"),
+    breakIn: countOf("break_in"),
+  };
 }
 
 // -----------------------------------------------------------------

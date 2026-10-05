@@ -98,24 +98,12 @@
         <h2>QR codes</h2>
       </div>
       <div class="card">
-        <p>Every active person has a scan code for the gate/biometric scanner. Refreshing retires every current code and issues new ones — anyone with the old code will need to be reissued before they can scan in again.</p>
+        <p>Refreshing will invalidate all active scanner codes. Admin must reissue the newly generated codes to continue scanning.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <button class="btn btn-secondary" id="refresh-qr-btn">Refresh all QR codes</button>
           <button class="btn btn-secondary" id="print-qr-btn">Print QR codes</button>
         </div>
       </div>
-    </div>
-
-    <div class="section">
-      <div class="section-head tone-info">
-        <span class="section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
-        <h2>Recent activity</h2>
-        <div style="margin-left:auto;display:flex;gap:6px;">
-          <button type="button" class="icon-action" id="view-audit-btn" title="View all activity" aria-label="View all activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
-          <button type="button" class="icon-action danger" id="clear-audit-btn" title="Clear activity" aria-label="Clear activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
-        </div>
-      </div>
-      <div id="audit-list" class="card"><div class="skeleton" style="height:60px;"></div></div>
     </div>
 
     <div class="section">
@@ -128,7 +116,7 @@
           <p class="text-muted" style="margin:0;">Archiving is available in the web version only, because it downloads a file. Please open OneCore in your browser.</p>
         </div>
         <div id="archive-form">
-          <p style="margin-top:0;">Save a year of records to a ZIP file and remove them from the database to free up space. Choose what to include:</p>
+          <p style="margin-top:0;">Export records to ZIP and remove them from the database. Select what to include:</p>
           <label style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input type="checkbox" id="arc-cat-attendance" checked /> Attendance (time-in, breaks, time-out, corrections)</label>
           <label style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input type="checkbox" id="arc-cat-events" checked /> Events and responses</label>
           <label style="display:flex;gap:8px;align-items:center;margin:8px 0;"><input type="checkbox" id="arc-cat-announcements" checked /> Announcements and acknowledgments</label>
@@ -146,7 +134,17 @@
         </div>
       </div>
     </div>
-  </div>
+
+    <div class="section">
+      <div class="section-head tone-info">
+        <span class="section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+        <h2>Recent activity</h2>
+        <button type="button" class="icon-action" id="view-audit-btn" title="View all activity" aria-label="View all activity" style="margin-left:auto;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <div class="card">
+        <p style="margin:0;">View and manage the admin activity log, including user, role, event, leave, and scanner device actions.</p>
+      </div>
+    </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script type="module" src="../js/admin-settings.js"></script>

@@ -1,8 +1,7 @@
-import { mountLayout } from "./layout.js";
+import { mountLayout, sectionHead } from "./layout.js";
 import { supabase, friendlyError, isPlatformOwner, clearProfileCache } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { confirmDialog } from "./dialog.js";
-import { sectionHead } from "./ui.js";
 
 const profile = await mountLayout({ activeKey: "owner", pageTitle: "Owner console", allowedRoles: ["admin"] });
 if (!profile) throw new Error("redirecting");

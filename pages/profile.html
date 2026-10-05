@@ -7,8 +7,6 @@
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="../css/global.css" />
   <style>
-    .head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .head-row-title { flex: 1; min-width: 0; }
     .info-row { padding: 10px 0; border-bottom: 1px solid rgba(128,128,128,.2); }
     .info-row:first-child { padding-top: 0; }
     .info-row:last-child { padding-bottom: 0; border-bottom: 0; }
@@ -57,10 +55,7 @@
 
     <!-- Block 2: basic information -->
     <div class="section" style="margin-top:16px;">
-      <div class="head-row">
-        <div class="head-row-title" id="basic-head"></div>
-        <button type="button" class="icon-action" id="edit-profile-btn" title="Edit" aria-label="Edit basic information"></button>
-      </div>
+      <div id="basic-head"></div>
       <div class="card">
         <div class="info-row"><div class="info-label">Full name</div><div class="info-value" id="view-full-name">—</div></div>
         <div class="info-row"><div class="info-label">Email</div><div class="info-value" id="view-email">—</div></div>
