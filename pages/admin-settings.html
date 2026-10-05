@@ -125,7 +125,7 @@
           <label style="display:flex;gap:8px;align-items:center;margin:8px 0;color:var(--text-muted);cursor:not-allowed;" title="Always included"><input type="checkbox" checked disabled /> Recent activity history</label>
           <div class="field" style="margin-top:12px;">
             <label for="archive-year">Year</label>
-            <div style="display:flex;gap:8px;align-items:center;">
+			<div style="display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;">
               <select id="archive-year" style="flex:1;min-width:0;"></select>
               <button type="button" class="icon-action" id="archive-info-btn" title="Archive details" aria-label="Archive details" disabled style="opacity:0.45;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></button>
               <button type="button" class="icon-action" id="archive-preview-btn" title="Preview" aria-label="Preview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
