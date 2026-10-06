@@ -407,10 +407,9 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnM
     return null;
   }
 
-  const isOwner = await isPlatformOwner();
+  const [isOwner, academies] = await Promise.all([isPlatformOwner(), myAcademies()]);
   // Unread counts cover every academy this login belongs to, so a notification
   // for Academy A still shows while she is working in Academy B.
-  const academies = await myAcademies();
   const unread = academies.reduce((n, a) => n + Number(a.unread || 0), 0);
   const otherUnread = academies.filter((a) => a.profile_id !== profile.id).reduce((n, a) => n + Number(a.unread || 0), 0);
 

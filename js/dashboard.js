@@ -104,7 +104,8 @@ async function renderStatTiles() {
 }
 
 async function childrenActivityToday() {
-  const { data: links } = await supabase.from("guardians").select("student_id").eq("parent_id", profile.id);
+  const { data: links, error: linksError } = await supabase.from("guardians").select("student_id").eq("parent_id", profile.id);
+  if (linksError) throw linksError;
   const ids = (links || []).map((l) => l.student_id);
   const total = ids.length;
   if (total === 0) return { timeIn: "0 of 0", timeOut: "0 of 0", breakOut: "0 of 0", breakIn: "0 of 0" };
@@ -246,6 +247,7 @@ async function renderRoleSection() {
       </div>`;
   } catch (err) {
     console.error(err);
+    el.innerHTML = `<div class="section"><div class="card empty-state"><h3>Pending leave approvals couldn't be loaded</h3><p>Please refresh the page.</p></div></div>`;
   }
 }
 

@@ -224,7 +224,7 @@ function fileLeaveDialog() {
       loadBalances();
     } catch (err) {
       console.error(err);
-      showToast(err.message && !err.code ? err.message : friendlyError(err, "Unable to submit your leave request. Please try again."), "error");
+      showToast(err.message && (!err.code || err.code === "P0001") ? err.message : friendlyError(err, "Unable to submit your leave request. Please try again."), "error");
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit request";
     }

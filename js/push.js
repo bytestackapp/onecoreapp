@@ -16,7 +16,7 @@ import { registerChildDevice } from "./find-my-child.js";
 // can see exactly where it stops. Set to false once push notifications work.
 const DEBUG_PUSH = false;
 function dbg(message, kind = "info") {
-  console.log("[push]", message);
+  if (DEBUG_PUSH) console.log("[push]", message);
   if (DEBUG_PUSH) showToast(`Push: ${message}`, kind);
 }
 

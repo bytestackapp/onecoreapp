@@ -398,7 +398,7 @@ export function openFindMyChild({ childId, childName }) {
 
   async function showResult(row) {
     // Only a fix from the last few minutes may ever be called "current".
-    const fresh = Date.now() - new Date(row.located_at).getTime() < 3 * 60_000;
+    const fresh = !row.completed_at || new Date(row.completed_at).getTime() - new Date(row.located_at).getTime() < 3 * 60_000;
     if (!fresh) return showUnavailable("stale");
     setBody(locationBlock(row, true) + actionsHtml(row));
     drawMap(row);
