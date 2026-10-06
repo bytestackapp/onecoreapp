@@ -22,12 +22,7 @@ async function fetchPeople() {
   if (scope === "role") {
     const role = params.get("role");
     titleEl.textContent = `Print QR codes — ${role ? role.charAt(0).toUpperCase() + role.slice(1) + "s" : "Role"}`;
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, qr_token")
-      .eq("role", role)
-      .eq("is_active", true)
-      .order("full_name");
+    const { data, error } = await supabase.rpc("admin_qr_cards", { p_scope: "role", p_role: role });
     if (error) throw error;
     return data || [];
   }
@@ -36,15 +31,9 @@ async function fetchPeople() {
     const groupId = params.get("id");
     const { data: group } = await supabase.from("groups").select("name").eq("id", groupId).single();
     titleEl.textContent = `Print QR codes — ${group?.name || "Group"}`;
-    const { data, error } = await supabase
-      .from("group_members")
-      .select("profiles(id, full_name, qr_token, is_active)")
-      .eq("group_id", groupId);
+    const { data, error } = await supabase.rpc("admin_qr_cards", { p_scope: "group", p_group: groupId });
     if (error) throw error;
-    return (data || [])
-      .map((r) => r.profiles)
-      .filter((p) => p && p.is_active)
-      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+    return data || [];
   }
 
   if (scope === "people") {
@@ -56,14 +45,14 @@ async function fetchPeople() {
     }
     titleEl.textContent = "Print QR codes — Selected people";
     if (ids.length === 0) return [];
-    const { data, error } = await supabase.from("profiles").select("id, full_name, qr_token").in("id", ids).eq("is_active", true);
+    const { data, error } = await supabase.rpc("admin_qr_cards", { p_scope: "people", p_ids: ids });
     if (error) throw error;
-    return (data || []).sort((a, b) => a.full_name.localeCompare(b.full_name));
+    return data || [];
   }
 
   // scope === "all" (default)
   titleEl.textContent = "Print QR codes — Everyone active";
-  const { data, error } = await supabase.from("profiles").select("id, full_name, qr_token").eq("is_active", true).order("full_name");
+  const { data, error } = await supabase.rpc("admin_qr_cards", { p_scope: "all" });
   if (error) throw error;
   return data || [];
 }

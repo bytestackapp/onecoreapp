@@ -167,7 +167,7 @@ async function initRollcall() {
 
   let groups = [];
   if (profile.role === "admin") {
-    const { data, error } = await supabase.from("groups").select("id, name").order("name");
+    const { data, error } = await supabase.from("groups").select("id, name").order("name").eq("organization_id", profile.organization_id);
     if (error) console.error(error);
     groups = data || [];
   } else {

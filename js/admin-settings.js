@@ -668,7 +668,7 @@ function printQrDialog() {
         </div>`;
     } else if (scope === "group") {
       if (!groupsCache) {
-        const { data } = await supabase.from("groups").select("id, name").order("name");
+        const { data } = await supabase.from("groups").select("id, name").eq("organization_id", profile.organization_id).order("name");
         groupsCache = data || [];
       }
       detailEl.innerHTML = groupsCache.length
@@ -679,7 +679,7 @@ function printQrDialog() {
         : `<p class="text-muted">No groups yet.</p>`;
     } else if (scope === "people") {
       if (!peopleCache) {
-        const { data } = await supabase.from("profiles").select("id, full_name, role").eq("is_active", true).order("full_name");
+        const { data } = await supabase.from("profiles").select("id, full_name, role").eq("organization_id", profile.organization_id).eq("is_active", true).order("full_name");
         peopleCache = data || [];
       }
       detailEl.innerHTML = `
