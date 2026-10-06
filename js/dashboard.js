@@ -1,10 +1,8 @@
 import { mountLayout, ICONS, sectionHead } from "./layout.js";
 import { supabase, formatDate, timeAgo, priorityLabel } from "./supabase-client.js";
-import { checkForUpdate } from "./version-check.js";
 
 const profile = await mountLayout({ activeKey: "dashboard", pageTitle: "Dashboard", brandOnMobile: true });
 if (!profile) throw new Error("redirecting");
-checkForUpdate();
 
 // Local calendar date as YYYY-MM-DD (toISOString() reports the UTC date,
 // which is the wrong day for part of the morning in UTC+8).

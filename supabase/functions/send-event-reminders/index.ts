@@ -20,7 +20,10 @@ const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  if (req.headers.get("x-push-secret") !== Deno.env.get("PUSH_SECRET")) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
+  }
   try {
     const now = new Date();
     const windowStart = new Date(now.getTime() + (REMINDER_MINUTES_BEFORE - WINDOW_MINUTES / 2) * 60000);

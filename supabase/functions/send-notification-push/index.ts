@@ -28,6 +28,9 @@ async function fcmAccessToken(serviceAccount: ReturnType<typeof loadServiceAccou
 }
 
 Deno.serve(async (req) => {
+  if (req.headers.get("x-push-secret") !== Deno.env.get("PUSH_SECRET")) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
+  }
   try {
     const payload = await req.json();
     const notification = payload.record; // Database Webhook shape: { type, table, record, ... }
