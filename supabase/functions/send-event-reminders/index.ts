@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
     const now = new Date();
     const windowStart = new Date(now.getTime() + (REMINDER_MINUTES_BEFORE - WINDOW_MINUTES / 2) * 60000);
     const windowEnd = new Date(now.getTime() + (REMINDER_MINUTES_BEFORE + WINDOW_MINUTES / 2) * 60000);
-    const today = now.toISOString().slice(0, 10);
+    const today = new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10); // today's date in Manila
 
     // Only events happening today are candidates — keeps the query cheap.
     // (A meeting past midnight UTC would need the query widened to
@@ -42,9 +42,7 @@ Deno.serve(async (req) => {
     if (eventsError) throw eventsError;
 
     const dueEvents = (events || []).filter((e) => {
-      const [h, m] = e.start_time.split(":").map(Number);
-      const eventTime = new Date(`${e.event_date}T00:00:00Z`);
-      eventTime.setUTCHours(h, m, 0, 0);
+      const eventTime = new Date(`${e.event_date}T${e.start_time.slice(0, 5)}:00+08:00`); // Manila time
       return eventTime >= windowStart && eventTime <= windowEnd;
     });
 

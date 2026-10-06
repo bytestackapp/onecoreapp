@@ -13,6 +13,11 @@ import { initPushNotifications } from "./push.js";
 import { checkForUpdate } from "./version-check.js";
 import "./pull-to-refresh.js";
 
+// Makes text safe to show inside the page
+function esc(str = "") {
+  return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 const ICONS = {
   dashboard: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>`,
   bell: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>`,
@@ -100,9 +105,9 @@ function buildSidebar(profile, activeKey, unread, isOwner) {
       ${adminBlock}
     </nav>
     <div class="sidebar-footer">
-      <div class="avatar">${profile.avatar_url ? `<img src="${profile.avatar_url}" alt="">` : initials(profile.full_name)}</div>
+      <div class="avatar">${profile.avatar_url && /^https:\/\//.test(profile.avatar_url) ? `<img src="${esc(profile.avatar_url)}" alt="">` : esc(initials(profile.full_name))}</div>
       <div style="flex:1;min-width:0;">
-        <div class="sidebar-user-name">${profile.full_name}</div>
+        <div class="sidebar-user-name">${esc(profile.full_name)}</div>
         <div class="sidebar-user-role">${isOwner ? "owner" : profile.role}</div>
       </div>
       <button class="sidebar-signout" id="signout-btn" title="Sign out">${ICONS.logout}</button>
@@ -173,14 +178,14 @@ function buildTopbar(profile, pageTitle, unread, brandOnMobile, isOwner, otherUn
         ${unread > 0 ? `<span class="notif-dot"></span>` : ""}
       </a>
       <button class="user-menu-btn" id="user-menu-btn">
-        <div class="avatar">${profile.avatar_url ? `<img src="${profile.avatar_url}" alt="">` : initials(profile.full_name)}</div>
+        <div class="avatar">${profile.avatar_url && /^https:\/\//.test(profile.avatar_url) ? `<img src="${esc(profile.avatar_url)}" alt="">` : esc(initials(profile.full_name))}</div>
         ${ICONS.chevron}
       </button>
       <div class="user-menu-dropdown" id="user-menu-dropdown">
         <div class="user-menu-header">
-          <div class="name">${profile.full_name}</div>
+          <div class="name">${esc(profile.full_name)}</div>
           <div class="role">${isOwner ? "owner" : profile.role}</div>
-          ${profile.organizations?.name ? `<div class="text-muted" style="font-size:0.78rem;">${profile.organizations.name}</div>` : ""}
+          ${profile.organizations?.name ? `<div class="text-muted" style="font-size:0.78rem;">${esc(profile.organizations.name)}</div>` : ""}
         </div>
         <a class="user-menu-item" href="profile.html">${ICONS.profile}<span>Profile</span></a>
         <button class="user-menu-item" id="user-menu-switch">${ICONS.switch}<span>Switch academy</span>${otherUnread > 0 ? `<span class="badge" style="margin-left:auto;">${otherUnread > 9 ? "9+" : otherUnread}</span>` : ""}</button>
