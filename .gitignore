@@ -6,7 +6,7 @@ www/
 supabase/.temp/
 *.bat
 temp.b64
-.references/
+.references
 .vercel
 .env*.local
 android/app/onecore-debug.keystore
