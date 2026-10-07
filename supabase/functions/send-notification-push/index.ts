@@ -8,12 +8,12 @@
 // recipient's profiles. That way a notification from any academy reaches
 // the phone, whichever academy is currently open.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.116.0";
 import { getAccessToken, sendPush, loadServiceAccount } from "../_shared/fcm.ts";
 
 const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")!)["default"]
 );
 
 // An announcement to a whole academy fires this function once per recipient

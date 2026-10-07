@@ -51,9 +51,8 @@ document.getElementById("org-form").addEventListener("submit", async (e) => {
 
 function generateInviteCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I, avoids ambiguity
-  let out = "";
-  for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
 }
 
 async function loadInviteCode() {

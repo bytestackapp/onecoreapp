@@ -44,7 +44,7 @@ jobs:
       - name: Write google-services.json from secret
         run: echo "${{ secrets.GOOGLE_SERVICES_JSON_B64 }}" | base64 -d > android/app/google-services.json
 
-      - name: Write debug keystore from secret
+      - name: Write signing keystore from secret
         run: echo "${{ secrets.ONECORE_DEBUG_KEYSTORE_B64 }}" | base64 -d > android/app/onecore-debug.keystore
 
       - name: Capacitor sync
@@ -53,11 +53,13 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Build debug APK
-        run: cd android && ./gradlew assembleDebug
+      - name: Build release APK
+        run: cd android && ./gradlew assembleRelease
+        env:
+          ONECORE_KEYSTORE_PASSWORD: ${{ secrets.ONECORE_KEYSTORE_PASSWORD }}
 
       - name: Upload APK as build artifact
         uses: actions/upload-artifact@v7
         with:
           name: onecore
-          path: android/app/build/outputs/apk/debug/onecore.apk
+          path: android/app/build/outputs/apk/release/onecore.apk

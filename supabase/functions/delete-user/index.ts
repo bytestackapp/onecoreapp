@@ -6,7 +6,7 @@
 //     removed and their login (and other academies) are left alone,
 //   - the login itself is deleted only when this was their last profile.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.116.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
       return json({ error: "Missing authorization" }, 401);
     }
 
-    const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")!)["default"]);
 
     // ---- Who is calling? ----------------------------------------------------
     const token = authHeader.replace("Bearer ", "");

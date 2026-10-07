@@ -17,22 +17,23 @@ android {
         }
     }
     signingConfigs {
-        debug {
+        release {
+            // The keystore file is written by the build workflow from a GitHub secret.
+            // The password comes from the ONECORE_KEYSTORE_PASSWORD secret (never stored in the repo).
             storeFile file("onecore-debug.keystore")
-            storePassword "onecoreDebug123"
+            storePassword System.getenv("ONECORE_KEYSTORE_PASSWORD")
             keyAlias "onecoredebugkey"
-            keyPassword "onecoreDebug123"
+            keyPassword System.getenv("ONECORE_KEYSTORE_PASSWORD")
         }
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-        }
-        debug {
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
         }
     }
+	
 	
 	applicationVariants.all { variant ->
     variant.outputs.all { output ->

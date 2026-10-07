@@ -381,9 +381,9 @@ export function openFindMyChild({ childId, childName }) {
       if (cancelled || !el.isConnected) return;
       const zoom = accuracy == null || accuracy > 200 ? 14 : accuracy > 50 ? 16 : 17;
       map = L.map(el).setView([lat, lon], zoom);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      L.tileLayer("https://api.maptiler.com/maps/streets-v4/256/{z}/{x}/{y}.png?key=VzMUCzcwHeu1p1rEv4d5", {
         maxZoom: 19,
-        attribution: "&copy; OpenStreetMap contributors",
+        attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
       }).addTo(map);
       if (accuracy != null) L.circle([lat, lon], { radius: accuracy, color: "#4f46e5", weight: 1, fillOpacity: 0.12 }).addTo(map);
       L.marker([lat, lon], {

@@ -452,6 +452,10 @@ async function openLeaveTypeDialog(staffId, staffName) {
     bodyEl.querySelector('[data-act="save-add"]')?.addEventListener("click", async () => {
       const leaveTypeId = bodyEl.querySelector("#lt-select").value;
       const entitled = parseFloat(bodyEl.querySelector("#lt-entitled").value || "0");
+      if (!Number.isFinite(entitled) || entitled < 0) {
+        showToast("Please enter 0 or more days.", "error");
+        return;
+      }
       try {
         const { error: insErr } = await supabase.from("leave_balances").insert({
           organization_id: profile.organization_id,

@@ -9,7 +9,7 @@
 // calculation below to offset for your timezone, or add an org-level
 // timezone column and use it here.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.116.0";
 import { getAccessToken, sendPush, loadServiceAccount } from "../_shared/fcm.ts";
 
 const REMINDER_MINUTES_BEFORE = 15;
@@ -17,7 +17,7 @@ const WINDOW_MINUTES = 2; // the cron runs every minute; a small window avoids m
 
 const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")!)["default"]
 );
 
 Deno.serve(async (req) => {

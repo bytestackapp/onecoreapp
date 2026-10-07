@@ -12,7 +12,7 @@
 // Expected outcomes always come back as HTTP 200 with { ok: true | false, ... } so the
 // app can show "Unable to get current location." Only real errors use 4xx/5xx.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.116.0";
 import { getAccessToken, sendDataPush, loadServiceAccount } from "../_shared/fcm.ts";
 
 const corsHeaders = {
@@ -27,7 +27,7 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+const admin = createClient(Deno.env.get("SUPABASE_URL")!, JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")!)["default"]);
 
 // The academy profile the person is working in is carried in their token
 // (same claim the app reads in supabase-client.js).

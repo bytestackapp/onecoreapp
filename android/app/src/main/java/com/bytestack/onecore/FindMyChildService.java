@@ -225,7 +225,7 @@ public class FindMyChildService extends Service {
     // ------------------------------------------------------------------
 
     static boolean isAllowedUrl(String url) {
-        return url != null && url.startsWith("https://") && url.endsWith("/functions/v1/submit-child-location");
+        return "https://hizrmrthctzbxdvpgila.supabase.co/functions/v1/submit-child-location".equals(url);
     }
 
     static boolean granted(Context c, String permission) {
