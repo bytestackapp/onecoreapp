@@ -22,6 +22,91 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 // ---------------------------------------------------------------------
+// Data saved on the phone, so pages don't ask the server the same
+// questions again and again.
+//
+// Saved data is refreshed when:
+//   - the person does something that changes it (switch academy, edit profile, ...),
+//   - the app is opened (once per launch),
+//   - pull-to-refresh is used,
+//   - it is older than 12 hours (safety net),
+//   - the person signs out (everything is wiped).
+// ---------------------------------------------------------------------
+
+const SAVED_PREFIX = "onecore_saved_";
+const SEEN_PREFIX = "onecore_seen_";
+const SAVED_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+function readSaved(name, key) {
+  try {
+    const raw = localStorage.getItem(SAVED_PREFIX + name);
+    if (!raw) return undefined;
+    const item = JSON.parse(raw);
+    if (!item || item.key !== key || Date.now() - item.savedAt > SAVED_MAX_AGE_MS) return undefined;
+    return item.value;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeSaved(name, key, value) {
+  try {
+    localStorage.setItem(SAVED_PREFIX + name, JSON.stringify({ key, value, savedAt: Date.now() }));
+  } catch {
+    // storage full or blocked: the app simply asks the server next time
+  }
+}
+
+// "Seen this launch" lives in sessionStorage, which starts empty every time the app is opened.
+function seenThisLaunch(name) {
+  try {
+    return sessionStorage.getItem(SEEN_PREFIX + name) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markSeen(name) {
+  try {
+    sessionStorage.setItem(SEEN_PREFIX + name, "1");
+  } catch {
+    // ignore
+  }
+}
+
+function forgetSaved(name) {
+  try {
+    localStorage.removeItem(SAVED_PREFIX + name);
+    sessionStorage.removeItem(SEEN_PREFIX + name);
+  } catch {
+    // ignore
+  }
+}
+
+function forgetAllSaved() {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(SAVED_PREFIX) || k.startsWith("onecore_push_saved_"))
+      .forEach((k) => localStorage.removeItem(k));
+    Object.keys(sessionStorage)
+      .filter((k) => k.startsWith(SEEN_PREFIX) || k.startsWith("onecore_push_asked_") || k === "onecore_app_version_row")
+      .forEach((k) => sessionStorage.removeItem(k));
+  } catch {
+    // ignore
+  }
+}
+
+// Whenever the person is signed out (button, expired session, deactivated...), wipe everything saved.
+supabase.auth.onAuthStateChange((event) => {
+  if (event === "SIGNED_OUT") {
+    cachedProfile = null;
+    cachedIsOwner = null;
+    academiesMemo = null;
+    forgetAllSaved();
+  }
+});
+
+// ---------------------------------------------------------------------
 // Session / profile helpers
 // ---------------------------------------------------------------------
 
@@ -60,6 +145,15 @@ export async function getCurrentProfile({ force = false } = {}) {
 
   const profileId = activeProfileIdFromToken(session) || session.user.id;
 
+  // Use the copy saved on the phone, except on the first page of each app launch.
+  if (!force && seenThisLaunch("profile")) {
+    const saved = readSaved("profile", profileId);
+    if (saved) {
+      cachedProfile = saved;
+      return saved;
+    }
+  }
+
   const { data, error } = await supabase
     .from("profiles")
     .select("id, organization_id, full_name, email, avatar_url, phone, role, is_active, is_approved, auth_user_id, guest_until, created_at, updated_at, organizations(name, logo_url)")
@@ -72,26 +166,44 @@ export async function getCurrentProfile({ force = false } = {}) {
   }
 
   cachedProfile = data;
+  writeSaved("profile", profileId, data);
+  markSeen("profile");
   return data;
 }
 
 export function clearProfileCache() {
   cachedProfile = null;
   cachedIsOwner = null;
+  academiesMemo = null;
+  forgetSaved("profile");
 }
 
 let cachedIsOwner = null;
 
-/** True if the signed-in login is a platform owner (see platform_owners table). Cached. */
+/** True if the signed-in login is a platform owner (see platform_owners table). Saved on the phone. */
 export async function isPlatformOwner() {
   if (cachedIsOwner !== null) return cachedIsOwner;
+
+  const user = await getSessionUser();
+  if (user && seenThisLaunch("owner")) {
+    const saved = readSaved("owner", user.id);
+    if (saved !== undefined) {
+      cachedIsOwner = saved === true;
+      return cachedIsOwner;
+    }
+  }
+
   try {
     const { data, error } = await supabase.rpc("is_owner");
     if (error) throw error;
     cachedIsOwner = data === true;
+    if (user) {
+      writeSaved("owner", user.id, cachedIsOwner);
+      markSeen("owner");
+    }
   } catch (err) {
     console.error("isPlatformOwner error:", err);
-    cachedIsOwner = false;
+    cachedIsOwner = false; // not saved: the next page asks again
   }
   return cachedIsOwner;
 }
@@ -102,13 +214,21 @@ export async function isPlatformOwner() {
  * been created yet. Call this first, before rendering the layout.
  */
 /** All of the signed-in login's profiles (one per academy), with unread counts. */
-export async function myAcademies() {
+let academiesMemo = null;
+let academiesMemoAt = 0;
+
+export async function myAcademies({ force = false } = {}) {
+  // Unread counts change whenever someone else sends something, so this is asked on each page,
+  // but only once per page even if several parts of the page need it.
+  if (!force && academiesMemo && Date.now() - academiesMemoAt < 20000) return academiesMemo;
   const { data, error } = await supabase.rpc("my_academies");
   if (error) {
     console.error("myAcademies error:", error);
     return [];
   }
-  return data || [];
+  academiesMemo = data || [];
+  academiesMemoAt = Date.now();
+  return academiesMemo;
 }
 
 /** Can this academy profile be signed in to right now? */
@@ -180,6 +300,7 @@ export async function requireAuth() {
 export async function signOut() {
   await supabase.auth.signOut();
   clearProfileCache();
+  forgetAllSaved();
   window.location.href = "login.html";
 }
 

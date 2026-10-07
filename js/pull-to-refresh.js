@@ -177,6 +177,9 @@ function initPullToRefresh() {
       circle.classList.add("snap");
       reveal.style.height = `${HOLD + RADIUS}px`;
       icon.style.transform = "";
+      try {
+        Object.keys(sessionStorage).filter((k) => k.startsWith("onecore_seen_") || k === "onecore_app_version_row").forEach((k) => sessionStorage.removeItem(k));
+      } catch { /* ignore */ }
       setTimeout(() => window.location.reload(), 500);
     } else if (pull > 0) {
       reset();

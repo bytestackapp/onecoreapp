@@ -49,12 +49,17 @@ export async function initPushNotifications(profile) {
       dbg(`got token ${token.value.slice(0, 8)}…`);
       try {
         // Moves this phone's token to whoever is signed in now (see register-push-token.sql).
-        const { error } = await supabase.rpc("register_push_token", {
-          p_token: token.value,
-          p_platform: capacitor.getPlatform(), // "android" or "ios"
-        });
-        if (error) throw error;
-		if (profile.role === "student") registerChildDevice(token.value);
+        // The server is only told when the token is new or belongs to a different profile.
+        const savedKey = `onecore_push_saved_${profile.id}`;
+        if (localStorage.getItem(savedKey) !== token.value) {
+          const { error } = await supabase.rpc("register_push_token", {
+            p_token: token.value,
+            p_platform: capacitor.getPlatform(), // "android" or "ios"
+          });
+          if (error) throw error;
+          localStorage.setItem(savedKey, token.value);
+        }
+        if (profile.role === "student") registerChildDevice(token.value);
         dbg("token saved", "success");
       } catch (err) {
         console.error("Failed to save push token:", err);
@@ -109,8 +114,14 @@ export async function initPushNotifications(profile) {
       }
     }
 
-    await PushNotifications.register();
-    dbg("asked Firebase for a token…");
+    // Ask Firebase for the phone's address once per app launch (and once per academy),
+    // not on every page.
+    const askedKey = `onecore_push_asked_${profile.id}`;
+    if (!sessionStorage.getItem(askedKey)) {
+      sessionStorage.setItem(askedKey, "1");
+      await PushNotifications.register();
+      dbg("asked Firebase for a token…");
+    }
   } catch (err) {
     console.error("initPushNotifications failed:", err);
     dbg(`failed: ${err?.message || JSON.stringify(err)}`, "error");

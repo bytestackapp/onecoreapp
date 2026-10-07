@@ -218,7 +218,13 @@ export async function checkForUpdate() {
     const platform = currentPlatform();
 
     // limit(1) instead of maybeSingle(): a duplicate row won't break the check.
-    const { data: rows, error } = await supabase.from("app_versions").select("*").eq("platform", platform).limit(1);
+    let rows = null;
+    let error = null;
+    try { rows = JSON.parse(sessionStorage.getItem("onecore_app_version_row") || "null"); } catch { rows = null; }
+    if (!rows) {
+      ({ data: rows, error } = await supabase.from("app_versions").select("*").eq("platform", platform).limit(1));
+      if (!error && rows) { try { sessionStorage.setItem("onecore_app_version_row", JSON.stringify(rows)); } catch { /* ignore */ } }
+    }
 
     if (error) {
       console.warn("Version check: could not read app_versions:", error.message);
