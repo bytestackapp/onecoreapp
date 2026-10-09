@@ -6,6 +6,7 @@
   <title>Settings</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="../css/global.css" />
+  <script>try{var t=localStorage.getItem("onecore:theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 </head>
 <body>
 <div id="page-loader" class="page-loader">
@@ -62,6 +63,7 @@
             <input id="invite-code" readonly />
             <div class="input-row-actions">
               <button class="icon-action" type="button" id="copy-code-btn" title="Copy code" aria-label="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
+              <button class="icon-action" type="button" id="show-invite-qr-btn" title="Show QR code" aria-label="Show QR code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M17 17h3v3h-3z"/></svg></button>
               <button class="icon-action" type="button" id="regenerate-code-btn" title="Regenerate code" aria-label="Regenerate code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.85-3.36L23 10M1 14l4.65 4.36A9 9 0 0020.5 15"/></svg></button>
             </div>
           </div>
@@ -100,7 +102,7 @@
       <div class="card">
         <p>Refreshing will invalidate all active scanner codes. Admin must reissue the newly generated codes to continue scanning.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          <button class="btn btn-secondary" id="refresh-qr-btn">Refresh all QR codes</button>
+          <button class="btn btn-secondary" id="refresh-qr-btn">Refresh QR codes</button>
           <button class="btn btn-secondary" id="print-qr-btn">Print QR codes</button>
         </div>
       </div>
@@ -147,6 +149,7 @@
     </div>
   </div>
 
+  <script src="../js/vendor/qrcode.min.js"></script>
   <script src="../js/vendor/jszip.min.js"></script>
   <script type="module" src="../js/admin-settings.js"></script>
 </body>

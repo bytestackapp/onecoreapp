@@ -13,14 +13,23 @@ let people = [];
 async function load() {
   listEl.innerHTML = `<div class="skeleton" style="height:70px;margin-bottom:10px;"></div>`;
   try {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, email, phone, role")
-      .eq("organization_id", profile.organization_id)
-      .eq("is_active", true)
-      .order("full_name");
-    if (error) throw error;
-    people = data || [];
+    // Supabase returns at most 1000 rows per request, so read the directory page by page.
+    const PAGE = 1000;
+    const all = [];
+    for (let start = 0; ; start += PAGE) {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, phone, role")
+        .eq("organization_id", profile.organization_id)
+        .eq("is_active", true)
+        .order("full_name")
+        .order("id")
+        .range(start, start + PAGE - 1);
+      if (error) throw error;
+      all.push(...(data || []));
+      if (!data || data.length < PAGE) break;
+    }
+    people = all;
     render();
   } catch (err) {
     console.error(err);

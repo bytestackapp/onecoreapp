@@ -710,3 +710,9 @@ async function rsvp(eventId, status) {
 }
 
 loadEvents();
+
+
+// Refresh the list when a push about an event arrives while this page is open.
+window.addEventListener("onecore:push", (e) => {
+  if (e.detail?.forThisAcademy && e.detail.related_type === "event" && !document.querySelector(".dialog-backdrop")) loadEvents();
+});

@@ -12,6 +12,7 @@ import { APP_NAME, LOGO_MARK } from "./brand.js";
 import { initPushNotifications } from "./push.js";
 import { checkForUpdate } from "./version-check.js";
 import "./pull-to-refresh.js";
+import { getThemePref, setThemePref, THEME_LABELS } from "./theme.js";
 
 // Makes text safe to show inside the page
 function esc(str = "") {
@@ -19,24 +20,25 @@ function esc(str = "") {
 }
 
 const ICONS = {
-  dashboard: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>`,
-  bell: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>`,
-  megaphone: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11v2a2 2 0 002 2h1l3.5 5v-14L6 11H5a2 2 0 00-2 2z"/><path d="M13 8.5v7a4 4 0 004-1v-5a4 4 0 00-4-1z"/></svg>`,
-  calendar: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>`,
-  event: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M9 15l2 2 4-4"/></svg>`,
+  dashboard:  `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>`,
+  bell:       `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>`,
+  megaphone:  `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11v2a2 2 0 002 2h1l3.5 5v-14L6 11H5a2 2 0 00-2 2z"/><path d="M13 8.5v7a4 4 0 004-1v-5a4 4 0 00-4-1z"/></svg>`,
+  calendar:   `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>`,
+  event:      `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M9 15l2 2 4-4"/></svg>`,
   attendance: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>`,
-  leave: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19h16M6 19V9a2 2 0 012-2h4l6 6v6"/><path d="M12 7v6h6"/></svg>`,
-  groups: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.6"/><path d="M2.5 20c0-3.3 2.5-6 5.5-6s5.5 2.7 5.5 6M14 20c0-2.6 1.8-4.8 4-5.6"/></svg>`,
-  people: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c1.2-3.8 3.8-5.8 7-5.8s5.8 2 7 5.8"/></svg>`,
-  profile: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c1.3-3.7 4.3-5.8 7.5-5.8s6.2 2.1 7.5 5.8"/></svg>`,
-  reports: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>`,
-  users: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.4"/><path d="M2.5 20c0-3.3 2.6-6 6.5-6s6.5 2.7 6.5 6M15 20c0-2.4 1.6-4.5 3.6-5.4"/></svg>`,
-  settings: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.7 7.7 0 000-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 00-1.7-1L15 3h-6l-.3 2.6a7.6 7.6 0 00-1.7 1l-2.4-1-2 3.4L4.6 11a7.7 7.7 0 000 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 001.7 1L9 21h6l.3-2.6a7.6 7.6 0 001.7-1l2.4 1 2-3.4z"/></svg>`,
-  owner: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>`,
-  switch: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h13M16 3l4 4-4 4"/><path d="M17 17H4M8 13l-4 4 4 4"/></svg>`,
-  logout: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>`,
-  more: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>`,
-  chevron: `<svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>`,
+  leave:      `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19h16M6 19V9a2 2 0 012-2h4l6 6v6"/><path d="M12 7v6h6"/></svg>`,
+  groups:     `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.6"/><path d="M2.5 20c0-3.3 2.5-6 5.5-6s5.5 2.7 5.5 6M14 20c0-2.6 1.8-4.8 4-5.6"/></svg>`,
+  people:     `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c1.2-3.8 3.8-5.8 7-5.8s5.8 2 7 5.8"/></svg>`,
+  profile:    `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c1.3-3.7 4.3-5.8 7.5-5.8s6.2 2.1 7.5 5.8"/></svg>`,
+  reports:    `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>`,
+  users:      `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.4"/><path d="M2.5 20c0-3.3 2.6-6 6.5-6s6.5 2.7 6.5 6M15 20c0-2.4 1.6-4.5 3.6-5.4"/></svg>`,
+  settings:   `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.7 7.7 0 000-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 00-1.7-1L15 3h-6l-.3 2.6a7.6 7.6 0 00-1.7 1l-2.4-1-2 3.4L4.6 11a7.7 7.7 0 000 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 001.7 1L9 21h6l.3-2.6a7.6 7.6 0 001.7-1l2.4 1 2-3.4z"/></svg>`,
+  owner:      `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>`,
+  switch:     `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h13M16 3l4 4-4 4"/><path d="M17 17H4M8 13l-4 4 4 4"/></svg>`,
+  logout:     `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>`,
+  more:       `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>`,
+  chevron:    `<svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>`,
+  theme:      `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 000-18z" fill="currentColor"/></svg>`,
 };
 
 // All pages are siblings inside /pages/, so hrefs are plain filenames.
@@ -188,6 +190,7 @@ function buildTopbar(profile, pageTitle, unread, brandOnMobile, isOwner, otherUn
           ${profile.organizations?.name ? `<div class="text-muted" style="font-size:0.78rem;">${esc(profile.organizations.name)}</div>` : ""}
         </div>
         <a class="user-menu-item" href="profile.html">${ICONS.profile}<span>Profile</span></a>
+        <button class="user-menu-item" id="user-menu-theme" type="button">${ICONS.theme}<span id="user-menu-theme-label"></span></button>
         <button class="user-menu-item" id="user-menu-switch">${ICONS.switch}<span>Switch academy</span>${otherUnread > 0 ? `<span class="badge" style="margin-left:auto;">${otherUnread > 9 ? "9+" : otherUnread}</span>` : ""}</button>
         <button class="user-menu-item danger" id="user-menu-signout">${ICONS.logout}<span>Sign out</span></button>
       </div>
@@ -460,6 +463,15 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnM
     if (e.key === "Escape") dropdown.classList.remove("open");
   });
   document.getElementById("user-menu-signout")?.addEventListener("click", signOut);
+  // Appearance: each tap switches between Default and Dark Mode. The menu stays open so the change is visible.
+  const themeLabel = document.getElementById("user-menu-theme-label");
+  const showTheme = () => { themeLabel.textContent = `Theme: ${THEME_LABELS[getThemePref()]}`; };
+  showTheme();
+  document.getElementById("user-menu-theme")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setThemePref(getThemePref() === "dark" ? "default" : "dark");
+    showTheme();
+  });
   document.getElementById("user-menu-switch")?.addEventListener("click", () => openAcademySwitcher(academies, profile));
 
   document.title = `${pageTitle} — ${APP_NAME}`;
@@ -467,6 +479,28 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnM
   // No-op on the plain web version; registers this device for OS-level
   // push notifications when running inside the native (Capacitor) app.
   initPushNotifications(profile);
+
+  // A push arrived while the app is open: show the unread dot straight away, without asking the server.
+  let liveUnread = unread;
+  window.addEventListener("onecore:push", () => {
+    liveUnread += 1;
+    const text = liveUnread > 9 ? "9+" : String(liveUnread);
+    document.querySelectorAll('.sidebar-link[href="notifications.html"]').forEach((link) => {
+      let badge = link.querySelector(".badge");
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "badge";
+        link.appendChild(badge);
+      }
+      badge.textContent = text;
+    });
+    const bell = document.querySelector('.icon-btn[href="notifications.html"]');
+    if (bell && !bell.querySelector(".notif-dot")) {
+      const dot = document.createElement("span");
+      dot.className = "notif-dot";
+      bell.appendChild(dot);
+    }
+  });
 
   return profile;
 }

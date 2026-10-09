@@ -10,6 +10,8 @@ let myLeaveTypes = []; // only the types assigned to me this year
 let myRequests = []; // all of my leave requests, newest filed first
 const MY_REQUESTS_PREVIEW = 5; // how many show on the card
 const ADMIN_PENDING_PREVIEW = 5; // pending requests shown on the admin card
+const HALF_LABEL = { first: "First Half", second: "Second Half" };
+const halfTag = (r) => (r.half_day_period ? ` · Half day (${HALF_LABEL[r.half_day_period] || ""})` : "");
 
 function escapeHtml(str = "") {
   return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -160,6 +162,19 @@ function fileLeaveDialog() {
           <label for="fl-type">Leave type</label>
           <select id="fl-type" required>${myLeaveTypes.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("")}</select>
         </div>
+        <div class="field">
+          <label for="fl-daytype">Duration</label>
+          <div style="display:flex;gap:12px;">
+            <select id="fl-daytype" style="flex:1;min-width:0;">
+              <option value="full" selected>Full day</option>
+              <option value="half">Half day</option>
+            </select>
+            <select id="fl-half-period" aria-label="Half day period" style="flex:1;min-width:0;" disabled>
+              <option value="first">First Half</option>
+              <option value="second">Second Half</option>
+            </select>
+          </div>
+        </div>		
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div class="field">
             <label for="fl-start">Start date</label>
@@ -196,11 +211,27 @@ function fileLeaveDialog() {
   backdrop.querySelector('[data-act="cancel"]').addEventListener("click", close);
   backdrop.querySelector("#fl-type").focus();
 
+  // Half day: needs a single date, so the end date follows the start date while "Half day" is chosen
+  const dayTypeSel = backdrop.querySelector("#fl-daytype");
+  const halfSel = backdrop.querySelector("#fl-half-period");
+  const startEl = backdrop.querySelector("#fl-start");
+  const endEl = backdrop.querySelector("#fl-end");
+  dayTypeSel.addEventListener("change", () => {
+    const half = dayTypeSel.value === "half";
+    halfSel.disabled = !half;
+    endEl.disabled = half;
+    if (half) endEl.value = startEl.value;
+  });
+  startEl.addEventListener("input", () => {
+    if (dayTypeSel.value === "half") endEl.value = startEl.value;
+  });
+
   backdrop.querySelector("#fl-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const submitBtn = backdrop.querySelector("#fl-submit");
     const startDate = backdrop.querySelector("#fl-start").value;
-    const endDate = backdrop.querySelector("#fl-end").value;
+    const isHalf = backdrop.querySelector("#fl-daytype").value === "half";
+    const endDate = isHalf ? startDate : backdrop.querySelector("#fl-end").value;
     if (new Date(endDate) < new Date(startDate)) {
       showToast("End date can't be before the start date.", "error");
       return;
@@ -214,6 +245,7 @@ function fileLeaveDialog() {
         p_start_date: startDate,
         p_end_date: endDate,
         p_reason: backdrop.querySelector("#fl-reason").value.trim(),
+		p_half_day_period: isHalf ? backdrop.querySelector("#fl-half-period").value : null,
       });
       if (error) throw error;
 
@@ -274,7 +306,7 @@ function leaveDetailsHtml(d) {
   const days = Math.round((new Date(d.end_date) - new Date(d.start_date)) / 86400000) + 1;
   return `
     <p><strong>${escapeHtml(d.full_name)}</strong> · ${escapeHtml(d.leave_type_name)}</p>
-    <p><strong>Date:</strong> ${formatDate(d.start_date)} – ${formatDate(d.end_date)} (${days} day${days === 1 ? "" : "s"})</p>
+    <p><strong>Date:</strong> ${formatDate(d.start_date)} – ${formatDate(d.end_date)} (${d.half_day_period ? `0.5 day · ${HALF_LABEL[d.half_day_period] || ""}` : `${days} day${days === 1 ? "" : "s"}`})</p>
     <p><strong>Reason:</strong> ${escapeHtml(d.reason)}</p>
     ${d.status !== "pending" && d.reviewer_remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(d.reviewer_remarks)}</p>` : ""}`;
 }
@@ -286,7 +318,7 @@ function myRequestRow(r) {
   return `
     <div class="list-row" style="cursor:pointer;" data-my-req="${r.id}">
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;">${escapeHtml(r.leave_types?.name || "Leave")} · ${formatDate(r.start_date)} – ${formatDate(r.end_date)}</div>
+        <div style="font-weight:600;">${escapeHtml(r.leave_types?.name || "Leave")} · ${formatDate(r.start_date)} – ${formatDate(r.end_date)}${halfTag(r)}</div>
         <div class="text-muted" style="font-size:0.85rem;">${escapeHtml(r.reason)}</div>
       </div>
       ${statusTagHtml(r.status)}
@@ -299,7 +331,7 @@ function myRequestModalRow(r) {
   return `
     <div class="list-row" style="cursor:pointer;" data-my-req="${r.id}">
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;">${formatDate(r.start_date)} – ${formatDate(r.end_date)}</div>
+        <div style="font-weight:600;">${formatDate(r.start_date)} – ${formatDate(r.end_date)}${halfTag(r)}</div>
         <div class="text-muted" style="font-size:0.85rem;">${escapeHtml(r.leave_types?.name || "Leave")}</div>
         <div class="text-muted" style="font-size:0.85rem;">${escapeHtml(r.reason)}</div>
       </div>
@@ -321,7 +353,7 @@ async function loadMyRequests() {
   try {
     const { data, error } = await supabase
       .from("leave_requests")
-      .select("id, start_date, end_date, reason, status, reviewer_remarks, leave_types(name)")
+      .select("id, start_date, end_date, reason, status, reviewer_remarks, half_day_period, leave_types(name)")
       .eq("profile_id", profile.id)
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -374,7 +406,7 @@ function openMyRequestDialog(r) {
 async function fetchAdminRequests(limit, { pendingOnly = false } = {}) {
   let query = supabase
     .from("leave_requests")
-    .select("id, profile_id, start_date, end_date, reason, status, created_at, leave_types(name)");
+    .select("id, profile_id, start_date, end_date, reason, status, created_at, half_day_period, leave_types(name)");
   query = pendingOnly
     ? query.eq("status", "pending").order("created_at", { ascending: false })
     : query.order("start_date", { ascending: false }).order("created_at", { ascending: false });
@@ -395,7 +427,7 @@ function adminRequestRow(r) {
     <div class="list-row" style="cursor:pointer;" data-req="${r.id}">
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;">${escapeHtml(r.full_name)} · ${escapeHtml(r.leave_types?.name || "Leave")}</div>
-        <div class="text-muted" style="font-size:0.85rem;">${formatDate(r.start_date)} – ${formatDate(r.end_date)}</div>
+        <div class="text-muted" style="font-size:0.85rem;">${formatDate(r.start_date)} – ${formatDate(r.end_date)}${halfTag(r)}</div>
         <div class="text-muted" style="font-size:0.8rem;">${escapeHtml(r.reason)}</div>
       </div>
       ${statusTagHtml(r.status)}
@@ -480,7 +512,7 @@ async function openReviewDialog(requestId, onDone) {
             </div>
             <div class="dialog-actions">
               <button type="button" class="btn btn-secondary" data-act="close">Cancel</button>
-              <button type="button" class="btn" style="background:var(--error);border-color:var(--error);color:#fff;" data-act="reject">Reject</button>
+              <button type="button" class="btn" style="background:var(--error-solid);border-color:var(--error-solid);color:#fff;" data-act="reject">Reject</button>
               <button type="button" class="btn btn-primary" data-act="approve">Approve</button>
             </div>`
           : `<div class="dialog-actions"><button type="button" class="btn btn-primary" data-act="close">Close</button></div>`
@@ -520,3 +552,11 @@ async function openReviewDialog(requestId, onDone) {
     showToast("Unable to load this request.", "error");
   }
 }
+
+// Refresh balances and requests when a push about leave arrives while this page is open.
+window.addEventListener("onecore:push", (e) => {
+  if (!e.detail?.forThisAcademy || e.detail.related_type !== "leave_request" || document.querySelector(".dialog-backdrop")) return;
+  loadBalances();
+  loadMyRequests();
+  if (isAdmin) loadAdminRequests();
+});

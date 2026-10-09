@@ -311,7 +311,7 @@ function openClassDialog(groupId, groupName, date) {
         } else if (c?.status) {
           tag = statusTag(c.status);
         } else {
-          tag = `<span class="tag tag-pending">Not yet in</span>`;
+          tag = `<span class="tag tag-rejected">Absent</span>`;
         }
         return { id: m.profile_id, name: m.profiles?.full_name || "Unknown", checkedIn, tag, classRow: c };
       });
@@ -811,7 +811,6 @@ function openReviewDialog(c) {
 if (isStaff) {
   document.getElementById("clock-section").style.display = "block";
   loadStaffToday(true);
-  every(REFRESH_MS, () => loadStaffToday());
 
   document.getElementById("rollcall-section").style.display = "block";
   initRollcall();
@@ -819,7 +818,6 @@ if (isStaff) {
 if (profile.role === "parent") {
   document.getElementById("children-section").style.display = "block";
   loadChildren(true);
-  every(REFRESH_MS, () => loadChildren());
 }
 
 // Parents have no attendance of their own; they see "Your children" instead.
@@ -837,7 +835,25 @@ if (isStaff) {
     // Arriving from a notification (attendance.html#corrections): bring the block into view
     if (location.hash === "#corrections") document.getElementById("corrections-section").scrollIntoView({ behavior: "smooth", block: "start" });
   });
-  if (isAdmin) every(REFRESH_MS, () => loadCorrections());
 } else {
   document.getElementById("corrections-section").style.display = "none";
 }
+
+// Instead of asking the server every minute, refresh when something actually happens:
+//  - a push arrives (a child scanned in or out, a correction was filed or decided), or
+//  - the person comes back to this screen after more than a minute away.
+let lastRefreshAt = Date.now();
+function refreshLive() {
+  if (document.querySelector(".dialog-backdrop")) return;
+  lastRefreshAt = Date.now();
+  if (isStaff) loadStaffToday();
+  if (profile.role === "parent") loadChildren();
+  if (isAdmin) loadCorrections();
+}
+window.addEventListener("onecore:push", (e) => {
+  const t = e.detail?.related_type;
+  if (e.detail?.forThisAcademy && (t === "attendance" || t === "attendance_correction")) refreshLive();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && Date.now() - lastRefreshAt > 60000) refreshLive();
+});

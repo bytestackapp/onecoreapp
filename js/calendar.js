@@ -527,7 +527,7 @@ async function confirmClear(all) {
     <p style="font-size:0.95rem;">This removes ${count} ${count === 1 ? "note" : "notes"}${all ? " from your account" : ` for ${escapeHtml(dayLabel(selected))}`}. It can't be undone.</p>
     <div class="dialog-actions">
       <button type="button" class="btn btn-secondary" data-act="close">Cancel</button>
-      <button type="button" class="btn btn-primary" data-act="go" style="background:var(--error);border-color:var(--error);">Clear</button>
+      <button type="button" class="btn btn-primary" data-act="go" style="background:var(--error-solid);border-color:var(--error-solid);">Clear</button>
     </div>`);
   m.el.addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-act]");

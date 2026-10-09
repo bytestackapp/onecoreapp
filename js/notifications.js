@@ -31,6 +31,9 @@ const CARD_LABEL = {
   signup: "Sign-up Request",
 };
 
+// Announcement and event cards: short fixed headline, then the item's own name on one line.
+const FEED_LABEL = { announcement: "New Announcement", event: "New Event" };
+
 // Leave and correction notifications get a status badge (Approved/Rejected) once
 // decided, instead of the generic priority badge. Everything else (announcements,
 // events, and pending review requests) keeps the priority badge as before.
@@ -82,6 +85,10 @@ function updateSummary() {
   clearBtn.disabled = notifications.length === 0;
 }
 
+const CARD_BASE = "cursor:pointer !important;background:var(--card) !important;border-radius:14px !important;padding:16px 18px !important;";
+const CARD_READ = CARD_BASE + "box-shadow:0 4px 14px rgba(0,0,0,0.10) !important;border:1px solid var(--border) !important;";
+const CARD_UNREAD = CARD_BASE + "box-shadow:0 0 0 3px var(--primary-light), 0 4px 14px rgba(79,70,229,0.16) !important;border:1px solid var(--primary) !important;";
+
 function render() {
   if (notifications.length === 0) {
     listEl.innerHTML = `<div class="empty-state">
@@ -97,19 +104,28 @@ function render() {
       const academyName = academies.length > 1 ? academies.find((a) => a.profile_id === n.profile_id)?.academy_name : "";
       const href = !isAdminReview ? RELATED_PAGE[n.related_type] : null;
       const label = CARD_LABEL[n.related_type];
-      const railStyle = n.is_read ? "background:#c4c8d0;border-color:#c4c8d0;" : "";
+      const feedLabel = FEED_LABEL[n.related_type];
+      const headline = feedLabel || n.title;
+      const detail = feedLabel
+        ? String(n.title || "").replace(/^new\s+(?:announcement|event)\s*[:\-–—]\s*/i, "").trim()
+        : n.body || "";
+      const detailStyle =
+        "font-weight:400;font-size:0.85rem;margin-top:2px;" +
+        (feedLabel ? "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" : "");
       // Prefer the real name filled in by the database; extractName() is only a
       // fallback for older rows created before that column existed.
       const subjectName = n.subject_name || extractName(n.body);
       // Approved/Rejected once decided; the priority badge otherwise (including
       // while a leave/correction request is still pending review).
       const statusLabel = REVIEW_TYPES.has(n.related_type) ? STATUS_LABEL[n.related_status] : null;
-      const badgeHtml = statusLabel
-        ? `<span class="tag tag-${n.related_status}">${statusLabel}</span>`
-        : `<span class="tag tag-${n.priority}">${priorityLabel(n.priority)}</span>`;
+      const badgeHtml =
+        n.related_type === "event"
+          ? ""
+          : statusLabel
+          ? `<span class="tag tag-${n.related_status}">${statusLabel}</span>`
+          : `<span class="tag tag-${n.priority}">${priorityLabel(n.priority)}</span>`;
       const inner = label
         ? `
-        <div class="priority-rail tag-${n.priority}" style="${railStyle}"></div>
         <div style="flex:1;min-width:0;${n.is_read ? "" : "font-weight:600;"}">
           <div>${label}</div>
           <div class="text-muted" style="font-weight:400;font-size:0.85rem;margin-top:2px;">${escapeHtml(subjectName)}</div>
@@ -118,22 +134,15 @@ function render() {
         ${badgeHtml}
       `
         : `
-        <div class="priority-rail tag-${n.priority}" style="${railStyle}"></div>
         <div style="flex:1;min-width:0;${n.is_read ? "" : "font-weight:600;"}">
-          <div>${escapeHtml(n.title)}</div>
-          ${n.body ? `<div class="text-muted" style="font-weight:400;font-size:0.85rem;margin-top:2px;">${escapeHtml(n.body)}</div>` : ""}
+          <div>${escapeHtml(headline)}</div>
+          ${detail ? `<div class="text-muted" style="${detailStyle}">${escapeHtml(detail)}</div>` : ""}
           <div class="text-muted" style="font-weight:400;font-size:0.78rem;margin-top:4px;">${timeAgo(n.created_at)}${academyName ? ` · ${escapeHtml(academyName)}` : ""}</div>
         </div>
         ${badgeHtml}
       `;
-      // Each notification is its own card (not one shared block), with its own
-      // rounded corners, shadow and spacing below it. !important beats any
-      // existing .list-row rule (e.g. a border-bottom divider) that would
-      // otherwise make the cards look like one continuous block.
-      const cardStyle =
-        "cursor:pointer !important;background:#fff !important;border-radius:14px !important;" +
-        "box-shadow:0 4px 14px rgba(0,0,0,0.10) !important;border:1px solid rgba(0,0,0,0.05) !important;" +
-        "padding:16px 18px !important;";
+
+      const cardStyle = n.is_read ? CARD_READ : CARD_UNREAD;
       return `<div style="margin-bottom:10px;">
         <div class="list-row" style="${cardStyle}" data-id="${n.id}" data-profile="${n.profile_id}" data-href="${href || ""}" data-review-type="${
         isAdminReview ? n.related_type : ""
@@ -173,10 +182,10 @@ async function markRead(id) {
   const n = notifications.find((x) => x.id === id);
   if (!n || n.is_read) return;
   n.is_read = true;
-  const rail = listEl.querySelector(`[data-id="${id}"] .priority-rail`);
-  if (rail) {
-    rail.style.background = "#c4c8d0";
-    rail.style.borderColor = "#c4c8d0";
+  const row = listEl.querySelector(`[data-id="${id}"]`);
+  if (row) {
+    row.style.cssText = CARD_READ;
+    if (row.firstElementChild) row.firstElementChild.style.fontWeight = "";
   }
   try {
     await supabase.from("notifications").update({ is_read: true }).eq("id", id);
@@ -291,7 +300,7 @@ async function openLeaveDialog(requestId) {
                 <textarea id="lv-remarks" rows="2"></textarea>
               </div>
               <div class="dialog-actions">
-                <button type="button" class="btn" style="background:var(--error);border-color:var(--error);color:#fff;" data-act="reject">Reject</button>
+                <button type="button" class="btn" style="background:var(--error-solid);border-color:var(--error-solid);color:#fff;" data-act="reject">Reject</button>
                 <button type="button" class="btn btn-primary" data-act="approve">Approve</button>
               </div>`
             : `<div class="dialog-actions"><button type="button" class="btn btn-primary" data-act="close">Close</button></div>`
@@ -335,3 +344,9 @@ async function openLeaveDialog(requestId) {
 }
 
 load();
+
+
+// A push arrived while this page is open: show the new notification.
+window.addEventListener("onecore:push", (e) => {
+  if (e.detail?.forThisAcademy && !document.querySelector(".dialog-backdrop")) load();
+});

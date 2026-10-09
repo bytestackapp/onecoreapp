@@ -63,7 +63,6 @@ async function loadAudienceOptions() {
     showToast("Couldn't load the groups and people lists.", "error");
   }
 }
-if (canCreate) loadAudienceOptions();
 
 // Modal with checkboxes. Resolves to the new selection, or null if cancelled.
 function audienceDialog(current) {
@@ -187,7 +186,12 @@ function audienceDialog(current) {
 // ---------- New / Edit announcement modal ----------
 if (canCreate) newBtn.style.display = "inline-flex";
 
-function openAnnouncementDialog(existingId = null) {
+let audienceOptionsReady = null;
+async function openAnnouncementDialog(existingId = null) {
+  if (!audienceOptionsReady || (groupsCache.length === 0 && peopleCache.length === 0)) {
+    audienceOptionsReady = loadAudienceOptions();
+  }
+  await audienceOptionsReady;
   const existing = existingId ? announcementsCache.find((x) => x.id === existingId) : null;
   let audienceSel = existing ? audienceFrom(existing) : defaultAudience();
 
@@ -346,7 +350,6 @@ async function loadAnnouncements() {
         return `
         <div class="card" style="margin-bottom:12px;" data-id="${a.id}">
           <div style="display:flex;gap:10px;align-items:flex-start;">
-            <div class="priority-rail tag-${a.priority}" style="align-self:stretch;"></div>
             <div style="flex:1;min-width:0;">
               <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
                 <h3 style="margin:0;">${escapeHtml(a.title)}</h3>
@@ -576,3 +579,9 @@ function escapeAttr(str = "") {
 }
 
 loadAnnouncements();
+
+
+// Refresh the list when a push about an announcement arrives while this page is open.
+window.addEventListener("onecore:push", (e) => {
+  if (e.detail?.forThisAcademy && e.detail.related_type === "announcement" && !document.querySelector(".dialog-backdrop")) loadAnnouncements();
+});

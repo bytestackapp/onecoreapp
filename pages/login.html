@@ -6,6 +6,8 @@
   <title>Sign in — OneCore</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="../css/global.css" />
+  <script src="../js/vendor/html5-qrcode.min.js"></script>
+  <script>try{var t=localStorage.getItem("onecore:theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 </head>
 <body>
   <div class="auth-page">
@@ -64,6 +66,7 @@
       <div id="signup-modal" class="dialog-backdrop" style="display:none;">
         <div class="dialog-modal">
           <h3>Create your account</h3>
+          <div id="signup-org-banner" class="banner banner-info" style="display:none;"></div>
           <div id="signup-error-banner" class="banner banner-error" style="display:none;"></div>
           <form id="signup-form">
             <div class="field">
@@ -80,14 +83,31 @@
             </div>
             <div class="field">
               <label for="signup-code">Invite code</label>
-              <input id="signup-code" type="text" required style="text-transform:uppercase;" />
-              <div class="field-hint">Ask your administrator for your organization's invite code.</div>
+              <div class="input-row">
+                <input id="signup-code" type="text" required style="text-transform:uppercase;" />
+                <div class="input-row-actions">
+                  <button class="icon-action" type="button" id="scan-invite-btn" title="Scan QR code" aria-label="Scan QR code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><path d="M7 12h10"/></svg></button>
+                </div>
+              </div>
+              <div class="field-hint">Ask your administrator for your organization's invite code, or scan their QR code.</div>
             </div>
             <div class="dialog-actions">
               <button class="btn btn-secondary" type="button" id="cancel-signup-btn">Cancel</button>
               <button class="btn btn-primary" type="submit" id="signup-submit-btn">Sign up</button>
             </div>
           </form>
+        </div>
+      </div>
+
+      <!-- Invite QR Scan Modal -->
+      <div id="qr-scan-modal" class="dialog-backdrop" style="display:none;">
+        <div class="dialog-modal">
+          <h3>Scan invite QR code</h3>
+          <div id="qr-reader" style="width:100%;border-radius:12px;overflow:hidden;"></div>
+          <p id="qr-scan-hint" class="text-muted" style="font-size:0.85rem;margin-top:10px;"></p>
+          <div class="dialog-actions">
+            <button class="btn btn-secondary" type="button" id="qr-scan-cancel-btn">Cancel</button>
+          </div>
         </div>
       </div>
 	  
@@ -158,6 +178,7 @@
   <script type="module">
     import { supabase, getSessionUser, friendlyError } from "../js/supabase-client.js";
 	import { showToast } from "../js/toast.js";
+    import "../js/theme.js";
 
     document.getElementById("auth-brand").innerHTML = `<img src="../images/logo-vert.png" alt="OneCore" class="auth-brand-logo">`;
 
@@ -379,6 +400,100 @@
       document.getElementById("signup-modal").style.display = "none";
       document.getElementById("pending-modal").style.display = "flex";
     });	
+
+    // ---- Invite link and QR ----
+    // Accepts a full invite link (…?invite=CODE) or a bare code. Anything else
+    // (for example a person's attendance QR) is rejected.
+    function extractInviteCode(text) {
+      const raw = String(text || "").trim();
+      let candidate = raw;
+      try {
+        candidate = new URL(raw).searchParams.get("invite") || "";
+      } catch {
+        // not a link: treat it as a bare code
+      }
+      candidate = candidate.trim().toUpperCase();
+      return /^[A-Z0-9]{4,32}$/.test(candidate) ? candidate : "";
+    }
+
+    async function applyInviteCode(code) {
+      document.getElementById("signup-code").value = code;
+      document.getElementById("signup-modal").style.display = "flex";
+      const banner = document.getElementById("signup-org-banner");
+      banner.style.display = "none";
+      try {
+        const { data } = await supabase.rpc("lookup_org_by_invite_code", { code });
+        const org = data?.[0];
+        const name = org?.name ?? org?.organization_name ?? org?.org_name;
+        if (name) {
+          banner.textContent = `You're joining ${name}.`;
+          banner.style.display = "";
+        }
+      } catch (err) {
+        console.error(err); // the banner is optional
+      }
+    }
+
+    // Opened from a QR link: open sign-up with the code filled in, then clean the address bar.
+    if (params.has("invite")) {
+      const fromLink = extractInviteCode(params.get("invite"));
+      history.replaceState(null, "", window.location.pathname);
+      if (fromLink) applyInviteCode(fromLink);
+      else showToast("That invite link isn't valid. Ask your administrator for a new one.", "error");
+    }
+
+    document.getElementById("cancel-signup-btn").addEventListener("click", () => {
+      document.getElementById("signup-org-banner").style.display = "none";
+    });
+
+    // In-app scanner (for people inside the Android app)
+    let inviteScanner = null;
+    async function stopInviteScanner() {
+      const s = inviteScanner;
+      inviteScanner = null;
+      if (!s) return;
+      try { await s.stop(); } catch {}
+      try { s.clear(); } catch {}
+    }
+    async function closeScanModal() {
+      await stopInviteScanner();
+      document.getElementById("qr-scan-modal").style.display = "none";
+    }
+
+    document.getElementById("scan-invite-btn").addEventListener("click", async () => {
+      if (!window.Html5Qrcode) {
+        showToast("The QR scanner didn't load. Please type the code instead.", "error");
+        return;
+      }
+      const hint = document.getElementById("qr-scan-hint");
+      hint.textContent = "Point the camera at the QR code from your administrator.";
+      document.getElementById("qr-scan-modal").style.display = "flex";
+      inviteScanner = new Html5Qrcode("qr-reader");
+      let handled = false;
+      try {
+        await inviteScanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          async (text) => {
+            if (handled) return;
+            const code = extractInviteCode(text);
+            if (!code) {
+              hint.textContent = "That QR code isn't an invite code. Try the one from your administrator.";
+              return;
+            }
+            handled = true;
+            await closeScanModal();
+            applyInviteCode(code);
+          },
+          () => {} // nothing readable in view yet: keep scanning
+        );
+      } catch (err) {
+        console.error(err);
+        await closeScanModal();
+        showToast("Couldn't open the camera. Allow camera access, or type the code instead.", "error");
+      }
+    });
+    document.getElementById("qr-scan-cancel-btn").addEventListener("click", closeScanModal);
   </script>
 </body>
 </html>

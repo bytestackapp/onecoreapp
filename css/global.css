@@ -33,6 +33,25 @@
   --info: #2563eb;
   --info-bg: #dbeafe;
 
+  /* --- tokens that differ in dark mode (see the DARK MODE block at the end) --- */
+  --primary-solid: #4f46e5;        /* solid button / badge backgrounds that carry white text */
+  --primary-solid-hover: #4338ca;
+  --error-solid: #dc2626;
+  --success-text: #15803d;
+  --warning-text: #b45309;
+  --error-text: #b91c1c;
+  --info-text: #1d4ed8;
+  --input-bg: #ffffff;
+  --tag-neutral-bg: #f1f5f9;
+  --skeleton-a: #f1f5f9;
+  --skeleton-b: #e2e8f0;
+  --toast-bg: #1e293b;
+  --loader-bg: #ffffff;
+  --loader-decor-a: #dbe8ff;
+  --loader-decor-b: #eef4ff;
+  --loader-wave: #cfe0ff;
+  color-scheme: light;
+
   /* --- shape / motion --- */
   --radius-card: 14px;
   --radius-btn: 9px;
@@ -177,7 +196,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 
 .sidebar-link .badge {
   margin-left: auto;
-  background: var(--error);
+  background: var(--error-solid);
   color: #fff;
   font-size: 0.7rem;
   font-weight: 700;
@@ -283,7 +302,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-input);
-  background: #fff;
+  background: var(--input-bg);
   color: var(--text);
   font-size: 0.85rem;
   font-weight: 500;
@@ -499,10 +518,10 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 
 /* Tones: add one to .section-head to color the title, icon and count */
 .tone-primary { --tone: var(--primary); --tone-bg: var(--primary-light); --tone-text: var(--primary-hover); }
-.tone-success { --tone: var(--success); --tone-bg: var(--success-bg); --tone-text: #15803d; }
-.tone-warning { --tone: var(--warning); --tone-bg: var(--warning-bg); --tone-text: #b45309; }
-.tone-error   { --tone: var(--error);   --tone-bg: var(--error-bg);   --tone-text: #b91c1c; }
-.tone-info    { --tone: var(--info);    --tone-bg: var(--info-bg);    --tone-text: #1d4ed8; }
+.tone-success { --tone: var(--success); --tone-bg: var(--success-bg); --tone-text: var(--success-text); }
+.tone-warning { --tone: var(--warning); --tone-bg: var(--warning-bg); --tone-text: var(--warning-text); }
+.tone-error   { --tone: var(--error);   --tone-bg: var(--error-bg);   --tone-text: var(--error-text); }
+.tone-info    { --tone: var(--info);    --tone-bg: var(--info-bg);    --tone-text: var(--info-text); }
 .tone-muted   { --tone: var(--text-secondary); --tone-bg: var(--border); --tone-text: var(--text-secondary); }
 .section-head[class*="tone-"] h2 { color: var(--tone-text); }
 
@@ -525,7 +544,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   border-radius: var(--radius-pill);
   white-space: nowrap;
 }
-.tag-normal, .tag-general { background: #f1f5f9; color: var(--text-secondary); }
+.tag-normal, .tag-general { background: var(--tag-neutral-bg); color: var(--text-secondary); }
 .tag-important { background: var(--info-bg); color: var(--info); }
 .tag-action_required { background: var(--warning-bg); color: var(--warning); }
 .tag-urgent, .tag-emergency { background: var(--error-bg); color: var(--error); }
@@ -554,13 +573,13 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   transition: background 0.12s var(--ease), border-color 0.12s var(--ease), transform 0.05s;
 }
 .btn:active { transform: translateY(1px); }
-.btn-primary { background: var(--primary); color: #fff; }
-.btn-primary:hover { background: var(--primary-hover); }
-.btn-secondary { background: #fff; border-color: var(--border); color: var(--text); }
+.btn-primary { background: var(--primary-solid); color: #fff; }
+.btn-primary:hover { background: var(--primary-solid-hover); }
+.btn-secondary { background: var(--input-bg); border-color: var(--border); color: var(--text); }
 .btn-secondary:hover { background: var(--bg); }
-.btn-danger { background: #fff; border-color: var(--error-bg); color: var(--error); }
+.btn-danger { background: var(--input-bg); border-color: var(--error-bg); color: var(--error); }
 .btn-danger:hover { background: var(--error-bg); }
-.btn-danger-solid { background: var(--error); color: #fff; }
+.btn-danger-solid { background: var(--error-solid); color: #fff; }
 .btn-danger-solid:hover { background: #b91c1c; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .btn-sm { padding: 6px 12px; font-size: 0.82rem; }
@@ -572,7 +591,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-input);
-  background: #fff;
+  background: var(--input-bg);
   color: var(--text);
   transition: border-color 0.12s var(--ease), box-shadow 0.12s var(--ease);
 }
@@ -607,7 +626,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 .banner-info { background: var(--info-bg); color: var(--info); }
 
 .skeleton {
-  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+  background: linear-gradient(90deg, var(--skeleton-a) 25%, var(--skeleton-b) 37%, var(--skeleton-a) 63%);
   background-size: 400% 100%;
   animation: skeleton-loading 1.4s ease infinite;
   border-radius: var(--radius-input);
@@ -628,7 +647,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 .page-loader {
   position: fixed;
   inset: 0;
-  background: #ffffff;
+  background: var(--loader-bg);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -643,7 +662,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   width: 360px;
   height: 360px;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, #dbe8ff, #eef4ff);
+  background: radial-gradient(circle at 30% 30%, var(--loader-decor-a), var(--loader-decor-b));
   z-index: 0;
 }
 .page-loader-ring {
@@ -661,6 +680,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   color: var(--text-secondary);
   z-index: 1;
 }
+.page-loader-wave path:first-of-type { fill: var(--loader-wave); } /* overrides the fill attribute in each page's loader SVG */
 .page-loader-wave {
   position: absolute;
   bottom: 0;
@@ -688,7 +708,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  background: var(--text);
+  background: var(--toast-bg);
   color: #fff;
   padding: 12px 14px;
   border-radius: var(--radius-input);
@@ -845,7 +865,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-btn);
-  background: #fff;
+  background: var(--input-bg);
   color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.12s var(--ease), color 0.12s var(--ease);
@@ -876,8 +896,8 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 .icon-action.sm { width: 30px; height: 30px; }
 .icon-action.sm svg { width: 16px; height: 16px; }
 .card-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.icon-action.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
-.icon-action.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); color: #fff; }
+.icon-action.primary { background: var(--primary-solid); border-color: var(--primary-solid); color: #fff; }
+.icon-action.primary:hover { background: var(--primary-solid-hover); border-color: var(--primary-solid-hover); color: #fff; }
 
 /* --- Acknowledgment summary on announcement cards --- */
 .ack-summary {
@@ -897,7 +917,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   text-align: left;
   cursor: pointer;
 }
-.ack-summary:hover { border-color: var(--border-strong); background: #fff; }
+.ack-summary:hover { border-color: var(--border-strong); background: var(--input-bg); }
 .ack-summary .bar { flex: 0 0 70px; height: 6px; border-radius: 999px; background: var(--border); overflow: hidden; }
 .ack-summary .bar > span { display: block; height: 100%; background: var(--success); }
 
@@ -918,7 +938,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   padding: 10px 30px 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-input);
-  background: #fff;
+  background: var(--input-bg);
   color: var(--text);
   font: inherit;
   line-height: normal;
@@ -1011,3 +1031,62 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   .topbar-title-brand { display: inline; }
   .topbar-title-brand ~ .topbar-title-text { display: none; }
 }
+
+
+/* =====================================================================
+   DARK MODE
+   Used only when <html data-theme="dark"> is set, which theme.js does when
+   the person chose "Dark Mode" in the user menu. "Default" is the normal
+   light look above. The device's own dark-mode setting is deliberately ignored.
+   ===================================================================== */
+:root[data-theme="dark"] {
+  --primary: #818cf8;
+  --primary-hover: #a5b4fc;
+  --primary-light: rgba(129, 140, 248, 0.16);
+  --accent: #2dd4bf;
+  --accent-light: rgba(45, 212, 191, 0.16);
+
+  --bg: #0b1220;
+  --card: #111a2c;
+  --text: #e2e8f0;
+  --text-secondary: #a3b1c6;
+  --text-muted: #7b8aa0;
+  --border: #1f2b40;
+  --border-strong: #2f3d57;
+
+  --success: #4ade80;
+  --success-bg: rgba(74, 222, 128, 0.14);
+  --warning: #fbbf24;
+  --warning-bg: rgba(251, 191, 36, 0.14);
+  --error: #f87171;
+  --error-bg: rgba(248, 113, 113, 0.14);
+  --info: #60a5fa;
+  --info-bg: rgba(96, 165, 250, 0.14);
+
+  --primary-solid: #4f46e5;
+  --primary-solid-hover: #6366f1;
+  --error-solid: #dc2626;
+  --success-text: #86efac;
+  --warning-text: #fcd34d;
+  --error-text: #fca5a5;
+  --info-text: #93c5fd;
+  --input-bg: #0d1526;
+  --tag-neutral-bg: rgba(148, 163, 184, 0.16);
+  --skeleton-a: #16213a;
+  --skeleton-b: #1f2b45;
+  --toast-bg: #2a3850;
+  --loader-bg: #0b1220;
+  --loader-decor-a: #16264a;
+  --loader-decor-b: #0f1b36;
+  --loader-wave: #0f1a33;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 10px 30px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+:root[data-theme="dark"] .sidebar-brand-logo,
+:root[data-theme="dark"] .auth-brand-logo { filter: invert(1) hue-rotate(180deg); }
+
+/* Loading screen wave: deeper blue-teal in dark mode (CSS overrides the stop-color attributes in each page's loader SVG) */
+:root[data-theme="dark"] #loaderWaveGradient stop:first-child { stop-color: #14296b; }
+:root[data-theme="dark"] #loaderWaveGradient stop:last-child { stop-color: #0d4c55; }

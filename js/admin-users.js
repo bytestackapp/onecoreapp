@@ -29,6 +29,14 @@ let allInactive = [];
 const searchTerms = { active: "", inactive: "" };
 const roleFilters = { active: "", inactive: "" };
 
+// Students that have a linked parent: Map(student_id -> number of parent links).
+// null = unknown (no badge is shown). Cached locally so normal page loads make no database call.
+let linkedStudentIds = null;
+let linksSyncedAt = 0;
+const LINKS_CACHE_KEY = `admin-users:student-links:${profile.organization_id}`;
+const LINKS_TTL_MS = 7 * 24 * 60 * 60 * 1000; // full re-sync at most once a week
+const LINKS_PAGE_SIZE = 1000;                  // Supabase returns max 1000 rows per request
+
 const ICON = {
   approve:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
   add:        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`,
@@ -46,6 +54,78 @@ const SECTION_ICON = {
   active:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M17 11l2 2 4-4"/></svg>`,
   inactive:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M18 8l5 5M23 8l-5 5"/></svg>`,
 };
+
+// ---------- Student link status (cache-first) ----------
+function readLinksCache() {
+  try {
+    const raw = localStorage.getItem(LINKS_CACHE_KEY);
+    if (!raw) return null;
+    const c = JSON.parse(raw);
+    if (!c || typeof c.syncedAt !== "number" || !c.counts) return null;
+    if (Date.now() - c.syncedAt > LINKS_TTL_MS) return null; // too old: re-sync
+    linksSyncedAt = c.syncedAt;
+    return new Map(Object.entries(c.counts));
+  } catch {
+    return null;
+  }
+}
+
+function saveLinksCache() {
+  if (!linkedStudentIds) return;
+  try {
+    localStorage.setItem(
+      LINKS_CACHE_KEY,
+      JSON.stringify({ syncedAt: linksSyncedAt, counts: Object.fromEntries(linkedStudentIds) })
+    );
+  } catch (e) {
+    console.error(e); // storage full or blocked: the page still works, just without the cache
+  }
+}
+
+function invalidateLinksCache() {
+  linkedStudentIds = null;
+  try { localStorage.removeItem(LINKS_CACHE_KEY); } catch {}
+}
+
+// Memory first, then local cache, and only then the database (paged, read-only)
+async function loadLinkedStudents(force = false) {
+  if (!force) {
+    if (linkedStudentIds) return;
+    const cached = readLinksCache();
+    if (cached) { linkedStudentIds = cached; return; }
+  }
+  try {
+    const counts = new Map();
+    for (let from = 0; ; from += LINKS_PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from("guardians")
+        .select("student_id")
+        .eq("organization_id", profile.organization_id)
+        .order("id")
+        .range(from, from + LINKS_PAGE_SIZE - 1);
+      if (error) throw error;
+      for (const r of data || []) counts.set(r.student_id, (counts.get(r.student_id) || 0) + 1);
+      if (!data || data.length < LINKS_PAGE_SIZE) break;
+    }
+    linkedStudentIds = counts;
+    linksSyncedAt = Date.now();
+    saveLinksCache();
+  } catch (err) {
+    console.error(err);
+    linkedStudentIds = null; // unknown: show no badge instead of a wrong one
+  }
+}
+
+// Apply one link (+1) or unlink (-1) locally and redraw only the cards. No database call.
+function adjustLink(studentId, delta) {
+  if (!linkedStudentIds || !studentId) return;
+  const n = (linkedStudentIds.get(studentId) || 0) + delta;
+  if (n > 0) linkedStudentIds.set(studentId, n);
+  else linkedStudentIds.delete(studentId);
+  saveLinksCache();
+  renderCards("active");
+  renderCards("inactive");
+}
 
 function escapeHtml(str = "") {
   return str.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -92,12 +172,19 @@ function userRow(u, mode) {
   const roleLabel = u.role.charAt(0).toUpperCase() + u.role.slice(1);
   const roleLine = escapeHtml(roleLabel) + (u.role === "guest" ? (u.guest_until ? ` · until ${escapeHtml(u.guest_until)}` : " · no end date") : "");
 
+  const linkBadge =
+    u.role === "student" && mode !== "pending" && linkedStudentIds
+      ? linkedStudentIds.has(u.id)
+        ? ` · <span class="link-status linked">Linked</span>`
+        : ` · <span class="link-status not-linked">Not Linked</span>`
+      : "";
+
   return `
     <div class="card user-row ${mode === "inactive" ? "is-inactive" : ""}" data-id="${u.id}">
       <div class="user-meta">
         <div class="user-name">${name}${isSelf ? " (you)" : ""}</div>
         <div class="user-email">${escapeHtml(u.email)}</div>
-        <div class="user-role">${roleLine}</div>
+        <div class="user-role">${roleLine}${linkBadge}</div>
       </div>
       <div class="user-actions">${actions}</div>
     </div>`;
@@ -229,11 +316,11 @@ async function openChildDialog(parentId, parentName) {
                   (l) => `
               <div class="aud-row" style="cursor:default;">
                 <span style="flex:1;min-width:0;">${escapeHtml(l.profiles?.full_name || "Unknown")}</span>
-                <button type="button" class="icon-action sm danger" data-unlink="${l.id}" title="Remove" aria-label="Remove" style="margin-left:8px;">${ICON.reject}</button>
+                <button type="button" class="icon-action sm danger" data-unlink="${l.id}" data-student="${l.student_id}" title="Remove" aria-label="Remove" style="margin-left:8px;">${ICON.reject}</button>
               </div>`
                 )
                 .join("")
-            : `<div class="text-muted" style="padding:8px 0;font-size:0.85rem;">No linked students yet. Use the + button to add one.</div>`
+            : `<div class="text-muted" style="padding:8px 0;font-size:0.85rem;">No linked students yet.</div>`
         }
       </div>`;
 
@@ -243,6 +330,7 @@ async function openChildDialog(parentId, parentName) {
           const { error: delErr } = await supabase.from("guardians").delete().eq("id", btn.getAttribute("data-unlink"));
           if (delErr) throw delErr;
           showToast("Student unlinked.", "success");
+          adjustLink(btn.getAttribute("data-student"), -1);
           await render();
         } catch (err) {
           console.error(err);
@@ -320,6 +408,7 @@ async function openChildDialog(parentId, parentName) {
             if (insErr) throw insErr;
             await logAudit({ action: "user.child_linked", recordType: "profile", recordId: studentId });
             showToast("Student linked.", "success");
+            adjustLink(studentId, 1);
             await render();   // refresh the Linked Student list behind
             renderRows();     // mark this student as linked
           } catch (err) {
@@ -561,6 +650,8 @@ async function load() {
       return;
     }
 
+    await loadLinkedStudents();
+
     const pending = data.filter((u) => !u.is_approved);
     allActive = sortUsers(data.filter((u) => u.is_approved && u.is_active));
     allInactive = sortUsers(data.filter((u) => u.is_approved && !u.is_active));
@@ -712,6 +803,7 @@ async function deleteUser(id, name, isReject) {
 
   // Success toast first, so a slow or failing audit log can never hide it
   showToast(isReject ? "Request rejected." : "User deleted.", "success");
+  invalidateLinksCache(); // next load() re-syncs the links once
   Promise.resolve(logAudit({ action: isReject ? "user.rejected" : "user.deleted", recordType: "profile", recordId: id })).catch((e) =>
     console.error("Audit log failed:", e)
   );

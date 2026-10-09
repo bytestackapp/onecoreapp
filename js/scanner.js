@@ -342,12 +342,27 @@ function latestUpdatedAt(rows, fallback) {
   return best;
 }
 
+// Downloads the whole roster in pages of 1000 (Supabase returns at most 1000 rows per request).
+async function downloadRosterPages(args) {
+  const all = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .rpc("scanner_download_roster", args)
+      .order("qr_token")
+      .range(from, from + 999);
+    if (error) return { data: null, error };
+    all.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return { data: all, error: null };
+}
+
 async function syncRoster({ full = false, feedback = false } = {}) {
   if (!device || syncing) return;
   syncing = true;
   try {
     const since = full ? null : localStorage.getItem(STORAGE_ROSTER_SYNCED_AT) || null;
-    const { data, error } = await supabase.rpc("scanner_download_roster", {
+    const { data, error } = await downloadRosterPages({
       p_device_token: device.token,
       p_since: since,
     });

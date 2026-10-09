@@ -107,6 +107,94 @@ document.getElementById("regenerate-code-btn").addEventListener("click", async (
   }
 });
 
+// ---------- Invite QR ----------
+// Public address of the login page. Required because inside the Android app the
+// page address is local to the phone. Example: "https://yourdomain.com/pages/login.html"
+// On the web version this can stay empty (it uses the current site).
+const PUBLIC_LOGIN_URL = "https://onecoreapp.vercel.app/pages/login.html";
+
+function inviteLink(code) {
+  let base = PUBLIC_LOGIN_URL;
+  if (!base && /^https?:$/.test(location.protocol) && !["localhost", "127.0.0.1"].includes(location.hostname)) {
+    base = new URL("login.html", location.href).href;
+  }
+  if (!base) return null;
+  const u = new URL(base);
+  u.searchParams.set("invite", code);
+  return u.href;
+}
+
+function inviteQrDialog() {
+  const code = document.getElementById("invite-code").value.trim();
+  if (!code) {
+    showToast("There's no invite code to show yet.", "error");
+    return;
+  }
+  if (!window.QRCode) {
+    showToast("The QR generator didn't load. Please refresh the page.", "error");
+    return;
+  }
+  const link = inviteLink(code);
+  const canDownload = currentPlatform() === "web";
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "dialog-backdrop";
+  backdrop.innerHTML = `
+    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="iq-title" style="text-align:center;">
+      <h3 id="iq-title">Invite QR code</h3>
+      <p class="text-muted" style="font-size:0.85rem;">${
+        link
+          ? "Scan with a phone camera to open sign-up with the code filled in."
+          : "Scan with the Scan QR button on the sign-up form."
+      }</p>
+      <div id="iq-box" style="display:inline-block;background:#fff;padding:14px;border-radius:12px;border:1px solid var(--border);"></div>
+      <div style="margin-top:10px;font-weight:700;letter-spacing:0.12em;">${escapeHtml(code)}</div>
+      ${
+        link
+          ? ""
+          : `<div class="banner banner-info" style="margin-top:12px;text-align:left;">Set PUBLIC_LOGIN_URL in admin-settings.js so this QR also opens the sign-up page from a phone camera.</div>`
+      }
+      <div class="dialog-actions">
+        ${canDownload ? `<button type="button" class="btn btn-secondary" data-act="download">Download PNG</button>` : ""}
+        <button type="button" class="btn btn-primary" data-act="close">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+
+  const onKey = (e) => { if (e.key === "Escape" && backdrop === [...document.querySelectorAll(".dialog-backdrop")].pop()) close(); };
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    backdrop.remove();
+  }
+  document.addEventListener("keydown", onKey);
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+  backdrop.querySelector('[data-act="close"]').addEventListener("click", close);
+
+  const box = backdrop.querySelector("#iq-box");
+  new QRCode(box, { text: link || code, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+
+  backdrop.querySelector('[data-act="download"]')?.addEventListener("click", () => {
+    const src = box.querySelector("canvas");
+    if (!src) {
+      showToast("Unable to download. Take a screenshot instead.", "error");
+      return;
+    }
+    const pad = 24;
+    const c = document.createElement("canvas");
+    c.width = src.width + pad * 2;
+    c.height = src.height + pad * 2;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(src, pad, pad);
+    const a = document.createElement("a");
+    a.href = c.toDataURL("image/png");
+    a.download = "invite-qr.png";
+    a.click();
+  });
+}
+document.getElementById("show-invite-qr-btn").addEventListener("click", inviteQrDialog);
+
 async function fetchAudit(limit) {
   const { data, error } = await supabase
     .from("audit_logs")
@@ -225,6 +313,7 @@ const ACTION_LABELS = {
   "leave.filed": "- filed a leave request",
   "leave.approved": "- approved a leave request",
   "leave.rejected": "- rejected a leave request",
+  "qr.refreshed": "- refreshed QR codes",
 };
 
 function capitalize(s = "") {
@@ -597,24 +686,197 @@ document.getElementById("new-device-btn").addEventListener("click", newDeviceDia
 loadDevices();
 
 // ---------- QR refresh ----------
-document.getElementById("refresh-qr-btn").addEventListener("click", async () => {
-  const ok = await confirmDialog({
-    title: "Refresh all QR codes?",
-    message: "Every active person's current code stops working immediately and a new one is issued. This can't be undone.",
-    confirmLabel: "Refresh",
-    danger: true,
-  });
-  if (!ok) return;
+function refreshQrDialog() {
+  const backdrop = document.createElement("div");
+  backdrop.className = "dialog-backdrop";
+  backdrop.innerHTML = `
+    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="rq-title">
+      <h3 id="rq-title">Refresh QR codes</h3>
+      <p class="text-muted" style="font-size:0.85rem;">The current code of each selected person stops working immediately and a new one is issued.</p>
+      <div class="field">
+        <label for="rq-scope">Who</label>
+        <select id="rq-scope">
+          <option value="people">Specific people</option>
+          <option value="role">By role</option>
+          <option value="group">By group</option>
+          <option value="all">Everyone active</option>
+        </select>
+      </div>
+      <div id="rq-detail"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="rq-go">Continue</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
 
-  try {
-    const { data, error } = await supabase.rpc("refresh_qr_tokens");
-    if (error) throw error;
-    showToast(`${data} QR code${data === 1 ? "" : "s"} refreshed.`, "success");
-  } catch (err) {
-    console.error(err);
-    showToast(friendlyError(err, "Unable to refresh QR codes."), "error");
+  let busy = false; // blocks Escape / double-clicks while a request or confirmation is open
+  const onKey = (e) => { if (e.key === "Escape" && !busy) close(); };
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    backdrop.remove();
   }
-});
+  document.addEventListener("keydown", onKey);
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop && !busy) close(); });
+  backdrop.querySelector('[data-act="cancel"]').addEventListener("click", () => { if (!busy) close(); });
+
+  const scopeSelect = backdrop.querySelector("#rq-scope");
+  const detailEl = backdrop.querySelector("#rq-detail");
+  const goBtn = backdrop.querySelector("#rq-go");
+  let groupsCache = null;
+  let peopleCache = null;
+  const selectedPeople = new Set();
+
+  async function renderDetail() {
+    const scope = scopeSelect.value;
+    if (scope === "role") {
+      detailEl.innerHTML = `
+        <div class="field">
+          <label for="rq-role">Role</label>
+          <select id="rq-role">${Object.entries(ROLE_LABELS).map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select>
+        </div>`;
+    } else if (scope === "group") {
+      if (!groupsCache) {
+        const { data } = await supabase.from("groups").select("id, name").eq("organization_id", profile.organization_id).order("name");
+        groupsCache = data || [];
+      }
+      detailEl.innerHTML = groupsCache.length
+        ? `<div class="field">
+            <label for="rq-group">Group</label>
+            <select id="rq-group">${groupsCache.map((g) => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("")}</select>
+          </div>`
+        : `<p class="text-muted">No groups yet.</p>`;
+    } else if (scope === "people") {
+      if (!peopleCache) {
+        const { data } = await supabase.from("profiles").select("id, full_name, role").eq("organization_id", profile.organization_id).eq("is_active", true).order("full_name");
+        peopleCache = data || [];
+      }
+      detailEl.innerHTML = `
+        <div class="field aud-search"><input type="search" id="rq-search" placeholder="Search by name…" autocomplete="off" /></div>
+        <div class="aud-list" id="rq-people" style="max-height:220px;"></div>
+        <p class="text-muted" style="font-size:0.8rem;margin-top:4px;">${selectedPeople.size} selected</p>`;
+      renderPeopleList("");
+      detailEl.querySelector("#rq-search").addEventListener("input", (e) => renderPeopleList(e.target.value));
+    } else {
+      detailEl.innerHTML = `<p class="text-muted" style="font-size:0.85rem;">This refreshes every active person's code.</p>`;
+    }
+  }
+
+  function renderPeopleList(term) {
+    const listEl = detailEl.querySelector("#rq-people");
+    const q = term.trim().toLowerCase();
+    const matches = peopleCache.filter((p) => !q || p.full_name.toLowerCase().includes(q)).slice(0, 100);
+    listEl.innerHTML = matches
+      .map(
+        (p) => `<label class="aud-row"><input type="checkbox" value="${p.id}" ${selectedPeople.has(p.id) ? "checked" : ""} /><span>${escapeHtml(p.full_name)}</span><span class="aud-meta">${escapeHtml(p.role)}</span></label>`
+      )
+      .join("");
+    listEl.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+      cb.addEventListener("change", () => {
+        if (cb.checked) selectedPeople.add(cb.value);
+        else selectedPeople.delete(cb.value);
+        detailEl.querySelector("p.text-muted").textContent = `${selectedPeople.size} selected`;
+      });
+    });
+  }
+
+  scopeSelect.addEventListener("change", renderDetail);
+  renderDetail();
+
+  goBtn.addEventListener("click", async () => {
+    if (busy) return;
+    const scope = scopeSelect.value;
+    busy = true;
+    goBtn.disabled = true;
+    try {
+      // Everyone active: unchanged behaviour, same server function as before
+      if (scope === "all") {
+        const ok = await confirmDialog({
+          title: "Refresh all QR codes?",
+          message: "Every active person's current code stops working immediately and a new one is issued. This can't be undone.",
+          confirmLabel: "Refresh",
+          danger: true,
+        });
+        if (!ok) return;
+        const { data, error } = await supabase.rpc("refresh_qr_tokens");
+        if (error) throw error;
+        showToast(`${data} QR code${data === 1 ? "" : "s"} refreshed.`, "success");
+        close();
+        return;
+      }
+
+      // Work out exactly who is affected
+      let people = [];
+      let label = "";
+      if (scope === "people") {
+        if (selectedPeople.size === 0) {
+          showToast("Select at least one person.", "error");
+          return;
+        }
+        people = peopleCache.filter((p) => selectedPeople.has(p.id)).map((p) => ({ id: p.id, full_name: p.full_name }));
+        label = "selected people";
+      } else if (scope === "role") {
+        const role = detailEl.querySelector("#rq-role").value;
+        const { data, error } = await supabase.rpc("admin_qr_cards", { p_scope: "role", p_role: role });
+        if (error) throw error;
+        people = (data || []).map((p) => ({ id: p.id, full_name: p.full_name }));
+        label = (ROLE_LABELS[role] || role).toLowerCase();
+      } else if (scope === "group") {
+        const groupId = detailEl.querySelector("#rq-group")?.value;
+        if (!groupId) {
+          showToast("No group available.", "error");
+          return;
+        }
+        const { data, error } = await supabase.rpc("admin_qr_cards", { p_scope: "group", p_group: groupId });
+        if (error) throw error;
+        people = (data || []).map((p) => ({ id: p.id, full_name: p.full_name }));
+        label = `group ${groupsCache.find((g) => g.id === groupId)?.name || ""}`.trim();
+      }
+
+      if (people.length === 0) {
+        showToast("Nobody matched this selection.", "error");
+        return;
+      }
+
+      const few = people.length <= 3;
+      const ok = await confirmDialog({
+        title: few ? `Refresh QR code?` : `Refresh ${people.length} QR codes?`,
+        message: few
+          ? "Their current code stops working immediately and a new one is issued. This can't be undone."
+          : `The current codes of ${people.length} people (${label}) stop working immediately and new ones are issued. This can't be undone.`,
+        confirmLabel: "Refresh",
+        danger: true,
+      });
+      if (!ok) return;
+
+      const ids = people.map((p) => p.id);
+      const { data, error } = await supabase.rpc("refresh_qr_tokens_for", { p_user_ids: ids });
+      if (error) throw error;
+      const n = typeof data === "number" ? data : ids.length;
+      showToast(`${n} QR code${n === 1 ? "" : "s"} refreshed.`, "success");
+
+      // Audit trail; a logging failure must never hide the success message
+      Promise.resolve(
+        logAudit({
+          action: "qr.refreshed",
+          recordType: "organization",
+          recordId: profile.organization_id,
+          details: { scope, count: n, ...(ids.length <= 50 ? { user_ids: ids } : {}) },
+        })
+      ).catch((e) => console.error("Audit log failed:", e));
+
+      close();
+    } catch (err) {
+      console.error(err);
+      showToast(friendlyError(err, "Unable to refresh QR codes."), "error");
+    } finally {
+      busy = false;
+      goBtn.disabled = false;
+    }
+  });
+}
+
+document.getElementById("refresh-qr-btn").addEventListener("click", refreshQrDialog);
 
 // ---------- Print QR codes ----------
 const ROLE_LABELS = { admin: "Admins", teacher: "Teachers", student: "Students", parent: "Parents", guest: "Guests" };

@@ -38,6 +38,7 @@ function initPullToRefresh() {
       pointer-events: none;
     }
     #ptr-reveal.on { display: flex; }
+    :root[data-theme="dark"] #ptr-reveal { background: linear-gradient(135deg, #1e3fae 0%, #138a8a 100%); }
     #ptr-reveal.snap { transition: height .2s ease; }
     #ptr-circle {
       flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%;

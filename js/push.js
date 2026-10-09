@@ -72,10 +72,21 @@ export async function initPushNotifications(profile) {
       dbg(`Firebase registration error: ${err?.error || err?.message || JSON.stringify(err)}`, "error");
     });
 
-    // Only used while debugging: a push that arrives while the app is open.
-    if (DEBUG_PUSH) {
-      PushNotifications.addListener("pushNotificationReceived", (n) => dbg(`received “${n.title}”`, "success"));
-    }
+    // A push that arrives while the app is open: tell the page, so it can refresh just what changed
+    // (see the "onecore:push" listeners in the page scripts and in layout.js).
+    PushNotifications.addListener("pushNotificationReceived", (n) => {
+      dbg(`received “${n.title}”`, "success");
+      const data = n.data || {};
+      window.dispatchEvent(
+        new CustomEvent("onecore:push", {
+          detail: {
+            related_type: data.related_type || "",
+            related_id: data.related_id || "",
+            forThisAcademy: !data.profile_id || data.profile_id === profile.id,
+          },
+        })
+      );
+    });
 
     // Tapping a notification while the app is backgrounded/closed lands here.
     // A notification for one of her other academies opens the Notifications list,

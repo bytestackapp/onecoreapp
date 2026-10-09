@@ -14,10 +14,21 @@ function localDate(d = new Date()) {
 const today = localDate();
 
 // Roles not listed here (student, guest) get no cards and no sub-header.
+// Roles not listed here (parent, student, guest) get no Pending Actions block.
 const STAT_SECTIONS = {
-  admin:   { title: "Pending Actions",     icon: ICONS.leave,   tone: "warning" },
-  teacher: { title: "Pending Actions",     icon: ICONS.leave,   tone: "warning" },
-  parent:  { title: "Children Monitoring", icon: ICONS.profile, tone: "info" },
+  admin:   { title: "Pending Actions", icon: ICONS.leave, tone: "warning" },
+  teacher: { title: "Pending Actions", icon: ICONS.leave, tone: "warning" },
+};
+
+// Shown to anyone who has linked children, whatever their role.
+const CHILDREN_SECTION = { title: "Children Monitoring", icon: ICONS.profile, tone: "info" };
+
+// Where each card goes when clicked (these pages sit in the same folder as dashboard.html)
+const TILE_LINKS = {
+  leave: "leave.html",
+  approvals: "admin-users.html",
+  corrections: "attendance.html",
+  attendance: "attendance.html", // parent: Time In / Time Out / Break Out / Break In
 };
 
 document.getElementById("welcome-line").innerHTML =
@@ -36,22 +47,88 @@ document.getElementById("events-head").innerHTML = sectionHead({
   linkHtml: `<a class="link" href="events.html">View all</a>`,
 });
 
+// One request for the whole page (cards, announcements, events, pending leave).
+function fetchSummary() {
+  const promise = supabase.rpc("dashboard_summary", { p_today: today }).then(({ data, error }) => {
+    if (error) throw error;
+    return data || {};
+  });
+  promise.catch(() => {}); // each section below shows its own error message
+  return promise;
+}
+let summaryPromise = fetchSummary();
+
 renderStatTiles();
+renderChildren();
 renderAnnouncements();
 renderEvents();
 renderRoleSection();
 
+// When a push arrives about something this page shows, refresh the page (one request).
+const LIVE_TYPES = new Set(["announcement", "event", "leave_request", "attendance_correction", "attendance", "signup"]);
+window.addEventListener("onecore:push", (e) => {
+  if (!e.detail?.forThisAcademy || !LIVE_TYPES.has(e.detail.related_type)) return;
+  summaryPromise = fetchSummary();
+  renderStatTiles();
+  renderChildren();
+  renderAnnouncements();
+  renderEvents();
+  renderRoleSection();
+});
+
 // -----------------------------------------------------------------
 // Stat tiles
 // -----------------------------------------------------------------
-function tile(label, value) {
-  return `<div class="card stat-tile"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
+function tile(label, value, href) {
+  const n = Number(value) || 0;
+  const has = n > 0;
+  const dot = has
+    ? `<span class="pend-dot is-pending" aria-hidden="true">${n > 99 ? "99+" : n}</span>`
+    : `<span class="pend-dot is-clear" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>`;
+  const chevron = href
+    ? `<svg class="pend-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>`
+    : "";
+  const status = has ? `Needs review` : `All clear`;
+  const sub = has ? `Waiting for action` : `Nothing waiting`;
+  const card = `<div class="card stat-tile">
+    <div class="stat-label">${label}</div>
+    <div class="pend-body" aria-label="${n} ${label}">
+      ${dot}
+      <div class="pend-text"><div class="pend-main">${status}</div><div class="pend-sub">${sub}</div></div>
+      ${chevron}
+    </div>
+  </div>`;
+  return href ? `<a class="tile-link" href="${href}">${card}</a>` : card;
 }
 
-function pendingCount(table, filters) {
-  let q = supabase.from(table).select("id", { count: "exact", head: true }).eq("status", "pending");
-  for (const [col, val] of Object.entries(filters)) q = q.eq(col, val);
-  return q;
+function initials(name = "") {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  const first = [...parts[0]][0];
+  const last = parts.length > 1 ? [...parts[parts.length - 1]][0] : "";
+  return (first + last).toUpperCase();
+}
+
+function childTile(label, kids, key, href) {
+  const items = kids
+    .map((k) => {
+      const done = !!k[key];
+      const fullName = k.full_name || "Child";
+      const full = escapeHtml(fullName);
+      const first = escapeHtml(fullName.trim().split(/\s+/)[0]);
+      const state = done ? "Yes" : "Not yet";
+      return `<span class="child-item" title="${full}: ${state}">
+        <span class="child-dot ${done ? "is-in" : "is-out"}" role="img" aria-label="${full}: ${label} ${state}">${escapeHtml(initials(fullName))}</span>
+        <span class="child-name">${first}</span>
+      </span>`;
+    })
+    .join("");
+
+  const body = kids.length
+    ? `<div class="child-dots">${items}</div>`
+    : `<div class="child-empty">No children linked</div>`;
+  const card = `<div class="card stat-tile"><div class="stat-label">${label}</div>${body}</div>`;
+  return href ? `<a class="tile-link" href="${href}">${card}</a>` : card;
 }
 
 async function renderStatTiles() {
@@ -66,34 +143,17 @@ async function renderStatTiles() {
   let tiles = [];
 
   try {
+    const { stats = {} } = await summaryPromise;
     if (profile.role === "admin") {
-      const orgId = profile.organization_id;
-      const [{ count: leave }, { count: approvals }, { count: corrections }] = await Promise.all([
-        pendingCount("leave_requests", { organization_id: orgId }),
-        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_approved", false),
-        pendingCount("attendance_corrections", { organization_id: orgId }),
-      ]);
       tiles = [
-        tile("Leave Requests", leave ?? 0),
-        tile("Sign-up Approvals", approvals ?? 0),
-        tile("Attendance Corrections", corrections ?? 0),
+        tile("Leave Requests", stats.leave ?? 0, TILE_LINKS.leave),
+        tile("Sign-up Approvals", stats.approvals ?? 0, TILE_LINKS.approvals),
+        tile("Attendance Corrections", stats.corrections ?? 0, TILE_LINKS.corrections),
       ];
     } else if (profile.role === "teacher") {
-      const [{ count: leave }, { count: corrections }] = await Promise.all([
-        pendingCount("leave_requests", { profile_id: profile.id }),
-        pendingCount("attendance_corrections", { profile_id: profile.id }),
-      ]);
       tiles = [
-        tile("Leave Requests", leave ?? 0),
-        tile("Attendance Corrections", corrections ?? 0),
-      ];
-    } else if (profile.role === "parent") {
-      const c = await childrenActivityToday();
-      tiles = [
-        tile("Time In Today", c.timeIn),
-        tile("Time Out Today", c.timeOut),
-        tile("Break Out Today", c.breakOut),
-        tile("Break In Today", c.breakIn),
+        tile("Leave Requests", stats.leave ?? 0, TILE_LINKS.leave),
+        tile("Attendance Corrections", stats.corrections ?? 0, TILE_LINKS.corrections),
       ];
     }
     el.innerHTML = tiles.join("");
@@ -103,30 +163,48 @@ async function renderStatTiles() {
   }
 }
 
-async function childrenActivityToday() {
-  const { data: links, error: linksError } = await supabase.from("guardians").select("student_id").eq("parent_id", profile.id);
-  if (linksError) throw linksError;
-  const ids = (links || []).map((l) => l.student_id);
-  const total = ids.length;
-  if (total === 0) return { timeIn: "0 of 0", timeOut: "0 of 0", breakOut: "0 of 0", breakIn: "0 of 0" };
+async function renderChildren() {
+  const section = document.getElementById("children-section");
+  const el = document.getElementById("children-tiles");
+  const isParent = profile.role === "parent";
 
-  const { data: records, error } = await supabase
-    .from("attendance_records")
-    .select("profile_id, time_in, time_out, break_out, break_in")
-    .in("profile_id", ids)
-    .eq("record_date", today)
-    .is("group_id", null);
-  if (error) throw error;
+  // Parents always expect this block, so show it loading right away.
+  // For other roles it stays hidden unless they actually have linked children.
+  if (isParent) {
+    document.getElementById("children-head").innerHTML = sectionHead(CHILDREN_SECTION);
+    section.style.display = "";
+    el.innerHTML = `<div class="skeleton" style="height:80px;grid-column:1/-1;"></div>`;
+  }
 
-  const countOf = (field) =>
-    `${new Set((records || []).filter((r) => r[field]).map((r) => r.profile_id)).size} of ${total}`;
+  try {
+    const summary = await summaryPromise;
+    const kids = summary.children ?? summary.stats?.children;
 
-  return {
-    timeIn: countOf("time_in"),
-    timeOut: countOf("time_out"),
-    breakOut: countOf("break_out"),
-    breakIn: countOf("break_in"),
-  };
+    if (!Array.isArray(kids) || kids.length === 0) {
+      if (isParent) {
+        el.innerHTML = `<div class="card empty-state"><h3>No children linked yet</h3><p>Children linked to your account will show up here.</p></div>`;
+      } else {
+        section.style.display = "none";
+      }
+      return;
+    }
+
+    document.getElementById("children-head").innerHTML = sectionHead(CHILDREN_SECTION);
+    section.style.display = "";
+    el.innerHTML = [
+      childTile("Time In Today", kids, "time_in", TILE_LINKS.attendance),
+      childTile("Time Out Today", kids, "time_out", TILE_LINKS.attendance),
+      childTile("Break Out Today", kids, "break_out", TILE_LINKS.attendance),
+      childTile("Break In Today", kids, "break_in", TILE_LINKS.attendance),
+    ].join("");
+  } catch (err) {
+    console.error(err);
+    if (isParent) {
+      el.innerHTML = `<div class="card empty-state"><h3>Unable to load your summary</h3><p>Please refresh the page.</p></div>`;
+    } else {
+      section.style.display = "none";
+    }
+  }
 }
 
 // -----------------------------------------------------------------
@@ -135,12 +213,7 @@ async function childrenActivityToday() {
 async function renderAnnouncements() {
   const el = document.getElementById("announcements-list");
   try {
-    const { data, error } = await supabase
-      .from("announcements")
-      .select("id, title, priority, created_at")
-      .order("publish_at", { ascending: false })
-      .limit(5);
-    if (error) throw error;
+    const data = (await summaryPromise).announcements;
 
     if (!data || data.length === 0) {
       el.innerHTML = emptyState("You're all caught up.", "No new announcements right now.");
@@ -150,7 +223,6 @@ async function renderAnnouncements() {
       .map(
         (a) => `
         <div class="list-row">
-          <div class="priority-rail tag-${a.priority}"></div>
           <div style="flex:1;min-width:0;">
             <div style="font-weight:600;">${escapeHtml(a.title)}</div>
             <div class="text-muted" style="font-size:0.8rem;">${timeAgo(a.created_at)}</div>
@@ -171,14 +243,7 @@ async function renderAnnouncements() {
 async function renderEvents() {
   const el = document.getElementById("events-list");
   try {
-    const { data, error } = await supabase
-      .from("events")
-      .select("id, title, event_date, start_time, location")
-      .gte("event_date", today)
-      .eq("status", "scheduled")
-      .order("event_date", { ascending: true })
-      .limit(5);
-    if (error) throw error;
+    const data = (await summaryPromise).events;
 
     if (!data || data.length === 0) {
       el.innerHTML = emptyState("No upcoming events.", "New events will show up here as soon as they're scheduled.");
@@ -209,14 +274,7 @@ async function renderRoleSection() {
   if (profile.role !== "admin") return; // teachers/students/parents: covered by tiles above
 
   try {
-    const { data, error } = await supabase
-      .from("leave_requests")
-      .select("id, start_date, end_date, reason, profiles(full_name)")
-      .eq("organization_id", profile.organization_id)
-      .eq("status", "pending")
-      .order("created_at", { ascending: true })
-      .limit(5);
-    if (error) throw error;
+    const data = (await summaryPromise).pending_leave;
 
     el.innerHTML = `
       <div class="section">
@@ -235,7 +293,7 @@ async function renderRoleSection() {
                     (r) => `
               <div class="list-row">
                 <div style="flex:1;min-width:0;">
-                  <div style="font-weight:600;">${escapeHtml(r.profiles?.full_name || "Unknown")}</div>
+                  <div style="font-weight:600;">${escapeHtml(r.full_name || "Unknown")}</div>
                   <div class="text-muted" style="font-size:0.8rem;">${formatDate(r.start_date)} – ${formatDate(r.end_date)}</div>
                 </div>
                 <span class="tag tag-pending">Pending</span>
