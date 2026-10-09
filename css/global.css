@@ -1112,6 +1112,11 @@ button, .btn, .icon-action, .icon-btn, .sidebar-link, .bottomnav-link, .bottomna
   .role-select, .audience-btn { font-size: 16px; }
 }
 
+/* iOS only (Safari and home-screen app) */
+@supports (-webkit-touch-callout: none) {
+  .page-loader-ring { animation-duration: 1.6s; }
+}
+
 /* Make date/time inputs and the audience button match the other fields on iOS */
 input[type="date"],
 input[type="time"],
