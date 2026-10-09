@@ -16,3 +16,6 @@ export function currentPlatform() {
   }
   return "web";
 }
+
+export const isStandalone = () =>
+  window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;

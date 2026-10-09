@@ -6,6 +6,7 @@
 // so page-to-page links are plain filenames with no path juggling.
 // =====================================================================
 
+import "./register-sw.js";
 import { requireAuth, signOut, initials, isPlatformOwner, myAcademies } from "./supabase-client.js";
 import { openAcademySwitcher } from "./academy-switcher.js";
 import { APP_NAME, LOGO_MARK } from "./brand.js";
@@ -13,6 +14,15 @@ import { initPushNotifications } from "./push.js";
 import { checkForUpdate } from "./version-check.js";
 import "./pull-to-refresh.js";
 import { getThemePref, setThemePref, THEME_LABELS } from "./theme.js";
+
+
+const themeMeta = document.querySelector('meta[name="theme-color"]');
+function syncThemeColor() {
+  const c = getComputedStyle(document.documentElement).getPropertyValue("--card").trim();
+  if (themeMeta && c) themeMeta.setAttribute("content", c);
+}
+new MutationObserver(syncThemeColor).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+syncThemeColor();
 
 // Makes text safe to show inside the page
 function esc(str = "") {

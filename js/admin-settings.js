@@ -2,7 +2,7 @@ import { mountLayout } from "./layout.js";
 import { supabase, timeAgo, friendlyError, getCurrentProfile, logAudit } from "./supabase-client.js";
 import { confirmDialog } from "./dialog.js";
 import { showToast } from "./toast.js";
-import { currentPlatform } from "./version.js";
+import { currentPlatform, isStandalone } from "./version.js";
 
 const profile = await mountLayout({ activeKey: "admin-settings", pageTitle: "Settings", allowedRoles: ["admin"] });
 if (!profile) throw new Error("redirecting");
@@ -125,6 +125,7 @@ function inviteLink(code) {
 }
 
 function inviteQrDialog() {
+  const canDownload = currentPlatform() === "web" && !isStandalone();
   const code = document.getElementById("invite-code").value.trim();
   if (!code) {
     showToast("There's no invite code to show yet.", "error");
@@ -135,8 +136,6 @@ function inviteQrDialog() {
     return;
   }
   const link = inviteLink(code);
-  const canDownload = currentPlatform() === "web";
-
   const backdrop = document.createElement("div");
   backdrop.className = "dialog-backdrop";
   backdrop.innerHTML = `
@@ -1027,7 +1026,7 @@ const ARC_TABLES = {
 };
 const ARC_LABELS = { attendance: "Attendance", events: "Events", announcements: "Announcements", leave: "Leave requests" };
 
-if (currentPlatform() !== "web") {
+if (currentPlatform() !== "web" || isStandalone()) {
   // File downloads are unreliable inside the phone app, so archiving is a web-only action.
   document.getElementById("archive-form").style.display = "none";
   document.getElementById("archive-web-only").style.display = "block";
@@ -1532,8 +1531,10 @@ async function loadArchiveRuns() {
 arcYearSel.addEventListener("change", arcSyncInfoBtn);
 arcPreviewBtn.addEventListener("click", openArchivePreview);
 arcInfoBtn.addEventListener("click", openArchiveInfo);
-if (currentPlatform() === "web") {
+if (currentPlatform() === "web" && !isStandalone()) {
   arcYearSel.innerHTML = `<option value="">Loading…</option>`;
   arcPreviewBtn.disabled = true;
   loadArchiveRuns();
 }
+
+

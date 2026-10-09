@@ -65,7 +65,7 @@
 
   --sidebar-w: 252px;
   --topbar-h: 64px;
-  --bottomnav-h: 60px;
+  --bottomnav-h: calc(60px + env(safe-area-inset-bottom, 0px));
 }
 
 * { box-sizing: border-box; }
@@ -398,6 +398,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   z-index: 30;
   align-items: stretch;
   justify-content: space-around;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .bottomnav-link, .bottomnav-more {
@@ -1090,3 +1091,23 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 /* Loading screen wave: deeper blue-teal in dark mode (CSS overrides the stop-color attributes in each page's loader SVG) */
 :root[data-theme="dark"] #loaderWaveGradient stop:first-child { stop-color: #14296b; }
 :root[data-theme="dark"] #loaderWaveGradient stop:last-child { stop-color: #0d4c55; }
+
+/* --- iPhone / home-screen app feel --- */
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  overscroll-behavior-y: none;
+  -webkit-touch-callout: none;
+}
+button, .btn, .icon-action, .icon-btn, .sidebar-link, .bottomnav-link, .bottomnav-more {
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+/* iOS zooms the page when a focused input is under 16px */
+@media (max-width: 700px) {
+  .field input, .field select, .field textarea,
+  .role-select, .audience-btn { font-size: 16px; }
+}
