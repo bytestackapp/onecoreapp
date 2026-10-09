@@ -85,9 +85,6 @@ function tile(label, value, href) {
   const dot = has
     ? `<span class="pend-dot is-pending" aria-hidden="true">${n > 99 ? "99+" : n}</span>`
     : `<span class="pend-dot is-clear" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>`;
-  const chevron = href
-    ? `<svg class="pend-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>`
-    : "";
   const status = has ? `Needs review` : `All clear`;
   const sub = has ? `Waiting for action` : `Nothing waiting`;
   const card = `<div class="card stat-tile">
@@ -95,7 +92,6 @@ function tile(label, value, href) {
     <div class="pend-body" aria-label="${n} ${label}">
       ${dot}
       <div class="pend-text"><div class="pend-main">${status}</div><div class="pend-sub">${sub}</div></div>
-      ${chevron}
     </div>
   </div>`;
   return href ? `<a class="tile-link" href="${href}">${card}</a>` : card;
