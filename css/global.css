@@ -1111,3 +1111,26 @@ button, .btn, .icon-action, .icon-btn, .sidebar-link, .bottomnav-link, .bottomna
   .field input, .field select, .field textarea,
   .role-select, .audience-btn { font-size: 16px; }
 }
+
+/* Make date/time inputs and the audience button match the other fields on iOS */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  line-height: 1.2;
+  background-color: var(--input-bg);
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.2em;
+}
+.field input,
+.field select,
+.audience-btn {
+  min-height: 44px;
+}
