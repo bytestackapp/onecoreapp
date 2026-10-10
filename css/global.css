@@ -65,7 +65,7 @@
 
   --sidebar-w: 252px;
   --topbar-h: 64px;
-  --bottomnav-h: calc(60px + env(safe-area-inset-bottom, 0px));
+  --bottomnav-h: 60px;
 }
 
 * { box-sizing: border-box; }
@@ -398,7 +398,6 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   z-index: 30;
   align-items: stretch;
   justify-content: space-around;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .bottomnav-link, .bottomnav-more {
@@ -1086,56 +1085,26 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   color-scheme: dark;
 }
 :root[data-theme="dark"] .sidebar-brand-logo,
-:root[data-theme="dark"] .auth-brand-logo { filter: invert(1) hue-rotate(180deg); }
+:root[data-theme="dark"] .auth-brand-logo { background: #fff; padding: 5px 9px; border-radius: 8px; box-sizing: content-box; }
 
 /* Loading screen wave: deeper blue-teal in dark mode (CSS overrides the stop-color attributes in each page's loader SVG) */
 :root[data-theme="dark"] #loaderWaveGradient stop:first-child { stop-color: #14296b; }
 :root[data-theme="dark"] #loaderWaveGradient stop:last-child { stop-color: #0d4c55; }
 
-/* --- iPhone / home-screen app feel --- */
-html {
-  -webkit-text-size-adjust: 100%;
-  -webkit-tap-highlight-color: transparent;
-}
-body {
-  overscroll-behavior-y: none;
-  -webkit-touch-callout: none;
-}
-button, .btn, .icon-action, .icon-btn, .sidebar-link, .bottomnav-link, .bottomnav-more {
-  -webkit-user-select: none;
-  user-select: none;
-  touch-action: manipulation;
-}
-/* iOS zooms the page when a focused input is under 16px */
-@media (max-width: 700px) {
-  .field input, .field select, .field textarea,
-  .role-select, .audience-btn { font-size: 16px; }
-}
+/* Dark mode: native date / time pickers (the calendar and clock pop-ups follow color-scheme) */
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea { color-scheme: dark; }
+:root[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+:root[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.8; cursor: pointer; }
 
-/* iOS only (Safari and home-screen app) */
-@supports (-webkit-touch-callout: none) {
-  .page-loader-ring { animation-duration: 1.6s; }
-}
-
-/* Make date/time inputs and the audience button match the other fields on iOS */
-input[type="date"],
-input[type="time"],
-input[type="datetime-local"] {
-  -webkit-appearance: none;
-  appearance: none;
-  display: block;
-  width: 100%;
-  min-width: 0;
-  line-height: 1.2;
-  background-color: var(--input-bg);
-}
-input[type="date"]::-webkit-date-and-time-value,
-input[type="time"]::-webkit-date-and-time-value {
-  text-align: left;
-  min-height: 1.2em;
-}
-.field input,
-.field select,
-.audience-btn {
-  min-height: 44px;
+/* Dark mode: dialogs stand out with a dark-purple glow over a more opaque backdrop */
+:root[data-theme="dark"] .dialog-backdrop { background: rgba(2, 5, 14, 0.82); }
+:root[data-theme="dark"] .more-sheet-backdrop { background: rgba(2, 5, 14, 0.78); }
+:root[data-theme="dark"] .dialog-modal {
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  box-shadow:
+    0 0 0 1px rgba(124, 58, 237, 0.25),
+    0 14px 50px rgba(88, 28, 135, 0.6),
+    0 0 100px rgba(109, 40, 217, 0.3);
 }

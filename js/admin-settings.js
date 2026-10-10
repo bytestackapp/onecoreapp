@@ -1263,7 +1263,6 @@ function arcMakeReadable(rows, L) {
       if (ARC_PERSON_COLS[key]) out[ARC_PERSON_COLS[key]] = arcNameOf(L.people, value);
       else if (key === "leave_type_id") out.leave_type = arcNameOf(L.leaveTypes, value);
       else if (key === "group_id") out.group = arcNameOf(L.groups, value);
-      else if (key === "audience_group_id") out.audience_group = arcNameOf(L.groups, value);
       else if (key === "event_id") out.event = arcNameOf(L.events, value);
       else if (key === "announcement_id") out.announcement = arcNameOf(L.announcements, value);
       else if (key === "attachment_url") out.attachment_file = value ? L.attachmentFiles?.get(value) ?? "" : "";

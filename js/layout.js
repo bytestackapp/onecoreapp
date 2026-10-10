@@ -14,6 +14,7 @@ import { initPushNotifications } from "./push.js";
 import { checkForUpdate } from "./version-check.js";
 import "./pull-to-refresh.js";
 import { getThemePref, setThemePref, THEME_LABELS } from "./theme.js";
+import "./picker.js";
 
 
 const themeMeta = document.querySelector('meta[name="theme-color"]');

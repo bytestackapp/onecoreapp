@@ -23,7 +23,7 @@ jobs:
           java-version: '21'
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci
 
       - name: Generate env-config.js from secrets
         run: node scripts/generate-env.js

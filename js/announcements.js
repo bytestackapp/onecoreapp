@@ -281,8 +281,6 @@ async function openAnnouncementDialog(existingId = null) {
       audience_types: [...audienceSel.types],
       audience_group_ids: [...audienceSel.groups],
       audience_user_ids: [...audienceSel.users],
-      audience_type: null,        // old single-audience columns, no longer used
-      audience_group_id: null,
       requires_acknowledgment: backdrop.querySelector("#an-requires-ack").checked,
     };
 
@@ -327,8 +325,8 @@ async function loadAnnouncements() {
   try {
     const { data, error } = await supabase
       .from("announcements")
-      .select("id, title, content, priority, audience_types, audience_group_ids, audience_user_ids, requires_acknowledgment, created_by, created_at, expires_at")
-      .order("publish_at", { ascending: false });
+      .select("id, title, content, priority, audience_types, audience_group_ids, audience_user_ids, requires_acknowledgment, created_by, created_at")
+      order("created_at", { ascending: false });
     if (error) throw error;
     announcementsCache = data || [];
 

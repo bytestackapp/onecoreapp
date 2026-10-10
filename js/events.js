@@ -549,7 +549,7 @@ async function loadEvents() {
     const today = localDate();
     const { data, error } = await supabase
       .from("events")
-      .select("id, title, description, event_date, start_time, end_time, location, is_online, meeting_platform, meeting_link, meeting_details, rsvp_enabled, status, organizer_id, audience_types, audience_group_ids, audience_user_ids, profiles!events_organizer_id_fkey(full_name)")
+      .select("id, title, description, event_date, start_time, end_time, location, is_online, meeting_platform, meeting_link, meeting_details, status, organizer_id, audience_types, audience_group_ids, audience_user_ids, profiles!events_organizer_id_fkey(full_name)")
       .gte("event_date", today)
       .order("event_date", { ascending: true });
     if (error) throw error;
@@ -592,15 +592,11 @@ async function loadEvents() {
           </div>
           ${e.description ? `<p style="margin-top:10px;">${escapeHtml(e.description)}</p>` : ""}
           ${e.is_online ? meetingBlock(e) : ""}
-          ${
-            e.rsvp_enabled
-              ? `<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-                  ${rsvpButton(e.id, "attending", "Attending", myRsvp)}
-                  ${rsvpButton(e.id, "maybe", "Maybe", myRsvp)}
-                  ${rsvpButton(e.id, "not_attending", "Not attending", myRsvp)}
-                </div>`
-              : ""
-          }
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+            ${rsvpButton(e.id, "attending", "Attending", myRsvp)}
+            ${rsvpButton(e.id, "maybe", "Maybe", myRsvp)}
+            ${rsvpButton(e.id, "not_attending", "Not attending", myRsvp)}
+          </div>
         </div>`;
       })
       .join("");

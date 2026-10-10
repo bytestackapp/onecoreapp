@@ -5,13 +5,11 @@
   "scripts": {
     "build": "node scripts/generate-env.js",
     "cap:sync": "npx cap sync",
-    "cap:android": "npx cap open android",
-    "cap:ios": "npx cap open ios"
+    "cap:android": "npx cap open android"
   },
   "dependencies": {
     "@capacitor/android": "^6.0.0",
     "@capacitor/core": "^6.0.0",
-    "@capacitor/ios": "^6.0.0",
     "@capacitor/push-notifications": "^6.0.0"
   },
   "devDependencies": {

@@ -14,7 +14,17 @@
 // to env-config.js and fill in your own project's values.
 // =====================================================================
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.116.0";
+// The Supabase library is hosted with the app (js/vendor/supabase.js), so it works offline
+// and doesn't depend on an outside server.
+await new Promise((resolve, reject) => {
+  const tag = document.createElement("script");
+  tag.src = new URL("./vendor/supabase.js", import.meta.url).href;
+  tag.onload = resolve;
+  tag.onerror = () => reject(new Error("Could not load the Supabase library"));
+  document.head.appendChild(tag);
+});
+const { createClient } = window.supabase;
+
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./env-config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
