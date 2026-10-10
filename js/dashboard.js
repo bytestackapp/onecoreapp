@@ -86,7 +86,7 @@ function tile(label, value, href) {
     ? `<span class="pend-dot is-pending" aria-hidden="true">${n > 99 ? "99+" : n}</span>`
     : `<span class="pend-dot is-clear" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>`;
   const status = has ? `Needs review` : `All clear`;
-  const sub = has ? `Waiting for action` : `Nothing waiting`;
+  const sub = has ? `Waiting for action` : `No pending`;
   const card = `<div class="card stat-tile">
     <div class="stat-label">${label}</div>
     <div class="pend-body" aria-label="${n} ${label}">
@@ -144,12 +144,12 @@ async function renderStatTiles() {
       tiles = [
         tile("Leave Requests", stats.leave ?? 0, TILE_LINKS.leave),
         tile("Sign-up Approvals", stats.approvals ?? 0, TILE_LINKS.approvals),
-        tile("Attendance Corrections", stats.corrections ?? 0, TILE_LINKS.corrections),
+        tile("Corrections", stats.corrections ?? 0, TILE_LINKS.corrections),
       ];
     } else if (profile.role === "teacher") {
       tiles = [
         tile("Leave Requests", stats.leave ?? 0, TILE_LINKS.leave),
-        tile("Attendance Corrections", stats.corrections ?? 0, TILE_LINKS.corrections),
+        tile("Corrections", stats.corrections ?? 0, TILE_LINKS.corrections),
       ];
     }
     el.innerHTML = tiles.join("");

@@ -430,6 +430,13 @@ async function openChildDialog(parentId, parentName) {
 // ---------- Leave types dialog: assign leave types (with an entitled amount) to a staff member ----------
 let leaveTypesCache = [];
 
+// "5 days/year": the yearly amount set for the leave type in Settings (not this person's running balance)
+function daysPerYearText(t) {
+  const raw = t?.default_entitlement;
+  const n = raw === null || raw === undefined || raw === "" ? NaN : Number(raw);
+  return Number.isFinite(n) ? `${n} ${n === 1 ? "day" : "days"}/year` : "";
+}
+
 async function openLeaveTypeDialog(staffId, staffName) {
   const backdrop = document.createElement("div");
   backdrop.className = "dialog-backdrop";
@@ -460,7 +467,7 @@ async function openLeaveTypeDialog(staffId, staffName) {
     const bodyEl = backdrop.querySelector("#lt-body");
     const { data: balances, error } = await supabase
       .from("leave_balances")
-      .select("id, entitled, used, pending, leave_type_id, leave_types(name)")
+      .select("id, entitled, used, pending, leave_type_id, leave_types(name, default_entitlement)")
       .eq("profile_id", staffId)
       .eq("period_year", year);
     if (error) {
@@ -488,7 +495,7 @@ async function openLeaveTypeDialog(staffId, staffName) {
                   (b) => `
               <div class="aud-row" style="cursor:default;">
                 <span>${escapeHtml(b.leave_types?.name || "Unknown")}</span>
-                <span class="aud-meta">${b.entitled} days${b.used || b.pending ? ` · ${b.used} used, ${b.pending} pending` : ""}</span>
+                <span class="aud-meta">${daysPerYearText(b.leave_types)}</span>
                 <button type="button" class="icon-action sm danger" data-remove="${b.id}" data-used="${b.used}" data-pending="${b.pending}" title="Remove" aria-label="Remove" style="margin-left:8px;">${ICON.reject}</button>
               </div>`
                 )
