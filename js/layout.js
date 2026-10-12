@@ -202,7 +202,7 @@ function buildTopbar(profile, pageTitle, unread, brandOnMobile, isOwner, otherUn
         </div>
         <a class="user-menu-item" href="profile.html">${ICONS.profile}<span>Profile</span></a>
         <button class="user-menu-item" id="user-menu-theme" type="button">${ICONS.theme}<span id="user-menu-theme-label"></span></button>
-        <button class="user-menu-item" id="user-menu-switch">${ICONS.switch}<span>Switch academy</span>${otherUnread > 0 ? `<span class="badge" style="margin-left:auto;">${otherUnread > 9 ? "9+" : otherUnread}</span>` : ""}</button>
+        <button class="user-menu-item" id="user-menu-switch">${ICONS.switch}<span>Switch academy</span>${otherUnread > 0 ? `<span style="margin-left:auto;display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;box-sizing:border-box;border-radius:999px;background:var(--error-solid);color:#fff;font-size:0.72rem;font-weight:700;">${otherUnread > 9 ? "9+" : otherUnread}</span>` : ""}</button>
         <button class="user-menu-item danger" id="user-menu-signout">${ICONS.logout}<span>Sign out</span></button>
       </div>
     </div>
@@ -422,9 +422,9 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnM
   }
 
   const [isOwner, academies] = await Promise.all([isPlatformOwner(), myAcademies()]);
-  // Unread counts cover every academy this login belongs to, so a notification
-  // for Academy A still shows while she is working in Academy B.
-  const unread = academies.reduce((n, a) => n + Number(a.unread || 0), 0);
+  // The bell and badge count only the academy I am in (the Notifications page lists only that academy).
+  // Unread items in my other academies show as a count on "Switch academy".
+  const unread = Number(academies.find((a) => a.profile_id === profile.id)?.unread || 0);
   const otherUnread = academies.filter((a) => a.profile_id !== profile.id).reduce((n, a) => n + Number(a.unread || 0), 0);
 
   const existingContent = document.getElementById("page-content");
@@ -484,6 +484,13 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnM
     showTheme();
   });
   document.getElementById("user-menu-switch")?.addEventListener("click", () => openAcademySwitcher(academies, profile));
+  // Tapping a push banner for another academy opens the same picker, with fresh unread counts.
+  window.addEventListener("onecore:open-academy-switcher", async () => {
+    if (document.querySelector(".dialog-backdrop")) return;
+    let fresh = academies;
+    try { fresh = await myAcademies(); } catch (err) { console.error(err); }
+    openAcademySwitcher(fresh, profile);
+  });
 
   document.title = `${pageTitle} — ${APP_NAME}`;
 
@@ -493,7 +500,8 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnM
 
   // A push arrived while the app is open: show the unread dot straight away, without asking the server.
   let liveUnread = unread;
-  window.addEventListener("onecore:push", () => {
+  window.addEventListener("onecore:push", (e) => {
+    if (!e.detail?.forThisAcademy) return; // another academy: the phone still buzzes, but this bell stays as is
     liveUnread += 1;
     const text = liveUnread > 9 ? "9+" : String(liveUnread);
     document.querySelectorAll('.sidebar-link[href="notifications.html"]').forEach((link) => {

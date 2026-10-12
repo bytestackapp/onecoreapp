@@ -1,5 +1,5 @@
 import { mountLayout } from "./layout.js";
-import { supabase, timeAgo, priorityLabel, friendlyError, logAudit, formatDate, myAcademies, switchToProfile } from "./supabase-client.js";
+import { supabase, timeAgo, priorityLabel, friendlyError, logAudit, formatDate } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { confirmDialog } from "./dialog.js";
 
@@ -49,7 +49,10 @@ function extractName(body = "") {
 }
 
 let notifications = [];
-let academies = [];
+let hasMore = false; // are there older (read) notifications that aren't shown yet?
+let readCursor = null; // created_at of the oldest read notification shown so far
+const PAGE_SIZE = 5; // read notifications are shown 5 at a time; unread ones are always all shown
+const NOTIF_COLS = "id, profile_id, title, body, priority, related_type, related_id, is_read, created_at, subject_name, related_status";
 
 function escapeHtml(str = "") {
   return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -58,17 +61,22 @@ function escapeHtml(str = "") {
 async function load() {
   listEl.innerHTML = `<div class="skeleton" style="height:60px;"></div>`;
   try {
-    // No profile filter: row-level security already limits this to profiles I own,
-    // so notifications from all of my academies show up here.
-    academies = await myAcademies();
-    const { data, error } = await supabase
-      .from("notifications")
-      .select("id, profile_id, title, body, priority, related_type, related_id, is_read, created_at, subject_name, related_status")
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (error) throw error;
-
-    notifications = data || [];
+    // Only the academy I am currently in. Push alerts still arrive for my other academies;
+    // to read those notifications I switch to that academy first.
+    // All unread notifications first, then read ones (5 at a time). After a refresh,
+    // keep showing at least as many as were already on screen.
+    const target = Math.max(PAGE_SIZE, notifications.length);
+    const [unreadRes, readRes] = await Promise.all([
+      supabase.from("notifications").select(NOTIF_COLS).eq("profile_id", profile.id).eq("is_read", false).order("created_at", { ascending: false }).limit(500),
+      fetchRead(target),
+    ]);
+    if (unreadRes.error) throw unreadRes.error;
+    const unreadRows = unreadRes.data || [];
+    const readNeeded = Math.max(0, target - unreadRows.length);
+    const readRows = readRes.rows.slice(0, readNeeded);
+    notifications = [...unreadRows, ...readRows];
+    readCursor = readRows.length ? readRows[readRows.length - 1].created_at : null;
+    hasMore = readRes.rows.length > readNeeded || readRes.more;
     updateSummary();
     render();
   } catch (err) {
@@ -101,7 +109,6 @@ function render() {
   listEl.innerHTML = notifications
     .map((n) => {
       const isAdminReview = ADMIN_REVIEW_TYPES.has(n.related_type) && profile.role === "admin" && n.profile_id === profile.id;
-      const academyName = academies.length > 1 ? academies.find((a) => a.profile_id === n.profile_id)?.academy_name : "";
       const href = !isAdminReview ? RELATED_PAGE[n.related_type] : null;
       const label = CARD_LABEL[n.related_type];
       const feedLabel = FEED_LABEL[n.related_type];
@@ -129,7 +136,7 @@ function render() {
         <div style="flex:1;min-width:0;${n.is_read ? "" : "font-weight:600;"}">
           <div>${label}</div>
           <div class="text-muted" style="font-weight:400;font-size:0.85rem;margin-top:2px;">${escapeHtml(subjectName)}</div>
-          <div class="text-muted" style="font-weight:400;font-size:0.78rem;margin-top:4px;">${timeAgo(n.created_at)}${academyName ? ` · ${escapeHtml(academyName)}` : ""}</div>
+          <div class="text-muted" style="font-weight:400;font-size:0.78rem;margin-top:4px;">${timeAgo(n.created_at)}</div>
         </div>
         ${badgeHtml}
       `
@@ -137,7 +144,7 @@ function render() {
         <div style="flex:1;min-width:0;${n.is_read ? "" : "font-weight:600;"}">
           <div>${escapeHtml(headline)}</div>
           ${detail ? `<div class="text-muted" style="${detailStyle}">${escapeHtml(detail)}</div>` : ""}
-          <div class="text-muted" style="font-weight:400;font-size:0.78rem;margin-top:4px;">${timeAgo(n.created_at)}${academyName ? ` · ${escapeHtml(academyName)}` : ""}</div>
+          <div class="text-muted" style="font-weight:400;font-size:0.78rem;margin-top:4px;">${timeAgo(n.created_at)}</div>
         </div>
         ${badgeHtml}
       `;
@@ -151,6 +158,14 @@ function render() {
     })
     .join("");
 
+  if (hasMore) {
+    listEl.insertAdjacentHTML(
+      "beforeend",
+      `<div style="text-align:center;margin-top:4px;"><button type="button" class="btn btn-secondary" id="load-more-btn">Load more</button></div>`
+    );
+    listEl.querySelector("#load-more-btn").addEventListener("click", loadMore);
+  }
+
   listEl.querySelectorAll("[data-id]").forEach((row) => {
     row.addEventListener("click", async () => {
       const id = row.getAttribute("data-id");
@@ -162,20 +177,44 @@ function render() {
       }
       const href = row.getAttribute("data-href");
       if (!href) return;
-      // A notification from another academy: switch there first, then open the page.
-      const targetProfile = row.getAttribute("data-profile");
-      if (targetProfile && targetProfile !== profile.id) {
-        try {
-          await switchToProfile(targetProfile);
-        } catch (err) {
-          console.error(err);
-          showToast("Unable to switch academy.", "error");
-          return;
-        }
-      }
       window.location.href = href;
     });
   });
+}
+
+// One page of read notifications, newest first, older than `before` (if given).
+// Asks for one extra row so we know whether "Load more" is still needed.
+async function fetchRead(limit, before = null) {
+  let q = supabase.from("notifications").select(NOTIF_COLS).eq("profile_id", profile.id).eq("is_read", true).order("created_at", { ascending: false }).limit(limit + 1);
+  if (before) q = q.lt("created_at", before);
+  const { data, error } = await q;
+  if (error) throw error;
+  const rows = data || [];
+  return { rows: rows.slice(0, limit), more: rows.length > limit };
+}
+
+async function loadMore() {
+  const btn = listEl.querySelector("#load-more-btn");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Loading…";
+  }
+  try {
+    const { rows, more } = await fetchRead(PAGE_SIZE, readCursor);
+    const seen = new Set(notifications.map((n) => n.id));
+    notifications.push(...rows.filter((r) => !seen.has(r.id)));
+    if (rows.length) readCursor = rows[rows.length - 1].created_at;
+    hasMore = more;
+    updateSummary();
+    render();
+  } catch (err) {
+    console.error(err);
+    showToast("Unable to load more notifications.", "error");
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Load more";
+    }
+  }
 }
 
 async function markRead(id) {
@@ -198,7 +237,7 @@ async function markRead(id) {
 markAllBtn.addEventListener("click", async () => {
   markAllBtn.disabled = true;
   try {
-    await supabase.from("notifications").update({ is_read: true }).eq("is_read", false);
+    await supabase.from("notifications").update({ is_read: true }).eq("profile_id", profile.id).eq("is_read", false);
     notifications.forEach((n) => (n.is_read = true));
     updateSummary();
     render();
@@ -212,13 +251,13 @@ markAllBtn.addEventListener("click", async () => {
 clearBtn.addEventListener("click", async () => {
   const ok = await confirmDialog({
     title: "Clear all notifications?",
-    message: "This permanently removes every notification in your list. It can't be undone.",
+    message: "This permanently removes every notification in this academy's list. It can't be undone.",
     confirmLabel: "Clear",
     danger: true,
   });
   if (!ok) return;
   try {
-    const { data, error } = await supabase.from("notifications").delete().in("profile_id", [...new Set([profile.id, ...academies.map((a) => a.profile_id)])]).select("id");
+    const { data, error } = await supabase.from("notifications").delete().eq("profile_id", profile.id).select("id");
     if (error) throw error;
     if (!data || data.length === 0) {
       showToast("Nothing was cleared. You may not have permission to delete notifications.", "error");
@@ -227,6 +266,7 @@ clearBtn.addEventListener("click", async () => {
     notifications = [];
     updateSummary();
     render();
+    hasMore = false;
     showToast("Notifications cleared.", "success");
   } catch (err) {
     console.error(err);

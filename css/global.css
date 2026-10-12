@@ -1132,3 +1132,30 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 :root[data-theme="dark"] .tag-role-student { --role-c: #34d399; }
 :root[data-theme="dark"] .tag-role-parent  { --role-c: #fbbf24; }
 :root[data-theme="dark"] .tag-role-guest   { --role-c: #94a3b8; }
+
+/* Group type badges */
+.tag-type-class        { --type-c: #2563eb; } /* blue   */
+.tag-type-department   { --type-c: #7c3aed; } /* purple */
+.tag-type-club         { --type-c: #0d9488; } /* teal   */
+.tag-type-team         { --type-c: #ea580c; } /* orange */
+.tag-type-parent_group { --type-c: #db2777; } /* pink   */
+
+[class*="tag-type-"] {
+  color: var(--type-c, #64748b);
+  background: color-mix(in srgb, var(--type-c, #64748b) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--type-c, #64748b) 30%, transparent);
+}
+
+/* Lighter shades for dark mode */
+:root[data-theme="dark"] .tag-type-class        { --type-c: #60a5fa; }
+:root[data-theme="dark"] .tag-type-department   { --type-c: #a78bfa; }
+:root[data-theme="dark"] .tag-type-club         { --type-c: #2dd4bf; }
+:root[data-theme="dark"] .tag-type-team         { --type-c: #fb923c; }
+:root[data-theme="dark"] .tag-type-parent_group { --type-c: #f472b6; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tag-type-class        { --type-c: #60a5fa; }
+  :root:not([data-theme="light"]) .tag-type-department   { --type-c: #a78bfa; }
+  :root:not([data-theme="light"]) .tag-type-club         { --type-c: #2dd4bf; }
+  :root:not([data-theme="light"]) .tag-type-team         { --type-c: #fb923c; }
+  :root:not([data-theme="light"]) .tag-type-parent_group { --type-c: #f472b6; }
+}

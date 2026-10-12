@@ -24,19 +24,25 @@ function sortUsers(list) {
   );
 }
 
-// Search state (kept outside load() so the search text survives re-renders after actions)
-let allActive = [];
-let allInactive = [];
+// ---------- List state ----------
+// Lists are read from the database one page at a time and never cached, so what you see is always current.
+const PAGE_SIZE = 20;
+const STAFF_ROLES = ["admin", "teacher"];           // shown first: page 1 of the Active list
+const OTHER_ROLES = ["student", "parent", "guest"]; // page 2 onwards, in this order
+const USER_COLS = "id, full_name, email, role, is_active, is_approved, guest_until";
+const listState = {
+  active:   { page: 1, rows: [], total: 0, pages: 1, counts: null, seq: 0 },
+  inactive: { page: 1, rows: [], total: 0, pages: 1, counts: null, seq: 0 },
+};
 const searchTerms = { active: "", inactive: "" };
 const roleFilters = { active: "", inactive: "" };
+const searchTimers = {};
+let pendingUsers = [];
+let inactiveAny = 0; // how many approved users are inactive (ignores search and filters)
 
-// Students that have a linked parent: Map(student_id -> number of parent links).
-// null = unknown (no badge is shown). Cached locally so normal page loads make no database call.
-let linkedStudentIds = null;
-let linksSyncedAt = 0;
-const LINKS_CACHE_KEY = `admin-users:student-links:${profile.organization_id}`;
-const LINKS_TTL_MS = 7 * 24 * 60 * 60 * 1000; // full re-sync at most once a week
-const LINKS_PAGE_SIZE = 1000;                  // Supabase returns max 1000 rows per request
+// Which students have a linked parent. Looked up for the students on the current page only.
+const linkCounts = new Map();  // student_id -> number of parent links
+const linkChecked = new Set(); // students whose link status has been looked up
 
 const ICON = {
   approve:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
@@ -56,74 +62,33 @@ const SECTION_ICON = {
   inactive:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M18 8l5 5M23 8l-5 5"/></svg>`,
 };
 
-// ---------- Student link status (cache-first) ----------
-function readLinksCache() {
-  try {
-    const raw = localStorage.getItem(LINKS_CACHE_KEY);
-    if (!raw) return null;
-    const c = JSON.parse(raw);
-    if (!c || typeof c.syncedAt !== "number" || !c.counts) return null;
-    if (Date.now() - c.syncedAt > LINKS_TTL_MS) return null; // too old: re-sync
-    linksSyncedAt = c.syncedAt;
-    return new Map(Object.entries(c.counts));
-  } catch {
-    return null;
-  }
-}
+// ---------- Student link status (looked up per page) ----------
+try { localStorage.removeItem(`admin-users:student-links:${profile.organization_id}`); } catch {} // old 7-day cache, no longer used
 
-function saveLinksCache() {
-  if (!linkedStudentIds) return;
+async function loadLinksFor(rows) {
+  const ids = rows.filter((u) => u.role === "student").map((u) => u.id);
+  if (!ids.length) return;
   try {
-    localStorage.setItem(
-      LINKS_CACHE_KEY,
-      JSON.stringify({ syncedAt: linksSyncedAt, counts: Object.fromEntries(linkedStudentIds) })
-    );
-  } catch (e) {
-    console.error(e); // storage full or blocked: the page still works, just without the cache
-  }
-}
-
-function invalidateLinksCache() {
-  linkedStudentIds = null;
-  try { localStorage.removeItem(LINKS_CACHE_KEY); } catch {}
-}
-
-// Memory first, then local cache, and only then the database (paged, read-only)
-async function loadLinkedStudents(force = false) {
-  if (!force) {
-    if (linkedStudentIds) return;
-    const cached = readLinksCache();
-    if (cached) { linkedStudentIds = cached; return; }
-  }
-  try {
-    const counts = new Map();
-    for (let from = 0; ; from += LINKS_PAGE_SIZE) {
-      const { data, error } = await supabase
-        .from("guardians")
-        .select("student_id")
-        .eq("organization_id", profile.organization_id)
-        .order("id")
-        .range(from, from + LINKS_PAGE_SIZE - 1);
-      if (error) throw error;
-      for (const r of data || []) counts.set(r.student_id, (counts.get(r.student_id) || 0) + 1);
-      if (!data || data.length < LINKS_PAGE_SIZE) break;
-    }
-    linkedStudentIds = counts;
-    linksSyncedAt = Date.now();
-    saveLinksCache();
+    const { data, error } = await supabase
+      .from("guardians")
+      .select("student_id")
+      .eq("organization_id", profile.organization_id)
+      .in("student_id", ids);
+    if (error) throw error;
+    ids.forEach((id) => { linkCounts.delete(id); linkChecked.add(id); });
+    for (const r of data || []) linkCounts.set(r.student_id, (linkCounts.get(r.student_id) || 0) + 1);
   } catch (err) {
     console.error(err);
-    linkedStudentIds = null; // unknown: show no badge instead of a wrong one
+    ids.forEach((id) => linkChecked.delete(id)); // unknown: show no badge instead of a wrong one
   }
 }
 
 // Apply one link (+1) or unlink (-1) locally and redraw only the cards. No database call.
 function adjustLink(studentId, delta) {
-  if (!linkedStudentIds || !studentId) return;
-  const n = (linkedStudentIds.get(studentId) || 0) + delta;
-  if (n > 0) linkedStudentIds.set(studentId, n);
-  else linkedStudentIds.delete(studentId);
-  saveLinksCache();
+  if (!studentId || !linkChecked.has(studentId)) return;
+  const n = (linkCounts.get(studentId) || 0) + delta;
+  if (n > 0) linkCounts.set(studentId, n);
+  else linkCounts.delete(studentId);
   renderCards("active");
   renderCards("inactive");
 }
@@ -143,7 +108,7 @@ function userRow(u, mode) {
   const name = escapeHtml(u.full_name);
   const common = `data-id="${u.id}" data-name="${name}" data-role="${escapeHtml(u.role)}" data-guest-until="${escapeHtml(u.guest_until || "")}"`;
 
-  const editBtn = actionBtn({ cls: "edit-role-btn", icon: "edit", label: "Edit role", attrs: common, disabled: isSelf || adminLocked });
+  const editBtn = actionBtn({ cls: "edit-role-btn", icon: "edit", label: "Edit role", attrs: `${common} data-mode="${mode}"`, disabled: isSelf || adminLocked });
   const childBtn =
     mode !== "pending" && ["parent", "teacher", "admin"].includes(u.role)
       ? actionBtn({ cls: "child-btn", icon: "children", label: "Children", attrs: common })
@@ -167,15 +132,14 @@ function userRow(u, mode) {
           attrs: `${common} data-active="${u.is_active}"`,
           disabled: isSelf || adminLocked,
         }) +
-        actionBtn({ cls: "danger delete-btn", icon: "delete", label: "Delete", attrs: common, disabled: isSelf || adminLocked }) +
         editBtn;
 
   const roleLabel = u.role.charAt(0).toUpperCase() + u.role.slice(1);
   const roleLine = escapeHtml(roleLabel) + (u.role === "guest" ? (u.guest_until ? ` · until ${escapeHtml(u.guest_until)}` : " · no end date") : "");
 
   const linkBadge =
-    u.role === "student" && mode !== "pending" && linkedStudentIds
-      ? linkedStudentIds.has(u.id)
+    u.role === "student" && mode !== "pending" && linkChecked.has(u.id)
+      ? (linkCounts.get(u.id) || 0) > 0
         ? ` · <span class="link-status linked">Linked</span>`
         : ` · <span class="link-status not-linked">Not Linked</span>`
       : "";
@@ -192,13 +156,16 @@ function userRow(u, mode) {
 }
 
 // Small modal for choosing a role. Resolves to the chosen role, or null if cancelled.
-function roleDialog({ name, role, guestUntil }) {
+function roleDialog({ name, role, guestUntil, canDelete = false }) {
   return new Promise((resolve) => {
     const backdrop = document.createElement("div");
     backdrop.className = "dialog-backdrop";
     backdrop.innerHTML = `
       <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="role-dialog-title">
-        <h3 id="role-dialog-title">Edit role</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <h3 id="role-dialog-title">Edit role</h3>
+          ${canDelete ? `<button type="button" class="icon-action sm danger" data-act="delete" title="Delete user" aria-label="Delete user">${ICON.delete}</button>` : ""}
+        </div>
         <p>${escapeHtml(name)}</p>
         <div class="field">
           <label for="role-dialog-select">Role</label>
@@ -235,13 +202,18 @@ function roleDialog({ name, role, guestUntil }) {
     document.addEventListener("keydown", onKey);
     backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(null); });
     backdrop.querySelector('[data-act="cancel"]').addEventListener("click", () => close(null));
+    backdrop.querySelector('[data-act="delete"]')?.addEventListener("click", () => close({ delete: true }));
     backdrop.querySelector('[data-act="save"]').addEventListener("click", () => close({ role: select.value, guestUntil: select.value === "guest" ? guestInput.value || null : null }));
   });
 }
 
-async function editRole(id, name, currentRole, currentGuestUntil) {
-  const result = await roleDialog({ name, role: currentRole, guestUntil: currentGuestUntil });
+async function editRole(id, name, currentRole, currentGuestUntil, mode) {
+  const result = await roleDialog({ name, role: currentRole, guestUntil: currentGuestUntil, canDelete: mode !== "pending" });
   if (!result) return;
+  if (result.delete) {
+    await deleteUser(id, name, false); // asks for its own confirmation
+    return;
+  }
   if (result.role === currentRole && (result.guestUntil || "") === (currentGuestUntil || "")) return;
   await updateRole(id, result.role, result.guestUntil);
 }
@@ -598,32 +570,181 @@ function searchBox(mode) {
   </div>`;
 }
 
-// Render (or re-render) the cards of the Active / Inactive list, applying the current search
+// ---------- Loading (one page at a time) ----------
+function baseQuery(mode, opts) {
+  return supabase
+    .from("profiles")
+    .select(USER_COLS, opts)
+    .eq("organization_id", profile.organization_id) // RLS also lets you read your own profiles in other academies
+    .eq("is_approved", true)
+    .eq("is_active", mode === "active");
+}
+
+// Search text -> PostgREST "or" filter (characters that could break the filter are removed)
+function searchClause(mode) {
+  const s = searchTerms[mode].replace(/[,()%*\\"]/g, " ").replace(/\s+/g, " ").trim();
+  return s ? `full_name.ilike.%${s}%,email.ilike.%${s}%` : "";
+}
+
+// Which rows of the "others" group (students, then parents, then guests) fall on one page
+function pageSegments(offset, limit, counts) {
+  const segs = [];
+  let start = 0; // position in the whole group where this role begins
+  for (const role of OTHER_ROLES) {
+    const n = counts[role] || 0;
+    const from = Math.max(offset, start) - start;
+    const to = Math.min(offset + limit, start + n) - start; // exclusive
+    if (to > from) segs.push({ role, from, to: to - 1 });
+    start += n;
+  }
+  return segs;
+}
+
+// Head-only count queries (no rows are downloaded)
+async function fetchCounts() {
+  const results = await Promise.all([
+    baseQuery("active", { count: "exact", head: true }).in("role", STAFF_ROLES),
+    ...OTHER_ROLES.map((r) => baseQuery("active", { count: "exact", head: true }).eq("role", r)),
+  ]);
+  for (const r of results) if (r.error) throw r.error;
+  const counts = { staff: results[0].count || 0 };
+  OTHER_ROLES.forEach((r, i) => (counts[r] = results[i + 1].count || 0));
+  return counts;
+}
+
+// Reads one page of a list. Returns { rows, total, pages, page, counts }.
+async function fetchPage(mode) {
+  const st = listState[mode];
+  const filtered = Boolean(roleFilters[mode] || searchClause(mode));
+  let page = st.page;
+  let rows = [];
+  let total = 0;
+  let pages = 1;
+  let counts = st.counts;
+
+  if (mode === "active" && !filtered) {
+    // Page 1 = admins and teachers. Page 2 onwards = students, then parents, then guests.
+    if (!counts) counts = await fetchCounts();
+    const othersTotal = OTHER_ROLES.reduce((sum, r) => sum + counts[r], 0);
+    total = counts.staff + othersTotal;
+    pages = 1 + Math.ceil(othersTotal / PAGE_SIZE);
+    page = Math.min(Math.max(page, 1), pages);
+    if (page === 1) {
+      const { data, error } = await baseQuery("active").in("role", STAFF_ROLES).order("full_name").order("id").limit(200);
+      if (error) throw error;
+      rows = sortUsers(data || []);
+    } else {
+      const segs = pageSegments((page - 2) * PAGE_SIZE, PAGE_SIZE, counts);
+      const parts = await Promise.all(
+        segs.map(async (s) => {
+          const { data, error } = await baseQuery("active").eq("role", s.role).order("full_name").order("id").range(s.from, s.to);
+          if (error) throw error;
+          return data || [];
+        })
+      );
+      rows = parts.flat();
+    }
+  } else {
+    // Searching / filtering (or the Inactive list): one query, sorted by name
+    counts = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const from = (page - 1) * PAGE_SIZE;
+      let q = baseQuery(mode, { count: "exact" });
+      if (roleFilters[mode]) q = q.eq("role", roleFilters[mode]);
+      const clause = searchClause(mode);
+      if (clause) q = q.or(clause);
+      const { data, count, error } = await q.order("full_name").order("id").range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      total = count || 0;
+      pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      rows = data || [];
+      if (page <= pages) break;
+      page = pages; // the list got shorter (for example after a delete): go to the last page
+    }
+  }
+
+  await loadLinksFor(rows);
+  return { rows, total, pages, page, counts };
+}
+
+function applyResult(mode, res) {
+  Object.assign(listState[mode], { rows: res.rows, total: res.total, pages: res.pages, page: res.page, counts: res.counts });
+}
+
+// Re-read one list from the database and redraw it (used by search, role filter and the pager)
+async function refreshList(mode) {
+  const st = listState[mode];
+  const seq = ++st.seq;
+  const el = document.getElementById(`${mode}-cards`);
+  if (el) el.style.opacity = "0.5";
+  try {
+    const res = await fetchPage(mode);
+    if (seq !== st.seq) return; // a newer request replaced this one
+    applyResult(mode, res);
+  } catch (err) {
+    console.error(err);
+    if (seq === st.seq) showToast("Users couldn't be loaded.", "error");
+  }
+  if (seq !== st.seq) return;
+  if (el) el.style.opacity = "";
+  renderCards(mode);
+}
+
+// Pager: first, previous, "Page [select] of N", next, last
+function pagerHtml(page, pages) {
+  if (pages <= 1) return "";
+  const btn = (act, label, path, off) =>
+    `<button type="button" class="icon-action sm" data-pg="${act}" title="${label}" aria-label="${label}" ${off ? "disabled" : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg></button>`;
+  const options = Array.from({ length: pages }, (_, i) => `<option value="${i + 1}" ${i + 1 === page ? "selected" : ""}>${i + 1}</option>`).join("");
+  return `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:14px;">
+    ${btn("first", "First page", "M11 17l-5-5 5-5M18 17l-5-5 5-5", page <= 1)}
+    ${btn("prev", "Previous page", "M15 18l-6-6 6-6", page <= 1)}
+    <span class="text-muted" style="font-size:0.85rem;display:flex;align-items:center;gap:6px;white-space:nowrap;">Page
+      <select data-pg="select" aria-label="Go to page" style="width:auto;min-width:0;padding:4px 24px 4px 8px;">${options}</select>
+      of ${pages}</span>
+    ${btn("next", "Next page", "M9 18l6-6-6-6", page >= pages)}
+    ${btn("last", "Last page", "M13 17l5-5-5-5M6 17l5-5-5-5", page >= pages)}
+  </div>`;
+}
+
+function bindPager(container, page, pages, goTo) {
+  container.querySelector('[data-pg="first"]')?.addEventListener("click", () => goTo(1));
+  container.querySelector('[data-pg="prev"]')?.addEventListener("click", () => goTo(page - 1));
+  container.querySelector('[data-pg="next"]')?.addEventListener("click", () => goTo(page + 1));
+  container.querySelector('[data-pg="last"]')?.addEventListener("click", () => goTo(pages));
+  container.querySelector('[data-pg="select"]')?.addEventListener("change", (e) => goTo(Number(e.target.value)));
+}
+
+function renderPager(mode) {
+  const el = document.getElementById(`${mode}-pager`);
+  if (!el) return;
+  const st = listState[mode];
+  el.innerHTML = pagerHtml(st.page, st.pages);
+  bindPager(el, st.page, st.pages, (n) => {
+    st.page = n;
+    refreshList(mode);
+    document.getElementById(`${mode}-head`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+// Draw the page already in memory (no database call)
 function renderCards(mode) {
   const el = document.getElementById(`${mode}-cards`);
   if (!el) return;
-  const source = mode === "active" ? allActive : allInactive; // already sorted by role, then name
-  const raw = searchTerms[mode].trim();
-  const q = raw.toLowerCase();
-  const role = roleFilters[mode];
-  const list = source.filter(
-    (u) => (!role || u.role === role) && (!q || [u.full_name, u.email].some((v) => (v || "").toLowerCase().includes(q)))
-  );
-
-  // Keep the header count in sync with the filtered list
+  const st = listState[mode];
   const head = document.getElementById(`${mode}-head`);
-  if (head) head.innerHTML = userSectionHead(mode, list.length);
-
-  el.innerHTML = list.length
-    ? list.map((u) => userRow(u, mode)).join("")
+  if (head) head.innerHTML = userSectionHead(mode, st.total);
+  el.innerHTML = st.rows.length
+    ? st.rows.map((u) => userRow(u, mode)).join("")
     : `<div class="card empty-state"><p>No users match your search or role filter.</p></div>`;
   bindActions(el);
+  renderPager(mode);
 }
 
 function bindActions(container) {
   container.querySelectorAll(".edit-role-btn").forEach((btn) => {
     btn.addEventListener("click", () =>
-      editRole(btn.getAttribute("data-id"), btn.getAttribute("data-name"), btn.getAttribute("data-role"), btn.getAttribute("data-guest-until"))
+      editRole(btn.getAttribute("data-id"), btn.getAttribute("data-name"), btn.getAttribute("data-role"), btn.getAttribute("data-guest-until"), btn.getAttribute("data-mode"))
     );
   });
   container.querySelectorAll(".child-btn").forEach((btn) => {
@@ -646,47 +767,52 @@ function bindActions(container) {
 async function load() {
   listEl.innerHTML = `<div class="skeleton" style="height:70px;"></div>`;
   try {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, email, role, is_active, is_approved, guest_until")
-      .eq("organization_id", profile.organization_id) // RLS also lets you read your own profiles in other academies
-      .order("full_name");
-    if (error) throw error;
+    listState.active.counts = null;
+    listState.inactive.counts = null;
+    const org = profile.organization_id;
+    const [pendingRes, inactiveRes, activeRes] = await Promise.all([
+      supabase.from("profiles").select(USER_COLS).eq("organization_id", org).eq("is_approved", false).order("full_name").range(0, 499),
+      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("organization_id", org).eq("is_approved", true).eq("is_active", false),
+      fetchPage("active"),
+    ]);
+    if (pendingRes.error) throw pendingRes.error;
+    if (inactiveRes.error) throw inactiveRes.error;
+    pendingUsers = pendingRes.data || [];
+    inactiveAny = inactiveRes.count || 0;
+    applyResult("active", activeRes);
+    if (inactiveAny > 0) applyResult("inactive", await fetchPage("inactive"));
+    else Object.assign(listState.inactive, { rows: [], total: 0, pages: 1, page: 1, counts: null });
 
-    if (!data || data.length === 0) {
+    if (!pendingUsers.length && inactiveAny === 0 && listState.active.total === 0 && !searchTerms.active && !roleFilters.active) {
       listEl.innerHTML = `<div class="card empty-state"><h3>No users yet</h3></div>`;
       return;
     }
 
-    await loadLinkedStudents();
-
-    const pending = data.filter((u) => !u.is_approved);
-    allActive = sortUsers(data.filter((u) => u.is_approved && u.is_active));
-    allInactive = sortUsers(data.filter((u) => u.is_approved && !u.is_active));
-
-    const pendingSection = pending.length
+    const pendingSection = pendingUsers.length
       ? `
       <div class="section">
-        ${sectionHead({ title: "Pending approval", icon: SECTION_ICON.pending, tone: "warning", count: pending.length })}
-        <div class="user-cards" id="pending-cards">${pending.map((u) => userRow(u, "pending")).join("")}</div>
+        ${sectionHead({ title: "Pending approval", icon: SECTION_ICON.pending, tone: "warning", count: pendingUsers.length })}
+        <div class="user-cards" id="pending-cards">${pendingUsers.map((u) => userRow(u, "pending")).join("")}</div>
       </div>`
       : "";
 
-    const inactiveSection = allInactive.length
+    const inactiveSection = inactiveAny > 0
       ? `
       <div class="section">
-        <div id="inactive-head">${userSectionHead("inactive", allInactive.length)}</div>
+        <div id="inactive-head">${userSectionHead("inactive", listState.inactive.total)}</div>
         ${searchBox("inactive")}
         <div class="user-cards" id="inactive-cards"></div>
+        <div id="inactive-pager"></div>
       </div>`
       : "";
 
     listEl.innerHTML = `
       ${pendingSection}
       <div class="section">
-        <div id="active-head">${userSectionHead("active", allActive.length)}</div>
+        <div id="active-head">${userSectionHead("active", listState.active.total)}</div>
         ${searchBox("active")}
         <div class="user-cards" id="active-cards"></div>
+        <div id="active-pager"></div>
       </div>
       ${inactiveSection}
     `;
@@ -700,14 +826,17 @@ async function load() {
       if (input) {
         input.addEventListener("input", () => {
           searchTerms[mode] = input.value;
-          renderCards(mode);
+          listState[mode].page = 1;
+          clearTimeout(searchTimers[mode]);
+          searchTimers[mode] = setTimeout(() => refreshList(mode), 300); // wait until typing pauses
         });
       }
       const roleSel = document.getElementById(`${mode}-role`);
       if (roleSel) {
         roleSel.addEventListener("change", () => {
           roleFilters[mode] = roleSel.value;
-          renderCards(mode);
+          listState[mode].page = 1;
+          refreshList(mode);
         });
       }
     }
@@ -811,7 +940,6 @@ async function deleteUser(id, name, isReject) {
 
   // Success toast first, so a slow or failing audit log can never hide it
   showToast(isReject ? "Request rejected." : "User deleted.", "success");
-  invalidateLinksCache(); // next load() re-syncs the links once
   Promise.resolve(logAudit({ action: isReject ? "user.rejected" : "user.deleted", recordType: "profile", recordId: id })).catch((e) =>
     console.error("Audit log failed:", e)
   );

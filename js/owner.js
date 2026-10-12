@@ -22,6 +22,7 @@ const msg = (err, fallback) => (err?.code === "P0001" && err.message ? err.messa
 const PLUS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`;
 const ENTER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><path d="M10 17l5-5-5-5M15 12H3"/></svg>`;
 const COPY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
+const RESET = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>`;
 const TRASH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`;
 
 document.getElementById("academies-head").innerHTML = sectionHead({
@@ -97,6 +98,7 @@ async function loadAcademies() {
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;">
             <button type="button" class="icon-action sm copy-code-btn" data-code="${escapeHtml(o.invite_code || "")}" title="Copy invite code" aria-label="Copy invite code">${COPY}</button>
+            <button type="button" class="icon-action sm danger wipe-btn" data-id="${o.id}" data-name="${escapeHtml(o.name)}" title="Clear or reset data" aria-label="Clear or reset data">${RESET}</button>
             <button type="button" class="icon-action sm enter-btn" data-id="${o.id}" title="Open this academy" aria-label="Open this academy" ${isCurrent ? "disabled" : ""}>${ENTER}</button>
           </div>
         </div>`;
@@ -114,6 +116,7 @@ async function loadAcademies() {
       })
     );
     el.querySelectorAll(".enter-btn").forEach((btn) => btn.addEventListener("click", () => enterAcademy(btn.getAttribute("data-id"))));
+    el.querySelectorAll(".wipe-btn").forEach((btn) => btn.addEventListener("click", () => openWipeDialog(btn.getAttribute("data-id"), btn.getAttribute("data-name"))));
   } catch (err) {
     console.error(err);
     el.innerHTML = `<div class="empty-state"><h3>Academies couldn't be loaded</h3></div>`;
@@ -151,6 +154,110 @@ document.getElementById("new-academy-btn").addEventListener("click", async () =>
     showToast(msg(err, "Unable to create the academy."), "error");
   }
 });
+
+// ---------- Clear / reset / delete one academy ----------
+async function openWipeDialog(orgId, orgName) {
+  const insideIt = orgId === profile.organization_id; // the owner is currently working in this academy
+  const backdrop = document.createElement("div");
+  backdrop.className = "dialog-backdrop";
+  const optionStyle = "display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:8px;";
+  const lockedStyle = "opacity:0.55;cursor:not-allowed;";
+  backdrop.innerHTML = `
+    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="wp-title" style="max-height:90vh;overflow-y:auto;">
+      <h3 id="wp-title" style="margin-bottom:4px;">Clear data</h3>
+      <p class="text-muted" style="margin:0 0 12px;">${escapeHtml(orgName)}</p>
+      <label style="${optionStyle}">
+        <input type="radio" name="wp-mode" value="clear" checked style="width:auto;margin:3px 0 0;" />
+        <span><strong>Clear activity</strong><span class="field-hint" style="display:block;">Attendance, leave, events, announcements, notifications, notes and logs.</span></span>
+      </label>
+      <label style="${optionStyle}">
+        <input type="radio" name="wp-mode" value="full" style="width:auto;margin:3px 0 0;" />
+        <span><strong>Full reset</strong><span class="field-hint" style="display:block;">Everything above, plus all people (including admins) and their login accounts, groups, leave types and devices. Login accounts that belong to another academy are kept. The academy itself stays and gets a new invite code.</span></span>
+      </label>
+      <label style="${optionStyle}${insideIt ? lockedStyle : ""}">
+        <input type="radio" name="wp-mode" value="delete" ${insideIt ? "disabled" : ""} style="width:auto;margin:3px 0 0;" />
+        <span><strong>Delete academy</strong><span class="field-hint" style="display:block;">Signs everyone out, removes everything in a full reset, then deletes the academy for good.${insideIt ? " Locked because you are inside this academy. Open another academy first, then come back." : ""}</span></span>
+      </label>
+      <div class="field" style="margin-top:14px;">
+        <label for="wp-confirm">Type the academy name to confirm</label>
+        <input id="wp-confirm" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${escapeHtml(orgName)}" />
+        <div class="field-hint">This can't be undone.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
+        <button type="button" class="btn btn-danger-solid" data-act="wipe" disabled>Clear data</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+
+  const $ = (s) => backdrop.querySelector(s);
+  const confirmEl = $("#wp-confirm");
+  const wipeBtn = $('[data-act="wipe"]');
+  let busy = false;
+
+  const mode = () => backdrop.querySelector('input[name="wp-mode"]:checked').value;
+  const nameMatches = () => confirmEl.value.trim().toLowerCase() === orgName.trim().toLowerCase();
+  const LABELS = { clear: "Clear data", full: "Reset academy", delete: "Delete academy" };
+
+  function updateButton() {
+    const blocked = mode() === "delete" && insideIt;
+    wipeBtn.disabled = busy || blocked || !nameMatches();
+    wipeBtn.textContent = busy ? "Working…" : LABELS[mode()];
+  }
+
+  function onKey(e) {
+    if (e.key === "Escape" && !busy) close();
+  }
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    backdrop.remove();
+  }
+  document.addEventListener("keydown", onKey);
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop && !busy) close(); });
+  $('[data-act="cancel"]').addEventListener("click", () => { if (!busy) close(); });
+  backdrop.querySelectorAll('input[name="wp-mode"]').forEach((r) => r.addEventListener("change", updateButton));
+  confirmEl.addEventListener("input", updateButton);
+
+  wipeBtn.addEventListener("click", async () => {
+    if (wipeBtn.disabled) return;
+    busy = true;
+    updateButton();
+    const chosen = mode();
+    try {
+      if (chosen === "delete") {
+        // Server signs every user out, wipes the academy completely and deletes it.
+        const { error } = await supabase.rpc("owner_delete_academy", {
+          p_org: orgId,
+          p_confirm_name: confirmEl.value.trim(),
+        });
+        if (error) throw error;
+        close();
+        showToast("Academy deleted.", "success");
+      } else {
+        const { data, error } = await supabase.rpc("owner_wipe_academy", {
+          p_org: orgId,
+          p_mode: chosen,
+          p_confirm_name: confirmEl.value.trim(),
+          p_delete_accounts: chosen === "full", // no orphan logins after a full reset
+          p_dry_run: false,
+        });
+        if (error) throw error;
+        close();
+        if (orgId === profile.organization_id) clearProfileCache();
+        showToast(chosen === "full" && data?.invite_code ? `Academy reset. New invite code: ${data.invite_code}` : chosen === "full" ? "Academy reset." : "Activity cleared.", "success");
+      }
+      loadAcademies();
+    } catch (err) {
+      console.error(err);
+      busy = false;
+      updateButton();
+      showToast(msg(err, chosen === "delete" ? "Unable to delete this academy." : "Unable to clear this academy."), "error");
+    }
+  });
+
+  confirmEl.focus();
+  updateButton();
+}
 
 // ---------- Owners ----------
 async function loadOwners() {

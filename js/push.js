@@ -77,24 +77,27 @@ export async function initPushNotifications(profile) {
     PushNotifications.addListener("pushNotificationReceived", (n) => {
       dbg(`received “${n.title}”`, "success");
       const data = n.data || {};
+      const forThisAcademy = !data.profile_id || data.profile_id === profile.id;
+      // The notification list and bell only cover the academy I'm in, so tell her about the other one here.
+      if (!forThisAcademy) showToast(n.title || "New notification in another academy", "info");
       window.dispatchEvent(
         new CustomEvent("onecore:push", {
           detail: {
             related_type: data.related_type || "",
             related_id: data.related_id || "",
-            forThisAcademy: !data.profile_id || data.profile_id === profile.id,
+            forThisAcademy,
           },
         })
       );
     });
 
     // Tapping a notification while the app is backgrounded/closed lands here.
-    // A notification for one of her other academies opens the Notifications list,
-    // where tapping the card switches to that academy first.
+    // A notification for one of my other academies opens the "Switch academy" picker (layout.js listens
+    // for this event), where the academy with unread notifications is marked. Nothing switches by itself.
     PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
       const data = action.notification?.data || {};
       if (data.profile_id && data.profile_id !== profile.id) {
-        window.location.href = "notifications.html";
+        window.dispatchEvent(new CustomEvent("onecore:open-academy-switcher"));
         return;
       }
       const relatedPage = {

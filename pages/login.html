@@ -185,7 +185,7 @@
   </div>
 
   <script type="module">
-    import { supabase, getSessionUser, friendlyError } from "../js/supabase-client.js";
+	import { supabase, getSessionUser, friendlyError, myAcademies } from "../js/supabase-client.js";
 	import { showToast } from "../js/toast.js";
     import "../js/theme.js";
 
@@ -243,15 +243,14 @@
     // active academy, ask which one before continuing. Otherwise, straight
     // to the dashboard, exactly as before.
     async function proceedAfterSignIn() {
-      const { data: userData } = await supabase.auth.getUser();
-      const { data: myProfiles, error } = await supabase
-        .from("profiles")
-        .select("id, full_name, organization_id, organizations(name)")
-        .eq("auth_user_id", userData.user.id)
-        .eq("is_approved", true)
-        .eq("is_active", true);
+      let myProfiles = [];
+      try {
+        myProfiles = (await myAcademies()).filter((a) => a.is_approved !== false && a.is_active !== false);
+      } catch (err) {
+        console.error(err);
+      }
 
-      if (error || !myProfiles || myProfiles.length <= 1) {
+      if (myProfiles.length <= 1) {
         window.location.href = "dashboard.html";
         return;
       }
@@ -259,8 +258,8 @@
       const listEl = document.getElementById("academy-picker-list");
       listEl.innerHTML = myProfiles
         .map(
-          (p) =>
-            `<button type="button" class="btn btn-secondary academy-pick-btn" data-id="${p.id}" style="text-align:left;">${escapeHtml(p.organizations?.name || "Academy")}</button>`
+          (a) =>
+            `<button type="button" class="btn btn-secondary academy-pick-btn" data-id="${a.profile_id}" style="text-align:left;">${escapeHtml(a.academy_name || "Academy")}</button>`
         )
         .join("");
       listEl.querySelectorAll(".academy-pick-btn").forEach((btn) => {

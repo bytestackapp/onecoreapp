@@ -139,33 +139,98 @@ function newGroupDialog() {
 
 newBtn?.addEventListener("click", newGroupDialog);
 
-// ---------- List ----------
-async function loadGroups() {
-  listEl.innerHTML = `<div class="skeleton" style="height:70px;margin-bottom:10px;"></div>`;
-  try {
-    let query = supabase
-      .from("groups")
-      .select("id, name, group_type, description, group_members(profile_id, member_role, profiles(full_name, role))")
-      .eq("organization_id", profile.organization_id)
-      .order("name");
-    if (!isAdmin) {
-      const { data: memberships } = await supabase.from("group_members").select("group_id").eq("profile_id", profile.id);
-      const ids = (memberships || []).map((m) => m.group_id);
-      if (ids.length === 0) {
-        listEl.innerHTML = emptyState();
-        return;
-      }
-      query = query.in("id", ids);
-    }
-    const { data, error } = await query;
-    if (error) throw error;
+// ---------- Paging ----------
+const PAGE_SIZE = 10; // groups per page
+let page = 1;
+let myGroupIds = null; // the groups I belong to (non-admins), read once per loadGroups()
+let loadSeq = 0;
 
-    if (!data || data.length === 0) {
+// Pager: first, previous, "Page [select] of N", next, last
+function pagerHtml(page, pages) {
+  if (pages <= 1) return "";
+  const btn = (act, label, path, off) =>
+    `<button type="button" class="icon-action sm" data-pg="${act}" title="${label}" aria-label="${label}" ${off ? "disabled" : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg></button>`;
+  const options = Array.from({ length: pages }, (_, i) => `<option value="${i + 1}" ${i + 1 === page ? "selected" : ""}>${i + 1}</option>`).join("");
+  return `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:14px;">
+    ${btn("first", "First page", "M11 17l-5-5 5-5M18 17l-5-5 5-5", page <= 1)}
+    ${btn("prev", "Previous page", "M15 18l-6-6 6-6", page <= 1)}
+    <span class="text-muted" style="font-size:0.85rem;display:flex;align-items:center;gap:6px;white-space:nowrap;">Page
+      <select data-pg="select" aria-label="Go to page" style="width:auto;min-width:0;padding:4px 24px 4px 8px;">${options}</select>
+      of ${pages}</span>
+    ${btn("next", "Next page", "M9 18l6-6-6-6", page >= pages)}
+    ${btn("last", "Last page", "M13 17l5-5-5-5M6 17l5-5-5-5", page >= pages)}
+  </div>`;
+}
+
+function bindPager(container, page, pages, goTo) {
+  container.querySelector('[data-pg="first"]')?.addEventListener("click", () => goTo(1));
+  container.querySelector('[data-pg="prev"]')?.addEventListener("click", () => goTo(page - 1));
+  container.querySelector('[data-pg="next"]')?.addEventListener("click", () => goTo(page + 1));
+  container.querySelector('[data-pg="last"]')?.addEventListener("click", () => goTo(pages));
+  container.querySelector('[data-pg="select"]')?.addEventListener("change", (e) => goTo(Number(e.target.value)));
+}
+
+// ---------- List ----------
+// Reload from the start of the load cycle (after create, delete, or closing the manage dialog).
+// Stays on the current page.
+async function loadGroups() {
+  myGroupIds = null; // re-read my memberships
+  await loadPage(true);
+}
+
+// Reads and draws one page of groups
+async function loadPage(showSkeleton = false) {
+  const seq = ++loadSeq;
+  if (showSkeleton) listEl.innerHTML = `<div class="skeleton" style="height:70px;margin-bottom:10px;"></div>`;
+  else listEl.style.opacity = "0.5";
+  try {
+    if (!isAdmin && myGroupIds === null) {
+      const { data: memberships, error: mErr } = await supabase.from("group_members").select("group_id").eq("profile_id", profile.id);
+      if (mErr) throw mErr;
+      myGroupIds = (memberships || []).map((m) => m.group_id);
+    }
+    if (!isAdmin && myGroupIds.length === 0) {
+      if (seq !== loadSeq) return;
+      listEl.style.opacity = "";
       listEl.innerHTML = emptyState();
       return;
     }
 
-    listEl.innerHTML = data.map((g) => groupCard(g)).join("");
+    let rows = [];
+    let total = 0;
+    let pages = 1;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const from = (page - 1) * PAGE_SIZE;
+      let query = supabase
+        .from("groups")
+        .select("id, name, group_type, description, group_members(profile_id, member_role, profiles(full_name, role))", { count: "exact" })
+        .eq("organization_id", profile.organization_id)
+        .order("name")
+        .order("id");
+      if (!isAdmin) query = query.in("id", myGroupIds);
+      const { data, count, error } = await query.range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      rows = data || [];
+      total = count || 0;
+      pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      if (page <= pages) break;
+      page = pages; // the list got shorter (for example after a delete): go to the last page
+    }
+    if (seq !== loadSeq) return; // a newer request replaced this one
+    listEl.style.opacity = "";
+
+    if (total === 0) {
+      listEl.innerHTML = emptyState();
+      return;
+    }
+
+    listEl.innerHTML = rows.map((g) => groupCard(g)).join("") + pagerHtml(page, pages);
+
+    bindPager(listEl, page, pages, (n) => {
+      page = n;
+      loadPage();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
 
     listEl.querySelectorAll(".show-btn").forEach((btn) => {
       btn.addEventListener("click", () => openViewDialog(btn.getAttribute("data-id")));
@@ -173,11 +238,13 @@ async function loadGroups() {
     listEl.querySelectorAll(".manage-btn").forEach((btn) => {
       btn.addEventListener("click", () => openManageDialog(btn.getAttribute("data-id")));
     });
-	listEl.querySelectorAll(".delete-btn").forEach((btn) => {
+    listEl.querySelectorAll(".delete-btn").forEach((btn) => {
       btn.addEventListener("click", () => deleteGroup(btn.getAttribute("data-id"), btn.getAttribute("data-name")));
     });
   } catch (err) {
+    if (seq !== loadSeq) return;
     console.error(err);
+    listEl.style.opacity = "";
     listEl.innerHTML = `<div class="card empty-state"><h3>Groups couldn't be loaded</h3><p>Please refresh the page.</p></div>`;
     showToast("Groups couldn't be loaded.", "error");
   }
@@ -236,7 +303,7 @@ function groupCard(g) {
         </div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">
-        <span class="tag tag-normal">${escapeHtml(GROUP_TYPE_LABELS[g.group_type] || g.group_type)}</span>
+        <span class="tag tag-type-${escapeHtml(g.group_type)}">${escapeHtml(GROUP_TYPE_LABELS[g.group_type] || g.group_type)}</span>
         ${
           heads.length
             ? heads

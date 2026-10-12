@@ -1,5 +1,5 @@
 // Switch-academy dialog (opened from the top-right menu) and the
-// "join another academy" flow. Switching is a database call plus a token
+// "add academy" flow. Switching is a database call plus a token
 // refresh; nobody has to sign out and back in.
 
 import { supabase, friendlyError, isUsableAcademy, switchToProfile } from "./supabase-client.js";
@@ -40,16 +40,21 @@ export function openAcademySwitcher(academies, currentProfile) {
           .map((a) => {
             const status = statusOf(a);
             const isCurrent = a.profile_id === currentProfile.id;
-            const unread = Number(a.unread) > 0 ? `<span class="badge">${Number(a.unread) > 9 ? "9+" : a.unread}</span>` : "";
+            const unread = Number(a.unread) || 0;
+            const unreadLine =
+              unread > 0 && !isCurrent && !status
+                ? `<div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;"><span style="width:7px;height:7px;border-radius:50%;background:var(--error);flex-shrink:0;"></span><span class="text-muted" style="opacity:0.55;">${unread} notification${unread === 1 ? "" : "s"}</span></div>`
+                : "";
             const right = isCurrent
               ? `<span class="tag tag-approved">Current</span>`
               : status
                 ? `<span class="tag tag-pending">${esc(status)}</span>`
-                : `${unread}<button type="button" class="btn btn-primary btn-sm sw-btn" data-id="${a.profile_id}">Switch</button>`;
+                : `<button type="button" class="btn btn-primary btn-sm sw-btn" data-id="${a.profile_id}">Switch</button>`;
             return `<div style="display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:1px solid var(--border, #e5e7eb);">
-              <div style="flex:1;min-width:0;opacity:${isCurrent ? "1" : "0.55"};">
-                <div style="font-weight:${isCurrent ? "700" : "500"};color:${isCurrent ? "var(--text, #111827)" : "inherit"};">${esc(a.academy_name || "Academy")}</div>
-                <div class="text-muted" style="font-size:0.8rem;">${esc(cap(a.role))} · ${esc(a.full_name)}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="opacity:${isCurrent ? "1" : "0.55"};font-weight:${isCurrent ? "700" : "500"};color:${isCurrent ? "var(--text, #111827)" : "inherit"};">${esc(a.academy_name || "Academy")}</div>
+                <div class="text-muted" style="opacity:${isCurrent ? "1" : "0.55"};font-size:0.8rem;">${esc(cap(a.role))} · ${esc(a.full_name)}</div>
+                ${unreadLine}
               </div>
               ${right}
             </div>`;
@@ -57,7 +62,7 @@ export function openAcademySwitcher(academies, currentProfile) {
           .join("")}
       </div>
       <div class="dialog-actions">
-        <button type="button" class="btn btn-secondary" data-act="join">Join another academy</button>
+        <button type="button" class="btn btn-secondary" data-act="join">Add academy</button>
         <button type="button" class="btn btn-primary" data-act="close">Close</button>
       </div>
     </div>`);
@@ -87,7 +92,7 @@ export function openAcademySwitcher(academies, currentProfile) {
 function openJoinDialog(currentProfile) {
   const { backdrop, close } = shell(`
     <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="jn-title">
-      <h3 id="jn-title">Join another academy</h3>
+      <h3 id="jn-title">Add academy</h3>
       <form id="jn-form">
         <div class="field">
           <label for="jn-code">Invite code</label>
