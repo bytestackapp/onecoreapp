@@ -1,6 +1,7 @@
 import { mountLayout } from "./layout.js";
 import { supabase, formatDate, friendlyError } from "./supabase-client.js";
 import { showToast } from "./toast.js";
+import { todayPH } from "./time.js";
 
 const profile = await mountLayout({ activeKey: "calendar", pageTitle: "Calendar" });
 if (!profile) throw new Error("redirecting");
@@ -36,7 +37,7 @@ const menuEl = $("view-menu");
 const gearBtn = $("gear-btn");
 
 let view = readView();
-let selected = iso(new Date());
+let selected = todayPH();
 let cursor = monthStart(parseIso(selected));
 let renderId = 0;
 let monthCache = null;
@@ -248,7 +249,7 @@ function navigate(step) {
     cursor = monthStart(parseIso(selected));
   } else {
     cursor = new Date(cursor.getFullYear(), cursor.getMonth() + step, 1);
-    const t = new Date();
+    const t = parseIso(todayPH());
     const inThisMonth = t.getFullYear() === cursor.getFullYear() && t.getMonth() === cursor.getMonth();
     selected = inThisMonth ? iso(t) : iso(cursor);
   }
@@ -297,7 +298,7 @@ function dayCards(dIso) {
 
 function paintMonth(r) {
   const { byDate, present, leaveDates } = monthCache;
-  const todayIso = iso(new Date());
+  const todayIso = todayPH();
   const dow = ["S", "M", "T", "W", "T", "F", "S"].map((d) => `<div class="cal-dow">${d}</div>`).join("");
 
   let cells = "";
@@ -341,7 +342,7 @@ async function renderWeek(id) {
   const byDate = {};
   notes.forEach((n) => (byDate[n.note_date] = byDate[n.note_date] || []).push(n));
 
-  const todayIso = iso(new Date());
+  const todayIso = todayPH();
   const strip = days
     .map((d) => {
       const k = iso(d);

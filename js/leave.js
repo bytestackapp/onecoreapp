@@ -1,6 +1,7 @@
 import { mountLayout, sectionHead } from "./layout.js";
 import { supabase, formatDate, friendlyError, logAudit } from "./supabase-client.js";
 import { showToast } from "./toast.js";
+import { yearPH } from "./time.js";
 
 const profile = await mountLayout({ activeKey: "leave", pageTitle: "Leave", allowedRoles: ["admin", "teacher"] });
 if (!profile) throw new Error("redirecting");
@@ -19,12 +20,12 @@ function escapeHtml(str = "") {
 
 document.getElementById("balances-head").innerHTML = sectionHead({
   title: "Leave balance",
-  tone: "success",
+  tone: "info",
   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M9 15l2 2 4-4"/></svg>`,
 });
 document.getElementById("requests-head").innerHTML = sectionHead({
   title: "My Leave Requests",
-  tone: "primary",
+  tone: "info",
   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16M6 19V9a2 2 0 012-2h4l6 6v6"/><path d="M12 7v6h6"/></svg>`,
   linkHtml: `<span style="margin-left:auto;display:flex;gap:6px;"><button type="button" class="icon-action" id="view-my-requests-btn" title="View all my leave requests" aria-label="View all my leave requests"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button type="button" class="icon-action primary" id="file-btn" title="File a leave request" aria-label="File a leave request"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button></span>`,
 });
@@ -53,7 +54,7 @@ async function loadMyLeaveTypes() {
     .from("leave_balances")
     .select("leave_types(id, name, is_active)")
     .eq("profile_id", profile.id)
-    .eq("period_year", new Date().getFullYear());
+    .eq("period_year", yearPH());
   if (error) {
     console.error(error);
     return;
@@ -68,7 +69,7 @@ const fmtNum = (n) => +Number(n || 0).toFixed(2);
 
 async function loadBalances() {
   const el = document.getElementById("balances-list");
-  const year = new Date().getFullYear();
+  const year = yearPH();
   try {
     const { data, error } = await supabase
       .from("leave_balances")

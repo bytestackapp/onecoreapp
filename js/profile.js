@@ -21,13 +21,14 @@ function escapeHtml(str = "") {
 // ---------- Block 1: identity ----------
 document.getElementById("profile-avatar").textContent = initials(profile.full_name);
 document.getElementById("profile-role").textContent = profile.role;
+document.getElementById("profile-role").className = `tag tag-role-${profile.role}`;
 if (profile.organizations?.name) {
-  document.getElementById("profile-academy").textContent = `${profile.organizations.name} · below details apply to this academy only`;
+  document.getElementById("profile-academy").textContent = `${profile.organizations.name}`;
 }
 
 // ---------- Section headers ----------
-document.getElementById("basic-head").innerHTML = sectionHead({ title: "Basic Information", icon: ICON.user, tone: "muted" });
-document.getElementById("security-head").innerHTML = sectionHead({ title: "Security Details", icon: ICON.lock, tone: "muted" });
+document.getElementById("basic-head").innerHTML = sectionHead({ title: "Basic Information", icon: ICON.user, tone: "info" });
+document.getElementById("security-head").innerHTML = sectionHead({ title: "Security Details", icon: ICON.lock, tone: "info" });
 // Edit button lives inside the section header (same as the eye icon on Attendance)
 const editBtn = document.createElement("button");
 editBtn.type = "button";
@@ -179,16 +180,14 @@ async function loadLinkedStudents() {
         nameEl.textContent = student.name;
         row.appendChild(nameEl);
 
-        // Find My Child: only parents get the button
-        if (isParent) {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "btn btn-primary btn-sm fmc-btn";
-          btn.setAttribute("aria-label", `Find My Child: ${student.name}`);
-          btn.innerHTML = `${FMC_ICON}<span>Find My Child</span>`;
-          btn.addEventListener("click", () => openFindMyChild({ childId: student.id, childName: student.name }));
-          row.appendChild(btn);
-        }
+        // Find My Child: anyone with a linked student (parent, teacher or admin) gets the button
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn btn-primary btn-sm fmc-btn";
+        btn.setAttribute("aria-label", `Find My Child: ${student.name}`);
+        btn.innerHTML = `${FMC_ICON}<span>Find My Child</span>`;
+        btn.addEventListener("click", () => openFindMyChild({ childId: student.id, childName: student.name }));
+        row.appendChild(btn);
 
         listEl.appendChild(row);
       });

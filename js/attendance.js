@@ -1,22 +1,17 @@
 import { mountLayout } from "./layout.js";
 import { supabase, formatDate, friendlyError, logAudit } from "./supabase-client.js";
 import { showToast } from "./toast.js";
+import { todayPH, addDaysISO, timePH, momentPH } from "./time.js";
 
 const profile = await mountLayout({ activeKey: "attendance", pageTitle: "Attendance" });
 if (!profile) throw new Error("redirecting");
 
-// Local calendar date as YYYY-MM-DD. (toISOString() returns the UTC date, which is
-// still "yesterday" during the first hours of the morning in UTC+8.)
-function localDate(d = new Date()) {
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${m}-${day}`;
-}
-
-const today = localDate();
+// Today's date in Philippine time (YYYY-MM-DD)
+const today = todayPH();
 const isStaff = profile.role === "admin" || profile.role === "teacher";
+const isParent = profile.role === "parent";
 const REFRESH_MS = 60000;
-const RECENT_COUNT = 5; // rows shown in the history table before "view all"
+const RECENT_COUNT = 7; // rows shown in the history table before "view all"
 
 let allHistory = [];
 
@@ -36,7 +31,7 @@ function escapeHtml(str = "") {
 
 function fmtTime(iso) {
   if (!iso) return null;
-  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return timePH(iso);
 }
 
 function statusTag(status) {
@@ -361,6 +356,18 @@ function openClassDialog(groupId, groupName, date) {
 // -----------------------------------------------------------------
 // Parent: children's arrival and departure log
 // -----------------------------------------------------------------
+const CHILD_RECENT_DAYS = 7; // how far back the child tables look on page load (keeps the request small)
+const CHILD_PAGE_SIZE = 10; // days per page in the "view all" list
+const EYE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
+
+// Today always comes first. If the child hasn't checked in (and has no status), today shows "Absent" by default.
+function withToday(days) {
+  const rest = days.filter((d) => d.date !== today);
+  let t = days.find((d) => d.date === today) || { date: today, id: null, time_in: null, time_out: null, status: null };
+  if (!t.time_in && !t.status) t = { ...t, status: "absent" };
+  return [t, ...rest];
+}
+
 async function loadChildren(showErrors = false) {
   const el = document.getElementById("children-list");
   try {
@@ -370,57 +377,118 @@ async function loadChildren(showErrors = false) {
       .eq("parent_id", profile.id);
     if (error) throw error;
 
+    // Teachers and admins see this block only when they have a linked child; parents always do.
+    const childSection = document.getElementById("children-section");
+    if ((!links || links.length === 0) && !isParent) {
+      childSection.style.display = "none";
+      return;
+    }
+    childSection.style.display = "block";
+
     if (!links || links.length === 0) {
-      el.innerHTML = `<div class="empty-state"><h3>No linked children yet</h3><p>Ask your school administrator to link your account to your child's profile.</p></div>`;
+      el.innerHTML = `<div class="card"><div class="empty-state"><h3>No linked children yet</h3><p>Ask your school administrator to link your account to your child's profile.</p></div></div>`;
       return;
     }
 
-    const blocks = await Promise.all(
-      links.map(async (link) => {
-        const { data: records, error: rErr } = await supabase
-          .from("attendance_records")
-          .select("id, record_date, group_id, status, time_in, time_out")
-          .eq("profile_id", link.student_id)
-          .order("record_date", { ascending: false })
-          .limit(30);
-        if (rErr) throw rErr;
+    // One request for all children, limited to the last two weeks
+    const { data: records, error: rErr } = await supabase
+      .from("attendance_records")
+      .select("id, profile_id, record_date, group_id, status, time_in, time_out")
+      .in("profile_id", links.map((l) => l.student_id))
+      .gte("record_date", addDaysISO(today, -CHILD_RECENT_DAYS))
+      .order("record_date", { ascending: false });
+    if (rErr) throw rErr;
 
-        const days = mergeByDate(records);
-        const todayEntry = days.find((d) => d.date === today);
-        let headline;
-        if (todayEntry?.time_out) headline = `<span class="tag tag-normal">Left school ${fmtTime(todayEntry.time_out)}</span>`;
-        else if (todayEntry?.time_in) headline = `<span class="tag tag-approved">In school since ${fmtTime(todayEntry.time_in)}</span>`;
-        else headline = `<span class="tag tag-pending">Not yet checked in today</span>`;
-
-        const rows = days
-          .slice(0, 7)
-          .map((d) => `<div class="list-row" style="align-items:center;"><span>${formatDate(d.date)}</span><span style="margin-left:auto;">${daySummary(d)}</span></div>`)
-          .join("");
-
-        return `<div style="margin-bottom:18px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:4px;">
-            <h3 style="margin:0;">${escapeHtml(link.profiles?.full_name || "Student")}</h3>
-            ${headline}
+    // Each child gets their own card and table: today first, then the most recent days
+    el.innerHTML = [...links]
+      .sort((a, b) => (a.profiles?.full_name || "").localeCompare(b.profiles?.full_name || "", undefined, { sensitivity: "base" }))
+      .map((link) => {
+        const name = link.profiles?.full_name || "Student";
+        const mine = (records || []).filter((r) => r.profile_id === link.student_id);
+        const rows = withToday(mergeByDate(mine)).slice(0, RECENT_COUNT);
+        return `<div class="card" style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;">
+            <h3 style="margin:0;">${escapeHtml(name)}</h3>
+            <button type="button" class="icon-action sm child-view-btn" data-id="${link.student_id}" data-name="${escapeHtml(name)}" title="View all attendance" aria-label="View all attendance for ${escapeHtml(name)}">${EYE_ICON}</button>
           </div>
-          ${rows || `<p class="text-muted">No attendance records yet.</p>`}
+          ${historyTable(rows, false)}
         </div>`;
       })
-    );
-    el.innerHTML = blocks.join("");
+      .join("");
+
+    el.querySelectorAll(".child-view-btn").forEach((btn) => {
+      btn.addEventListener("click", () => openChildHistoryDialog(btn.getAttribute("data-id"), btn.getAttribute("data-name")));
+    });
   } catch (err) {
     console.error(err);
     if (showErrors) {
-      el.innerHTML = `<div class="empty-state"><h3>Attendance couldn't be loaded</h3><p>Please refresh the page.</p></div>`;
+      el.innerHTML = `<div class="card"><div class="empty-state"><h3>Attendance couldn't be loaded</h3><p>Please refresh the page.</p></div></div>`;
       showToast("Attendance couldn't be loaded.", "error");
     }
+  }
+}
+
+// One child's full history, loaded only when the eye icon is tapped, shown a page at a time.
+async function openChildHistoryDialog(studentId, name) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "dialog-backdrop";
+  backdrop.innerHTML = `
+    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="child-hist-title">
+      <h3 id="child-hist-title">${escapeHtml(name)}</h3>
+      <div class="ack-list" id="child-hist-body" style="max-height:55vh;"><div class="skeleton" style="height:60px;"></div></div>
+      <div id="child-hist-pager" style="display:none;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;">
+        <button type="button" class="btn btn-secondary btn-sm" data-act="prev">Previous</button>
+        <span class="text-muted" id="child-hist-page" style="font-size:0.85rem;"></span>
+        <button type="button" class="btn btn-secondary btn-sm" data-act="next">Next</button>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-primary" data-act="close">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  attachDialogClose(backdrop);
+
+  const bodyEl = backdrop.querySelector("#child-hist-body");
+  const pagerEl = backdrop.querySelector("#child-hist-pager");
+  const pageEl = backdrop.querySelector("#child-hist-page");
+  const prevBtn = backdrop.querySelector('[data-act="prev"]');
+  const nextBtn = backdrop.querySelector('[data-act="next"]');
+
+  try {
+    const { data, error } = await supabase
+      .from("attendance_records")
+      .select("id, record_date, group_id, status, time_in, time_out")
+      .eq("profile_id", studentId)
+      .order("record_date", { ascending: false })
+      .limit(500);
+    if (error) throw error;
+
+    const entries = withToday(mergeByDate(data));
+    const pages = Math.max(1, Math.ceil(entries.length / CHILD_PAGE_SIZE));
+    let page = 0;
+
+    const render = () => {
+      bodyEl.innerHTML = historyTable(entries.slice(page * CHILD_PAGE_SIZE, (page + 1) * CHILD_PAGE_SIZE), false);
+      bodyEl.scrollTop = 0;
+      pageEl.textContent = `Page ${page + 1} of ${pages}`;
+      prevBtn.disabled = page === 0;
+      nextBtn.disabled = page >= pages - 1;
+    };
+    prevBtn.addEventListener("click", () => { if (page > 0) { page--; render(); } });
+    nextBtn.addEventListener("click", () => { if (page < pages - 1) { page++; render(); } });
+    if (pages > 1) pagerEl.style.display = "flex";
+    render();
+  } catch (err) {
+    console.error(err);
+    bodyEl.innerHTML = `<div class="empty-state"><h3>History couldn't be loaded</h3><p>Please try again.</p></div>`;
   }
 }
 
 // -----------------------------------------------------------------
 // My history (table) + correction requests
 // -----------------------------------------------------------------
-function historyTable(entries) {
-  const canCorrect = isStaff; // corrections are for staff payroll reference only
+function historyTable(entries, canCorrect = isStaff) {
+  // canCorrect: corrections are for staff payroll reference only (children's tables pass false)
   return `
     <table class="data-table">
       <thead>
@@ -567,9 +635,9 @@ function openCorrectionDialog(recordId, date) {
     const f = selectedField();
     const current = entry[f.key] || null;
 
-    // Combine the record's date with the chosen time, in the browser's local time zone
+    // Combine the record's date with the chosen time, as Philippine time
     const newTime = backdrop.querySelector("#corr-new").value; // "HH:MM"
-    const requested = new Date(`${date}T${newTime}:00`);
+    const requested = momentPH(date, newTime);
     if (!newTime || isNaN(requested)) {
       showToast("Please choose a valid time.", "error");
       return;
@@ -815,13 +883,12 @@ if (isStaff) {
   document.getElementById("rollcall-section").style.display = "block";
   initRollcall();
 }
-if (profile.role === "parent") {
-  document.getElementById("children-section").style.display = "block";
-  loadChildren(true);
-}
+// Parents always see "Your children"; teachers and admins see it when they have a linked child.
+if (isParent) document.getElementById("children-section").style.display = "block";
+loadChildren(isParent);
 
 // Parents have no attendance of their own; they see "Your children" instead.
-if (profile.role === "parent") {
+if (isParent) {
   document.getElementById("history-section").style.display = "none";
 } else {
   document.getElementById("history-view-btn").addEventListener("click", openHistoryDialog);
@@ -847,7 +914,7 @@ function refreshLive() {
   if (document.querySelector(".dialog-backdrop")) return;
   lastRefreshAt = Date.now();
   if (isStaff) loadStaffToday();
-  if (profile.role === "parent") loadChildren();
+  loadChildren();
   if (isAdmin) loadCorrections();
 }
 window.addEventListener("onecore:push", (e) => {

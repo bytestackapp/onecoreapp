@@ -53,7 +53,7 @@ function audienceLabel(sel) {
 
 async function loadAudienceOptions() {
   const [g, p] = await Promise.all([
-    supabase.from("groups").select("id, name").order("name"),
+    supabase.from("groups").select("id, name").eq("organization_id", profile.organization_id).order("name"),
     supabase.from("profiles").select("id, full_name, role").eq("organization_id", profile.organization_id).eq("is_active", true).neq("id", profile.id).order("full_name"),
   ]);
   groupsCache = g.data || [];
@@ -326,7 +326,8 @@ async function loadAnnouncements() {
     const { data, error } = await supabase
       .from("announcements")
       .select("id, title, content, priority, audience_types, audience_group_ids, audience_user_ids, requires_acknowledgment, created_by, created_at")
-      order("created_at", { ascending: false });
+      .eq("organization_id", profile.organization_id)
+      .order("created_at", { ascending: false });
     if (error) throw error;
     announcementsCache = data || [];
 

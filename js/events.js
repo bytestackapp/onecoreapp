@@ -2,6 +2,7 @@ import { mountLayout } from "./layout.js";
 import { supabase, formatDate, friendlyError, logAudit } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { confirmDialog } from "./dialog.js";
+import { todayPH } from "./time.js";
 
 const profile = await mountLayout({ activeKey: "events", pageTitle: "Events" });
 if (!profile) throw new Error("redirecting");
@@ -24,10 +25,8 @@ function audienceFromEvent(e) {
   };
 }
 
-function localDate(d = new Date()) {
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${m}-${day}`;
+function localDate() {
+  return todayPH(); // today in Philippine time
 }
 
 function escapeHtml(str = "") {

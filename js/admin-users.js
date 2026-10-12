@@ -2,6 +2,7 @@ import { mountLayout, sectionHead } from "./layout.js";
 import { supabase, initials, friendlyError, logAudit, isPlatformOwner } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { confirmDialog } from "./dialog.js";
+import { yearPH } from "./time.js";
 
 const profile = await mountLayout({ activeKey: "admin-users", pageTitle: "Users", allowedRoles: ["admin"] });
 if (!profile) throw new Error("redirecting");
@@ -144,7 +145,7 @@ function userRow(u, mode) {
 
   const editBtn = actionBtn({ cls: "edit-role-btn", icon: "edit", label: "Edit role", attrs: common, disabled: isSelf || adminLocked });
   const childBtn =
-    mode !== "pending" && u.role === "parent"
+    mode !== "pending" && ["parent", "teacher", "admin"].includes(u.role)
       ? actionBtn({ cls: "child-btn", icon: "children", label: "Children", attrs: common })
       : "";
   const leaveTypeBtn =
@@ -460,7 +461,7 @@ async function openLeaveTypeDialog(staffId, staffName) {
   backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
   backdrop.querySelector('[data-act="close"]').addEventListener("click", close);
 
-  const year = new Date().getFullYear();
+  const year = yearPH();
   let showAdd = false;
 
   async function render() {
@@ -582,8 +583,8 @@ async function openLeaveTypeDialog(staffId, staffName) {
 function userSectionHead(mode, count) {
   const cfg =
     mode === "active"
-      ? { title: "Active users", icon: SECTION_ICON.active, tone: "success" }
-      : { title: "Inactive users", icon: SECTION_ICON.inactive, tone: "muted" };
+      ? { title: "Active users", icon: SECTION_ICON.active, tone: "info" }
+      : { title: "Inactive users", icon: SECTION_ICON.inactive, tone: "info" };
   return sectionHead({ ...cfg, count });
 }
 

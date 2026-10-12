@@ -3,6 +3,7 @@ import { supabase, timeAgo, friendlyError, getCurrentProfile, logAudit } from ".
 import { confirmDialog } from "./dialog.js";
 import { showToast } from "./toast.js";
 import { currentPlatform, isStandalone } from "./version.js";
+import { yearPH, dateTimePH } from "./time.js";
 
 const profile = await mountLayout({ activeKey: "admin-settings", pageTitle: "Settings", allowedRoles: ["admin"] });
 if (!profile) throw new Error("redirecting");
@@ -684,6 +685,14 @@ async function loadDevices() {
 document.getElementById("new-device-btn").addEventListener("click", newDeviceDialog);
 loadDevices();
 
+// Parents and guests don't get QR codes: drop them from any list of user ids
+async function withoutParents(ids) {
+  if (!ids.length) return [];
+  const { data, error } = await supabase.from("profiles").select("id").in("id", ids).neq("role", "parent").neq("role", "guest");
+  if (error) throw error;
+  return (data || []).map((p) => p.id);
+}
+
 // ---------- QR refresh ----------
 function refreshQrDialog() {
   const backdrop = document.createElement("div");
@@ -747,7 +756,7 @@ function refreshQrDialog() {
         : `<p class="text-muted">No groups yet.</p>`;
     } else if (scope === "people") {
       if (!peopleCache) {
-        const { data } = await supabase.from("profiles").select("id, full_name, role").eq("organization_id", profile.organization_id).eq("is_active", true).order("full_name");
+        const { data } = await supabase.from("profiles").select("id, full_name, role").eq("organization_id", profile.organization_id).eq("is_active", true).neq("role", "parent").neq("role", "guest").order("full_name");
         peopleCache = data || [];
       }
       detailEl.innerHTML = `
@@ -797,7 +806,10 @@ function refreshQrDialog() {
           danger: true,
         });
         if (!ok) return;
-        const { data, error } = await supabase.rpc("refresh_qr_tokens");
+        const { data: everyone, error: listError } = await supabase.from("profiles").select("id").eq("organization_id", profile.organization_id).eq("is_active", true).neq("role", "parent").neq("role", "guest");
+        if (listError) throw listError;
+        const { data: refreshed, error } = await supabase.rpc("refresh_qr_tokens_for", { p_user_ids: (everyone || []).map((p) => p.id) });
+        const data = typeof refreshed === "number" ? refreshed : (everyone || []).length;
         if (error) throw error;
         showToast(`${data} QR code${data === 1 ? "" : "s"} refreshed.`, "success");
         close();
@@ -826,7 +838,10 @@ function refreshQrDialog() {
           showToast("No group available.", "error");
           return;
         }
-        const { data, error } = await supabase.rpc("admin_qr_cards", { p_scope: "group", p_group: groupId });
+        const { data: groupData, error } = await supabase.rpc("admin_qr_cards", { p_scope: "group", p_group: groupId });
+        if (error) throw error;
+        const keep = new Set(await withoutParents((groupData || []).map((p) => p.id)));
+        const data = (groupData || []).filter((p) => keep.has(p.id));
         if (error) throw error;
         people = (data || []).map((p) => ({ id: p.id, full_name: p.full_name }));
         label = `group ${groupsCache.find((g) => g.id === groupId)?.name || ""}`.trim();
@@ -878,7 +893,7 @@ function refreshQrDialog() {
 document.getElementById("refresh-qr-btn").addEventListener("click", refreshQrDialog);
 
 // ---------- Print QR codes ----------
-const ROLE_LABELS = { admin: "Admins", teacher: "Teachers", student: "Students", parent: "Parents", guest: "Guests" };
+const ROLE_LABELS = { admin: "Admins", teacher: "Teachers", student: "Students" };
 
 function printQrDialog() {
   const backdrop = document.createElement("div");
@@ -939,7 +954,7 @@ function printQrDialog() {
         : `<p class="text-muted">No groups yet.</p>`;
     } else if (scope === "people") {
       if (!peopleCache) {
-        const { data } = await supabase.from("profiles").select("id, full_name, role").eq("organization_id", profile.organization_id).eq("is_active", true).order("full_name");
+        const { data } = await supabase.from("profiles").select("id, full_name, role").eq("organization_id", profile.organization_id).eq("is_active", true).neq("role", "parent").neq("role", "guest").order("full_name");
         peopleCache = data || [];
       }
       detailEl.innerHTML = `
@@ -1046,7 +1061,7 @@ const arcWho = (r) => r.performer?.full_name || "an admin (name unavailable)";
 // Every year from the first year with data up to last year (so archived years stay in the list).
 function arcRenderYearOptions() {
   const keep = arcYearSel.value;
-  const thisYear = new Date().getFullYear();
+  const thisYear = yearPH();
   const first = Math.min(arcFirstYear ?? thisYear, thisYear, ...arcRuns.map(arcRunYear));
   let html = "";
   for (let y = thisYear - 1; y >= first; y--) {
@@ -1485,7 +1500,7 @@ function arcRunCard(r) {
   const included = [...(r.categories || []).map((c) => ARC_LABELS[c] || c), "Notifications", "Recent activity"].join(", ");
   return `<div class="list-row" style="display:block;">
     <div style="font-weight:600;">Archived by ${escapeHtml(arcWho(r))}</div>
-    <div class="text-muted" style="font-size:0.8rem;">${escapeHtml(new Date(r.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }))}</div>
+    <div class="text-muted" style="font-size:0.8rem;">${escapeHtml(dateTimePH(r.created_at))}</div>
     <div class="text-muted" style="font-size:0.8rem;">Included: ${escapeHtml(included)}</div>
     <div style="font-size:0.85rem;margin-top:4px;">${total.toLocaleString()} records removed</div>
   </div>`;

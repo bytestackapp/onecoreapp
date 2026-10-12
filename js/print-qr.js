@@ -85,10 +85,28 @@ function renderCards(people) {
   });
 }
 
+// Parents and guests don't get QR codes: drop them whatever scope was requested
+async function excludeNoQrRoles(people) {
+  if (people.length === 0) return people;
+  const allowed = new Set();
+  const ids = people.map((p) => p.id);
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id")
+      .in("id", ids.slice(i, i + 100))
+      .neq("role", "parent")
+      .neq("role", "guest");
+    if (error) throw error;
+    (data || []).forEach((r) => allowed.add(r.id));
+  }
+  return people.filter((p) => allowed.has(p.id));
+}
+
 document.getElementById("print-btn").addEventListener("click", () => window.print());
 
 try {
-  const people = await fetchPeople();
+  const people = await excludeNoQrRoles(await fetchPeople());
   renderCards(people);
 } catch (err) {
   console.error(err);

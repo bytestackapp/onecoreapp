@@ -1,23 +1,18 @@
 import { mountLayout, ICONS, sectionHead } from "./layout.js";
 import { supabase, formatDate, timeAgo, priorityLabel } from "./supabase-client.js";
+import { todayPH } from "./time.js";
 
 const profile = await mountLayout({ activeKey: "dashboard", pageTitle: "Dashboard", brandOnMobile: true });
 if (!profile) throw new Error("redirecting");
 
-// Local calendar date as YYYY-MM-DD (toISOString() reports the UTC date,
-// which is the wrong day for part of the morning in UTC+8).
-function localDate(d = new Date()) {
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${m}-${day}`;
-}
-const today = localDate();
+// Today's date in Philippine time (YYYY-MM-DD)
+const today = todayPH();
 
 // Roles not listed here (student, guest) get no cards and no sub-header.
 // Roles not listed here (parent, student, guest) get no Pending Actions block.
 const STAT_SECTIONS = {
-  admin:   { title: "Pending Actions", icon: ICONS.leave, tone: "warning" },
-  teacher: { title: "Pending Actions", icon: ICONS.leave, tone: "warning" },
+  admin:   { title: "Pending Actions", icon: ICONS.leave, tone: "info" },
+  teacher: { title: "Pending Actions", icon: ICONS.leave, tone: "info" },
 };
 
 // Shown to anyone who has linked children, whatever their role.
@@ -85,8 +80,8 @@ function tile(label, value, href) {
   const dot = has
     ? `<span class="pend-dot is-pending" aria-hidden="true">${n > 99 ? "99+" : n}</span>`
     : `<span class="pend-dot is-clear" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></span>`;
-  const status = has ? `Needs review` : `All clear`;
-  const sub = has ? `Waiting for action` : `No pending`;
+  const status = has ? `For review` : `All clear`;
+  const sub = has ? `Needs action` : `No pending`;
   const card = `<div class="card stat-tile">
     <div class="stat-label">${label}</div>
     <div class="pend-body" aria-label="${n} ${label}">
@@ -277,7 +272,7 @@ async function renderRoleSection() {
         ${sectionHead({
           title: "Pending leave approvals",
           icon: ICONS.leave,
-          tone: "warning",
+          tone: "info",
           linkHtml: `<a class="link" href="leave.html">Manage</a>`,
         })}
         <div class="card">

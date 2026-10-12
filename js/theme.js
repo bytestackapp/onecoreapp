@@ -4,6 +4,11 @@
 // Applied as <html data-theme="dark">; with no attribute the page is light.
 // The device's own dark-mode setting is ignored on purpose.
 // A page can opt out by putting data-theme-lock on <html> (the print pages do this).
+//
+// Logos: while Dark Mode is on, any <img> that uses images/logo.png, logo-horiz.png or
+// logo-vert.png is switched to logo-dark.png, logo-horiz-dark.png or logo-vert-dark.png
+// (same folder). Back in Light it returns to the original. If a dark file is missing,
+// the normal logo is shown instead of a broken image.
 
 const KEY = "onecore:theme";
 export const THEME_LABELS = { default: "Light", dark: "Dark" };
@@ -30,11 +35,44 @@ function syncMetaColor() {
   meta.content = card;
 }
 
+// ---------- logos ----------
+const LOGO_RE = /(^|\/)(logo|logo-horiz|logo-vert)\.png(?=$|[?#])/;
+
+function syncLogos() {
+  const dark = root.getAttribute("data-theme") === "dark";
+  document.querySelectorAll("img").forEach((img) => {
+    const light = img.getAttribute("data-logo-light");
+    if (dark) {
+      if (light || img.hasAttribute("data-logo-failed")) return;
+      const src = img.getAttribute("src") || "";
+      if (!LOGO_RE.test(src)) return;
+      img.setAttribute("data-logo-light", src);
+      img.addEventListener(
+        "error",
+        () => {
+          // the dark file is missing: go back to the normal logo and don't try again
+          const original = img.getAttribute("data-logo-light");
+          if (!original) return;
+          img.setAttribute("data-logo-failed", "");
+          img.removeAttribute("data-logo-light");
+          img.setAttribute("src", original);
+        },
+        { once: true }
+      );
+      img.setAttribute("src", src.replace(LOGO_RE, "$1$2-dark.png"));
+    } else if (light) {
+      img.setAttribute("src", light);
+      img.removeAttribute("data-logo-light");
+    }
+  });
+}
+
 export function applyTheme(pref = getThemePref()) {
   if (root.hasAttribute("data-theme-lock")) return;
   if (pref === "dark") root.setAttribute("data-theme", "dark");
   else root.removeAttribute("data-theme");
   syncMetaColor();
+  syncLogos();
 }
 
 export function setThemePref(pref) {
@@ -48,3 +86,10 @@ export function setThemePref(pref) {
 }
 
 applyTheme();
+
+// Logos added later (the sidebar and login screen are built by script) get switched too
+if (!root.hasAttribute("data-theme-lock")) {
+  new MutationObserver(() => {
+    if (root.getAttribute("data-theme") === "dark") syncLogos();
+  }).observe(root, { childList: true, subtree: true });
+}

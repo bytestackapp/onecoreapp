@@ -15,6 +15,7 @@
 import { supabase } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { sectionHead } from "./layout.js";
+import { timePH } from "./time.js";
 
 const svg = (path) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
@@ -285,7 +286,7 @@ function loadLeaflet() {
 }
 
 function timeText(iso) {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return timePH(iso);
 }
 
 function agoText(iso) {

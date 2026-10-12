@@ -1,24 +1,19 @@
 import { mountLayout, sectionHead } from "./layout.js";
 import { supabase, friendlyError } from "./supabase-client.js";
 import { showToast } from "./toast.js";
+import { todayPH } from "./time.js";
 
 const profile = await mountLayout({ activeKey: "reports", pageTitle: "Reports", allowedRoles: ["admin"] });
 if (!profile) throw new Error("redirecting");
 
-function localDate(d = new Date()) {
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${m}-${day}`;
-}
-
 document.getElementById("export-head").innerHTML = sectionHead({
   title: "Attendance export",
-  tone: "primary",
+  tone: "info",
   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>`,
 });
 document.getElementById("more-head").innerHTML = sectionHead({
   title: "More reports",
-  tone: "muted",
+  tone: "info",
   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>`,
 });
 
@@ -37,9 +32,10 @@ exportBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 const exportHead = document.getElementById("export-head");
 (exportHead.querySelector(".section-head") || exportHead).appendChild(exportBtn);
 
-const now = new Date();
-fromInput.value = localDate(new Date(now.getFullYear(), now.getMonth(), 1));
-toInput.value = localDate(now);
+// Default range: the first day of this month to today, in Philippine time
+const todayStr = todayPH();
+fromInput.value = todayStr.slice(0, 8) + "01";
+toInput.value = todayStr;
 
 // ---------- Attendance export ----------
 const EXPORT_PAGE_SIZE = 1000; // Supabase returns at most 1000 rows per request, so we read page by page

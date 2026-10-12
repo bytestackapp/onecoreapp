@@ -26,6 +26,7 @@ await new Promise((resolve, reject) => {
 const { createClient } = window.supabase;
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./env-config.js";
+import { PH_TZ, todayPH } from "./time.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true },
@@ -244,7 +245,7 @@ export async function myAcademies({ force = false } = {}) {
 /** Can this academy profile be signed in to right now? */
 export function isUsableAcademy(a) {
   if (a.is_active === false) return false;
-  if (a.role === "guest" && a.guest_until && a.guest_until < new Date().toLocaleDateString("en-CA")) return false;
+  if (a.role === "guest" && a.guest_until && a.guest_until < todayPH()) return false;
   return true;
 }
 
@@ -298,7 +299,7 @@ export async function requireAuth() {
     return null;
   }
   // Guests can have an end date; after it passes they're treated as deactivated.
-  if (profile.role === "guest" && profile.guest_until && profile.guest_until < new Date().toLocaleDateString("en-CA")) {
+  if (profile.role === "guest" && profile.guest_until && profile.guest_until < todayPH()) {
     if (await tryFallbackAcademy(profile.id)) return null;
     await supabase.auth.signOut();
     window.location.href = "login.html?deactivated=1";
@@ -335,6 +336,7 @@ export function formatDateTime(iso) {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: PH_TZ,
   });
 }
 

@@ -1084,8 +1084,6 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   --shadow-pop: 0 10px 30px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
   color-scheme: dark;
 }
-:root[data-theme="dark"] .sidebar-brand-logo,
-:root[data-theme="dark"] .auth-brand-logo { background: #fff; padding: 5px 9px; border-radius: 8px; box-sizing: content-box; }
 
 /* Loading screen wave: deeper blue-teal in dark mode (CSS overrides the stop-color attributes in each page's loader SVG) */
 :root[data-theme="dark"] #loaderWaveGradient stop:first-child { stop-color: #14296b; }
@@ -1108,3 +1106,29 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
     0 14px 50px rgba(88, 28, 135, 0.6),
     0 0 100px rgba(109, 40, 217, 0.3);
 }
+
+/* Phones and tablets: no scroll bar */
+@media (hover: none) and (pointer: coarse) {
+  html, body, * { scrollbar-width: none; }
+  *::-webkit-scrollbar { display: none; width: 0; height: 0; }
+}
+
+/* Role badges */
+.tag-role-admin   { --role-c: #7c3aed; } /* purple */
+.tag-role-teacher { --role-c: #2563eb; } /* blue   */
+.tag-role-student { --role-c: #0f9d58; } /* green  */
+.tag-role-parent  { --role-c: #d97706; } /* amber  */
+.tag-role-guest   { --role-c: #64748b; } /* gray   */
+
+[class*="tag-role-"] {
+  color: var(--role-c);
+  background: color-mix(in srgb, var(--role-c) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--role-c) 30%, transparent);
+}
+
+/* Lighter shades for dark mode */
+:root[data-theme="dark"] .tag-role-admin   { --role-c: #a78bfa; }
+:root[data-theme="dark"] .tag-role-teacher { --role-c: #60a5fa; }
+:root[data-theme="dark"] .tag-role-student { --role-c: #34d399; }
+:root[data-theme="dark"] .tag-role-parent  { --role-c: #fbbf24; }
+:root[data-theme="dark"] .tag-role-guest   { --role-c: #94a3b8; }
