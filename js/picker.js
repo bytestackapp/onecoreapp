@@ -7,8 +7,13 @@
 //
 // The field itself is kept. Its value is still "YYYY-MM-DD" or "HH:MM", it still fires
 // normal "input" and "change" events, and "required" still works, so page code is unaffected.
+//
+// iOS home-screen apps ignore inputmode="none", so enhanced fields are also made readonly
+// (iOS never raises the keyboard for those), are blurred when the picker opens, and use a
+// 16px font so iOS does not zoom the page on focus.
 
 const MARK = "data-native-type";
+const RO_MARK = "data-picker-ro"; // set only when this script made the field readonly
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const pad = (n) => String(n).padStart(2, "0");
@@ -33,7 +38,11 @@ function enhance(el) {
   el.setAttribute(MARK, t);
   el.type = "text";
   el.value = v;
-  el.setAttribute("inputmode", "none"); // no keyboard
+  if (!el.readOnly) {
+    el.readOnly = true; // iOS never shows a keyboard for readonly fields
+    el.setAttribute(RO_MARK, "");
+  }
+  el.setAttribute("inputmode", "none"); // no keyboard (Android)
   el.setAttribute("autocomplete", "off");
   el.placeholder = t === "date" ? "Select date" : "Select time";
   el.style.cursor = "pointer";
@@ -45,6 +54,10 @@ function restore(el) {
   el.type = t;
   el.value = v;
   el.removeAttribute(MARK);
+  if (el.hasAttribute(RO_MARK)) {
+    el.readOnly = false;
+    el.removeAttribute(RO_MARK);
+  }
   el.removeAttribute("inputmode");
   el.removeAttribute("autocomplete");
   el.removeAttribute("placeholder");
@@ -55,13 +68,16 @@ function sync() {
   else document.querySelectorAll(`input[${MARK}]`).forEach(restore);
 }
 
-// ---------- shared dialog shell ----------
+// ---------- styles ----------
+// Injected up front (not on first open) because the 16px rule must already apply when a field is tapped.
 let styled = false;
 function addStyles() {
   if (styled) return;
   styled = true;
   const st = document.createElement("style");
   st.textContent = `
+    /* 16px stops iOS zooming the page when a field is focused */
+    input[${MARK}] { font-size:16px; }
     .dm-head { display:flex; align-items:center; justify-content:space-between; gap:4px; margin-bottom:10px; }
     .dm-head strong { flex:1; text-align:center; font-size:0.95rem; }
     .dm-nav { width:34px; height:34px; border-radius:50%; border:1px solid var(--border); background:var(--input-bg); color:var(--text); font:inherit; cursor:pointer; padding:0; }
@@ -79,6 +95,7 @@ function addStyles() {
   document.head.appendChild(st);
 }
 
+// ---------- shared dialog shell ----------
 function openShell(html) {
   addStyles();
   const backdrop = document.createElement("div");
@@ -201,6 +218,7 @@ function fieldFrom(e) {
   return el && !el.disabled ? el : null;
 }
 function open(el) {
+  el.blur(); // drop focus so iOS does not raise the keyboard or zoom behind the dialog
   if (el.getAttribute(MARK) === "time") openTimePicker(el);
   else openDatePicker(el);
 }
@@ -220,4 +238,5 @@ document.addEventListener("paste", (e) => { if (fieldFrom(e)) e.preventDefault()
 // Follow the theme live, and catch fields that dialogs add later
 new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 new MutationObserver(() => { if (isDark()) sync(); }).observe(document.documentElement, { childList: true, subtree: true });
+addStyles(); // up front, so the 16px rule is in place before the first tap
 sync();
