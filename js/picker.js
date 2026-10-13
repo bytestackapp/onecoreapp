@@ -1,16 +1,16 @@
-// Dark-mode date and time pickers.
+// In-app date and time pickers, used in both Default and Dark mode.
 //
-// Phones draw their own date / time pop-ups (iOS and Android), and those stay light
-// whatever the page does. While Dark Mode is on, date and time fields use the in-app
-// pickers below instead, which follow the theme. In Default mode nothing changes:
-// the phone's own pickers are used exactly as before.
+// Phones draw their own date / time pop-ups (iOS and Android), and those cannot follow the
+// app's theme. Every date and time field in the app therefore uses the pickers below, which
+// look the same on every device and follow the theme (light or dark).
 //
 // The field itself is kept. Its value is still "YYYY-MM-DD" or "HH:MM", it still fires
 // normal "input" and "change" events, and "required" still works, so page code is unaffected.
 //
-// iOS home-screen apps ignore inputmode="none", so enhanced fields are also made readonly
-// (iOS never raises the keyboard for those), are blurred when the picker opens, and use a
-// 16px font so iOS does not zoom the page on focus.
+// iOS home-screen apps ignore inputmode="none". To keep the keyboard away, a field is made
+// readonly only for the instant it is tapped and released straight afterwards (a field that
+// stays readonly skips "required" validation). The field is also blurred when the picker
+// opens, and touch screens use a 16px font so iOS does not zoom the page on focus.
 
 const MARK = "data-native-type";
 const RO_MARK = "data-picker-ro"; // set only when this script made the field readonly
@@ -18,7 +18,6 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 const DOW = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const pad = (n) => String(n).padStart(2, "0");
 const iso = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`; // m is 0-based
-const isDark = () => document.documentElement.getAttribute("data-theme") === "dark";
 
 function parseDate(v) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || "");
@@ -29,7 +28,7 @@ function parseTime(v) {
   return m ? { h: +m[1], mi: +m[2] } : null;
 }
 
-// ---------- swap native fields for pickable text fields (Dark Mode only) ----------
+// ---------- swap native date / time fields for pickable text fields ----------
 function enhance(el) {
   if (el.hasAttribute(MARK)) return;
   const t = el.type;
@@ -38,34 +37,13 @@ function enhance(el) {
   el.setAttribute(MARK, t);
   el.type = "text";
   el.value = v;
-  if (!el.readOnly) {
-    el.readOnly = true; // iOS never shows a keyboard for readonly fields
-    el.setAttribute(RO_MARK, "");
-  }
   el.setAttribute("inputmode", "none"); // no keyboard (Android)
   el.setAttribute("autocomplete", "off");
   el.placeholder = t === "date" ? "Select date" : "Select time";
   el.style.cursor = "pointer";
 }
-function restore(el) {
-  const t = el.getAttribute(MARK);
-  if (!t) return;
-  const v = el.value;
-  el.type = t;
-  el.value = v;
-  el.removeAttribute(MARK);
-  if (el.hasAttribute(RO_MARK)) {
-    el.readOnly = false;
-    el.removeAttribute(RO_MARK);
-  }
-  el.removeAttribute("inputmode");
-  el.removeAttribute("autocomplete");
-  el.removeAttribute("placeholder");
-  el.style.cursor = "";
-}
 function sync() {
-  if (isDark()) document.querySelectorAll('input[type="date"], input[type="time"]').forEach(enhance);
-  else document.querySelectorAll(`input[${MARK}]`).forEach(restore);
+  document.querySelectorAll('input[type="date"], input[type="time"]').forEach(enhance);
 }
 
 // ---------- styles ----------
@@ -76,8 +54,8 @@ function addStyles() {
   styled = true;
   const st = document.createElement("style");
   st.textContent = `
-    /* 16px stops iOS zooming the page when a field is focused */
-    input[${MARK}] { font-size:16px; }
+    /* 16px stops iOS zooming the page when a field is focused (touch screens only) */
+    @media (pointer: coarse) { input[${MARK}] { font-size:16px; } }
     .dm-head { display:flex; align-items:center; justify-content:space-between; gap:4px; margin-bottom:10px; }
     .dm-head strong { flex:1; text-align:center; font-size:0.95rem; }
     .dm-nav { width:34px; height:34px; border-radius:50%; border:1px solid var(--border); background:var(--input-bg); color:var(--text); font:inherit; cursor:pointer; padding:0; }
@@ -217,6 +195,28 @@ function fieldFrom(e) {
   const el = e.target?.closest?.(`input[${MARK}]`);
   return el && !el.disabled ? el : null;
 }
+
+// Readonly for the instant of a tap only (see the note at the top of this file).
+function lock(el) {
+  if (el.readOnly) return; // already readonly because the page made it so: leave it alone
+  el.readOnly = true;
+  el.setAttribute(RO_MARK, "");
+  clearTimeout(el.__roTimer);
+  el.__roTimer = setTimeout(() => unlock(el), 1500); // failsafe, e.g. a long press that never becomes a click
+}
+function unlock(el) {
+  clearTimeout(el.__roTimer);
+  if (el.hasAttribute(RO_MARK)) {
+    el.readOnly = false;
+    el.removeAttribute(RO_MARK);
+  }
+}
+const unlockAll = () => document.querySelectorAll(`input[${RO_MARK}]`).forEach(unlock);
+const onTapStart = (e) => { const el = fieldFrom(e); if (el) lock(el); };
+document.addEventListener("pointerdown", onTapStart, true);
+document.addEventListener("touchstart", onTapStart, { capture: true, passive: true });
+document.addEventListener("pointercancel", unlockAll, true); // the touch turned into a scroll
+document.addEventListener("touchcancel", unlockAll, true);
 function open(el) {
   el.blur(); // drop focus so iOS does not raise the keyboard or zoom behind the dialog
   if (el.getAttribute(MARK) === "time") openTimePicker(el);
@@ -226,6 +226,7 @@ function open(el) {
 document.addEventListener("click", (e) => {
   const el = fieldFrom(e);
   if (el) { e.preventDefault(); open(el); }
+  setTimeout(unlockAll, 0); // the tap is over: validation works again
 });
 document.addEventListener("keydown", (e) => {
   const el = fieldFrom(e);
@@ -235,8 +236,7 @@ document.addEventListener("keydown", (e) => {
 });
 document.addEventListener("paste", (e) => { if (fieldFrom(e)) e.preventDefault(); });
 
-// Follow the theme live, and catch fields that dialogs add later
-new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-new MutationObserver(() => { if (isDark()) sync(); }).observe(document.documentElement, { childList: true, subtree: true });
+// Catch fields that dialogs add later
+new MutationObserver(sync).observe(document.documentElement, { childList: true, subtree: true });
 addStyles(); // up front, so the 16px rule is in place before the first tap
 sync();

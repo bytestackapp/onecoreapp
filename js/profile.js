@@ -137,7 +137,7 @@ async function loadLinkedStudents() {
   const isParent = profile.role === "parent";
 
   const show = (build) => {
-    document.getElementById("linked-head").innerHTML = sectionHead({ title: "Linked Student", icon: ICON.child, tone: "muted" });
+    document.getElementById("linked-head").innerHTML = sectionHead({ title: "Linked Student", icon: ICON.child, tone: "info" });
     listEl.replaceChildren();
     build();
     section.style.display = "";

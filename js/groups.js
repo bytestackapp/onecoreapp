@@ -144,6 +144,32 @@ const PAGE_SIZE = 10; // groups per page
 let page = 1;
 let myGroupIds = null; // the groups I belong to (non-admins), read once per loadGroups()
 let loadSeq = 0;
+const HEAD_ROLES = ["adviser", "lead", "parent_head"]; // member_role values that make someone a head
+
+// Number of regular members per group, for the groups on the current page.
+// One call to the database function group_member_counts(). If that function hasn't been
+// created yet, falls back to one small count query per group (still no member rows downloaded).
+async function fetchMemberCounts(ids) {
+  const counts = {};
+  const { data, error } = await supabase.rpc("group_member_counts", { p_group_ids: ids });
+  if (!error) {
+    (data || []).forEach((r) => (counts[r.group_id] = Number(r.member_count) || 0));
+    return counts;
+  }
+  console.warn("group_member_counts() is not available, counting group by group instead.", error);
+  await Promise.all(
+    ids.map(async (id) => {
+      const { count, error: cErr } = await supabase
+        .from("group_members")
+        .select("id", { count: "exact", head: true })
+        .eq("group_id", id)
+        .eq("member_role", "member");
+      if (cErr) throw cErr;
+      counts[id] = count || 0;
+    })
+  );
+  return counts;
+}
 
 // Pager: first, previous, "Page [select] of N", next, last
 function pagerHtml(page, pages) {
@@ -207,6 +233,7 @@ async function loadPage(showSkeleton = false) {
         .eq("organization_id", profile.organization_id)
         .order("name")
         .order("id");
+      query = query.in("group_members.member_role", HEAD_ROLES); // only the heads are embedded, not every member
       if (!isAdmin) query = query.in("id", myGroupIds);
       const { data, count, error } = await query.range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
@@ -216,6 +243,8 @@ async function loadPage(showSkeleton = false) {
       if (page <= pages) break;
       page = pages; // the list got shorter (for example after a delete): go to the last page
     }
+    const memberCounts = rows.length ? await fetchMemberCounts(rows.map((g) => g.id)) : {};
+    rows.forEach((g) => (g.member_count = memberCounts[g.id] || 0));
     if (seq !== loadSeq) return; // a newer request replaced this one
     listEl.style.opacity = "";
 
@@ -314,7 +343,7 @@ function groupCard(g) {
                 .join("")
             : `<span class="tag tag-pending">No head assigned</span>`
         }
-        <span class="tag tag-normal">${regular.length === 0 ? "No members" : `${regular.length} ${regular.length === 1 ? "member" : "members"}`}</span>
+        <span class="tag tag-normal">${!g.member_count ? "No members" : `${g.member_count} ${g.member_count === 1 ? "member" : "members"}`}</span>
       </div>
     </div>`;
 }

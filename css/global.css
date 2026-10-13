@@ -601,6 +601,9 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   outline: none;
 }
 .field input:disabled, .field select:disabled { background: var(--bg); color: var(--text-muted); }
+@supports (-webkit-touch-callout: none) {
+  input[type="password"] { font-family: Arial, "Helvetica Neue", sans-serif; font-size: 14px; }
+}
 .field-hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
 .field-error { font-size: 0.8rem; color: var(--error); margin-top: 4px; }
 

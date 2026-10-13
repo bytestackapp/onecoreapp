@@ -172,11 +172,11 @@ async function openWipeDialog(orgId, orgName) {
       </label>
       <label style="${optionStyle}">
         <input type="radio" name="wp-mode" value="full" style="width:auto;margin:3px 0 0;" />
-        <span><strong>Full reset</strong><span class="field-hint" style="display:block;">Everything above, plus all people (including admins) and their login accounts, groups, leave types and devices. Login accounts that belong to another academy are kept. The academy itself stays and gets a new invite code.</span></span>
+        <span><strong>Full reset</strong><span class="field-hint" style="display:block;">Everything above, plus all people, accounts, groups, leave types, and devices. Accounts linked to other academies are retained. The academy remains with a new invite code.</span></span>
       </label>
       <label style="${optionStyle}${insideIt ? lockedStyle : ""}">
         <input type="radio" name="wp-mode" value="delete" ${insideIt ? "disabled" : ""} style="width:auto;margin:3px 0 0;" />
-        <span><strong>Delete academy</strong><span class="field-hint" style="display:block;">Signs everyone out, removes everything in a full reset, then deletes the academy for good.${insideIt ? " Locked because you are inside this academy. Open another academy first, then come back." : ""}</span></span>
+        <span><strong>Delete academy</strong><span class="field-hint" style="display:block;">Purge signs everyone out, resets all data, and permanently deletes the academy.${insideIt ? " Unavailable to proceed. Switch to another academy first." : ""}</span></span>
       </label>
       <div class="field" style="margin-top:14px;">
         <label for="wp-confirm">Type the academy name to confirm</label>

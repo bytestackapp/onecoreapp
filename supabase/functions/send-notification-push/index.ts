@@ -52,6 +52,7 @@ interface PushRow {
 
 Deno.serve(async (req) => {
   if (req.headers.get("x-push-secret") !== Deno.env.get("PUSH_SECRET")) {
+    console.error("403: x-push-secret mismatch");   // <-- add this line
     return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
   }
   try {
