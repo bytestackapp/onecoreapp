@@ -7,9 +7,9 @@
 // =====================================================================
 
 import "./register-sw.js";
-import { requireAuth, signOut, initials, isPlatformOwner, myAcademies } from "./supabase-client.js";
+import { supabase, requireAuth, signOut, initials, isPlatformOwner, myAcademies, clearProfileCache, switchToProfile } from "./supabase-client.js";
 import { openAcademySwitcher } from "./academy-switcher.js";
-import { APP_NAME, LOGO_MARK } from "./brand.js";
+import { APP_NAME, LOGO_MARK, brandFromOrg, applyBrand, brandLogo } from "./brand.js";
 import { initPushNotifications } from "./push.js";
 import { checkForUpdate } from "./version-check.js";
 import "./pull-to-refresh.js";
@@ -90,6 +90,8 @@ function navLink(item, activeKey, unread) {
 
 function buildSidebar(profile, activeKey, unread, isOwner) {
   const items = NAV_ITEMS.filter((i) => i.roles.includes(profile.role));
+  const brand = brandFromOrg(profile.organizations);
+  const brandLogoSrc = brandLogo(brand, "horiz", "../images/logo-horiz.png");
 
   let adminBlock = "";
   if (profile.role === "admin") {
@@ -110,7 +112,7 @@ function buildSidebar(profile, activeKey, unread, isOwner) {
   el.id = "app-sidebar";
   el.innerHTML = `
     <div class="sidebar-brand">
-      <img src="../images/logo-horiz.png" alt="${APP_NAME}" class="sidebar-brand-logo" />
+      ${brandLogoSrc ? `<img src="${esc(brandLogoSrc)}" alt="${esc(brand.name)}" class="sidebar-brand-logo" />` : `<span class="brand-name">${esc(brand.name)}</span>`}
     </div>
     <nav class="sidebar-nav">
       <div class="sidebar-section-label">Workspace</div>
@@ -179,10 +181,11 @@ function buildBottomNav(profile, activeKey, isOwner) {
 
 function buildTopbar(profile, pageTitle, unread, brandOnMobile, isOwner, otherUnread = 0) {
   const el = document.createElement("header");
+  const brand = brandFromOrg(profile.organizations);
   el.id = "app-topbar";
   el.innerHTML = `
     <h1 class="topbar-title">
-      ${brandOnMobile ? `<span class="topbar-title-brand"><span class="brand-one">ONE</span><span class="brand-core">CORE</span></span>` : ""}
+      ${brandOnMobile ? `<span class="topbar-title-brand">${brand.custom ? esc(brand.name) : `<span class="brand-one">ONE</span><span class="brand-core">CORE</span>`}</span>` : ""}
       <span class="topbar-title-text">${pageTitle}</span>
     </h1>
     <div class="topbar-actions">
@@ -406,6 +409,40 @@ function initSelectSheets() {
   }).observe(document.body, { childList: true, subtree: true });
 }
 
+// If this profile no longer exists (its academy was reset, or the person was removed), the app would
+// keep showing from its cache while nothing works. Confirm with the database, then move the person
+// to another academy they belong to, or sign them out. Normally this costs nothing: the list of
+// academies is already loaded, and the extra lookup only runs when the profile is missing from it.
+async function endSessionIfProfileGone(profile, academies) {
+  if (academies.some((a) => a.profile_id === profile.id)) return false;
+  try {
+    const { data, error } = await supabase.from("profiles").select("id").eq("id", profile.id).maybeSingle();
+    if (error || data) return false; // still there, or can't tell: carry on
+  } catch {
+    return false;
+  }
+  clearProfileCache();
+  const other = academies.find((a) => a.is_active !== false && a.is_approved !== false);
+  if (other) {
+    try {
+      await switchToProfile(other.profile_id);
+      window.location.href = "dashboard.html";
+      return true;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  try {
+    await supabase.auth.signOut({ scope: "local" });
+  } catch {
+    try {
+      Object.keys(localStorage).filter((k) => k.startsWith("sb-") && k.endsWith("-auth-token")).forEach((k) => localStorage.removeItem(k));
+    } catch { /* ignore */ }
+  }
+  window.location.href = "login.html";
+  return true;
+}
+
 export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnMobile }) {
   const profile = await requireAuth();
   checkForUpdate(); // fire-and-forget, never blocks the page
@@ -422,10 +459,14 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnM
   }
 
   const [isOwner, academies] = await Promise.all([isPlatformOwner(), myAcademies()]);
+  if (await endSessionIfProfileGone(profile, academies)) return null;
   // The bell and badge count only the academy I am in (the Notifications page lists only that academy).
   // Unread items in my other academies show as a count on "Switch academy".
   const unread = Number(academies.find((a) => a.profile_id === profile.id)?.unread || 0);
   const otherUnread = academies.filter((a) => a.profile_id !== profile.id).reduce((n, a) => n + Number(a.unread || 0), 0);
+
+  // Colors for this academy (logo and name are applied where the sidebar/topbar are built).
+  applyBrand(brandFromOrg(profile.organizations));
 
   const existingContent = document.getElementById("page-content");
   const pageContentHtml = existingContent ? existingContent.innerHTML : "";
@@ -492,7 +533,7 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnM
     openAcademySwitcher(fresh, profile);
   });
 
-  document.title = `${pageTitle} — ${APP_NAME}`;
+  document.title = `${pageTitle} — ${brandFromOrg(profile.organizations).name}`;
 
   // No-op on the plain web version; registers this device for OS-level
   // push notifications when running inside the native (Capacitor) app.

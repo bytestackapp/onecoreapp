@@ -22,7 +22,7 @@
   <div class="auth-page">
     <div class="auth-card card">
       <div class="auth-brand" id="auth-brand"></div>
-      <p class="subtitle">One Core. Everything Connected.</p>
+      <p class="subtitle" data-brand-tagline>One Core. Everything Connected.</p>
 
       <form id="login-form">
         <div class="field">
@@ -39,7 +39,7 @@
         <button class="btn btn-primary" type="submit" id="submit-btn" style="width:100%;">Sign in</button>
       </form>
 
-      <div class="auth-divider"><span>New to OneCore?</span></div>
+      <div class="auth-divider"><span>New to <span data-brand-name>OneCore</span>?</span></div>
       <button class="btn btn-secondary" type="button" id="show-signup-btn" style="width:100%;">Create an account</button>
 	  
       <div class="auth-meta-links">
@@ -160,7 +160,7 @@
       <div id="support-modal" class="dialog-backdrop" style="display:none;">
         <div class="dialog-modal">
           <h3>Support</h3>
-          <p>Need help with OneCore? If you encounter an issue, have trouble accessing your account, or have questions about a feature, please contact your school or organization's designated administrator or support team.</p>
+          <p>Need help with <span data-brand-name>OneCore</span>? If you encounter an issue, have trouble accessing your account, or have questions about a feature, please contact your school or organization's designated administrator or support team.</p>
 		  <p>When reporting an issue, include a brief description of the problem and, if possible, the page or feature where it occurred. Please do not include your password, PIN, verification codes, or other confidential information.</p>
           <div class="dialog-actions">
             <button class="btn btn-primary" type="button" id="support-ok-btn">Close</button>
@@ -172,8 +172,8 @@
       <div id="privacy-modal" class="dialog-backdrop" style="display:none;">
         <div class="dialog-modal">
           <h3>Privacy</h3>
-          <p>OneCore respects your privacy and is committed to protecting your personal information. Information collected through the application is used only for legitimate purposes related to providing school services, managing accounts, communication, security, and other authorized functions.</p>
-          <p>OneCore handles personal information in accordance with applicable privacy laws, including the Philippine Data Privacy Act of 2012 (RA 10173). Users may have rights to access, correct, or request appropriate handling of their personal information, subject to applicable laws and policies.</p>
+          <p><span data-brand-name>OneCore</span> respects your privacy and is committed to protecting your personal information. Information collected through the application is used only for legitimate purposes related to providing school services, managing accounts, communication, security, and other authorized functions.</p>
+          <p><span data-brand-name>OneCore</span> handles personal information in accordance with applicable privacy laws, including the Philippine Data Privacy Act of 2012 (RA 10173). Users may have rights to access, correct, or request appropriate handling of their personal information, subject to applicable laws and policies.</p>
           <div class="dialog-actions">
             <button class="btn btn-primary" type="button" id="privacy-ok-btn">Close</button>
           </div>
@@ -181,15 +181,32 @@
       </div>
 	  
     </div>
-    <div class="auth-footer">&copy; 2026 OneCore. All rights reserved.</div>
+    <div class="auth-footer" id="auth-footer">&copy; 2026 OneCore. All rights reserved.</div>
   </div>
 
   <script type="module">
 	import { supabase, getSessionUser, friendlyError, myAcademies } from "../js/supabase-client.js";
 	import { showToast } from "../js/toast.js";
     import "../js/theme.js";
+    import { loadPublicBrand, getCachedBrand, applyBrand, brandLogo } from "../js/brand.js";
 
-    document.getElementById("auth-brand").innerHTML = `<img src="../images/logo-vert.png" alt="OneCore" class="auth-brand-logo">`;
+    // Brand for this web address (school logo, name, color). Saved copy paints instantly;
+    // the server answer then confirms it. First-ever visit: the logo area stays empty for a
+    // moment instead of flashing the wrong brand.
+    function renderBrand(brand) {
+      applyBrand(brand);
+      document.title = `Sign in \u2014 ${brand.name}`;
+      const logo = brandLogo(brand, "vert", "../images/logo-vert.png");
+      document.getElementById("auth-brand").innerHTML =
+        (logo ? `<img src="${escapeHtml(logo)}" alt="${escapeHtml(brand.name)}" class="auth-brand-logo">` : "") +
+        (brand.custom ? `<div class="brand-name">${escapeHtml(brand.name)}</div>` : "");
+      document.getElementById("auth-footer").innerHTML = brand.custom
+        ? `&copy; 2026 ${escapeHtml(brand.name)}. Powered by OneCore.`
+        : "&copy; 2026 OneCore. All rights reserved.";
+    }
+    const cachedBrand = getCachedBrand();
+    if (cachedBrand) renderBrand(cachedBrand);
+    loadPublicBrand().then(renderBrand);
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("setup") === "1") {

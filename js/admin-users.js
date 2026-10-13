@@ -145,7 +145,7 @@ function userRow(u, mode) {
       : "";
 
   return `
-    <div class="card user-row ${mode === "inactive" ? "is-inactive" : ""}" data-id="${u.id}">
+    <div class="card user-row ${mode === "inactive" ? "is-inactive" : ""}${mode === "pending" ? " is-pending" : ""}" data-id="${u.id}">
       <div class="user-meta">
         <div class="user-name">${name}${isSelf ? " (you)" : ""}</div>
         <div class="user-email">${escapeHtml(u.email)}</div>
@@ -231,6 +231,23 @@ async function loadStudents() {
     .eq("is_active", true);
   if (error) console.error(error);
   studentsCache = (data || []).sort((x, y) => (x.full_name || "").localeCompare(y.full_name || "", undefined, { sensitivity: "base" }));
+}
+
+// Students that already have a parent (a student can only have one), read 1000 at a time
+async function loadLinkedStudentIds() {
+  const ids = new Set();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("guardians")
+      .select("student_id")
+      .eq("organization_id", profile.organization_id)
+      .order("id")
+      .range(from, from + 999);
+    if (error) { console.error(error); break; }
+    (data || []).forEach((r) => ids.add(r.student_id));
+    if (!data || data.length < 1000) break;
+  }
+  return ids;
 }
 
 async function openChildDialog(parentId, parentName) {
@@ -344,6 +361,7 @@ async function openChildDialog(parentId, parentName) {
     input.focus();
 
     await loadStudents();
+    const takenIds = await loadLinkedStudentIds();
 
     function renderRows() {
       const term = input.value.trim().toLowerCase();
@@ -359,6 +377,8 @@ async function openChildDialog(parentId, parentName) {
                  <td class="picker-action">${
                    linkedIds.has(st.id)
                      ? `<span class="text-muted" style="font-size:0.8rem;">Linked</span>`
+                     : takenIds.has(st.id)
+                     ? `<span class="text-muted" style="font-size:0.8rem;">Has parent</span>`
                      : `<button type="button" class="icon-action sm approve" data-pick="${st.id}" title="Link" aria-label="Link ${escapeHtml(st.full_name)}">${ICON.add}</button>`
                  }</td>
                </tr>`
@@ -382,12 +402,13 @@ async function openChildDialog(parentId, parentName) {
             await logAudit({ action: "user.child_linked", recordType: "profile", recordId: studentId });
             showToast("Student linked.", "success");
             adjustLink(studentId, 1);
+            takenIds.add(studentId);
             await render();   // refresh the Linked Student list behind
             renderRows();     // mark this student as linked
           } catch (err) {
             console.error(err);
             btn.disabled = false;
-            showToast(friendlyError(err, "Unable to link this student."), "error");
+            showToast(err?.code === "23505" ? "This student is already linked to a parent." : friendlyError(err, "Unable to link this student."), "error");
           }
         });
       });
@@ -791,7 +812,7 @@ async function load() {
     const pendingSection = pendingUsers.length
       ? `
       <div class="section">
-        ${sectionHead({ title: "Pending approval", icon: SECTION_ICON.pending, tone: "warning", count: pendingUsers.length })}
+        ${sectionHead({ title: "Pending approval", icon: SECTION_ICON.pending, tone: "info", count: pendingUsers.length })}
         <div class="user-cards" id="pending-cards">${pendingUsers.map((u) => userRow(u, "pending")).join("")}</div>
       </div>`
       : "";

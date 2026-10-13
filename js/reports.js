@@ -11,10 +11,10 @@ document.getElementById("export-head").innerHTML = sectionHead({
   tone: "info",
   icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>`,
 });
-document.getElementById("more-head").innerHTML = sectionHead({
-  title: "More reports",
+document.getElementById("linked-head").innerHTML = sectionHead({
+  title: "Linked students",
   tone: "info",
-  icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>`,
+  icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07L11.5 4.43"/><path d="M14 11a5 5 0 00-7.07 0L4.1 13.83a5 5 0 007.07 7.07l1.33-1.33"/></svg>`,
 });
 
 const fromInput = document.getElementById("from-date");
@@ -264,3 +264,201 @@ function csvSafe(value) {
   const str = String(value);
   return str.includes(",") || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
 }
+
+// ---------- Linked students report: active students with their parent ----------
+const linkedBtn = document.createElement("button");
+linkedBtn.type = "button";
+linkedBtn.id = "linked-btn";
+linkedBtn.className = "icon-action sm";
+linkedBtn.title = "Export CSV";
+linkedBtn.setAttribute("aria-label", "Export linked students CSV");
+linkedBtn.style.marginLeft = "auto";
+linkedBtn.innerHTML = exportBtn.innerHTML;
+const linkedHead = document.getElementById("linked-head");
+(linkedHead.querySelector(".section-head") || linkedHead).appendChild(linkedBtn);
+
+// Read a whole table for this academy, 1000 rows at a time (the most Supabase returns per request)
+async function fetchAll(table, columns, filter) {
+  const rows = [];
+  for (let start = 0; ; start += EXPORT_PAGE_SIZE) {
+    let q = supabase.from(table).select(columns).eq("organization_id", profile.organization_id);
+    if (filter) q = filter(q);
+    const { data, error } = await q.order("id", { ascending: true }).range(start, start + EXPORT_PAGE_SIZE - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < EXPORT_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+const byName = (x, y) => (x || "").localeCompare(y || "", undefined, { sensitivity: "base" });
+
+// Modal: choose which students to include. Resolves { scope, groupId, ids } or null when cancelled.
+function openLinkedDialog({ students, groups, parentNameOf }) {
+  return new Promise((resolve) => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "dialog-backdrop";
+    backdrop.innerHTML = `
+      <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="lk-title">
+        <h3 id="lk-title">Export linked students</h3>
+        <div class="field">
+          <label for="lk-scope">Who to include</label>
+          <select id="lk-scope">
+            <option value="all">Everyone</option>
+            <option value="group">Group</option>
+            <option value="people">Specific people</option>
+          </select>
+        </div>
+        <div id="lk-detail"></div>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" id="lk-go">Export</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    const onKey = (e) => { if (e.key === "Escape") close(null); };
+    function close(result) {
+      document.removeEventListener("keydown", onKey);
+      backdrop.remove();
+      resolve(result);
+    }
+    document.addEventListener("keydown", onKey);
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(null); });
+    backdrop.querySelector('[data-act="cancel"]').addEventListener("click", () => close(null));
+
+    const scopeSelect = backdrop.querySelector("#lk-scope");
+    const detailEl = backdrop.querySelector("#lk-detail");
+    const selected = new Set();
+
+    function renderPeople(term) {
+      const listEl = detailEl.querySelector("#lk-people");
+      const q = term.trim().toLowerCase();
+      const matches = students
+        .filter((st) => !q || (st.full_name || "").toLowerCase().includes(q) || parentNameOf(st.id).toLowerCase().includes(q))
+        .slice(0, 100);
+      listEl.innerHTML = matches
+        .map(
+          (st) =>
+            `<label class="aud-row"><input type="checkbox" value="${st.id}" ${selected.has(st.id) ? "checked" : ""} /><span>${escapeHtml(st.full_name)}</span><span class="aud-meta">${escapeHtml(parentNameOf(st.id) || "No parent")}</span></label>`
+        )
+        .join("");
+      listEl.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+        cb.addEventListener("change", () => {
+          if (cb.checked) selected.add(cb.value);
+          else selected.delete(cb.value);
+          detailEl.querySelector("#lk-count").textContent = `${selected.size} selected`;
+        });
+      });
+    }
+
+    function renderDetail() {
+      const scope = scopeSelect.value;
+      if (scope === "group") {
+        detailEl.innerHTML = groups.length
+          ? `<div class="field"><label for="lk-group">Group</label><select id="lk-group">${groups.map((g) => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("")}</select></div>`
+          : `<p class="text-muted" style="margin:0;">No groups yet.</p>`;
+      } else if (scope === "people") {
+        detailEl.innerHTML = `
+          <div class="field aud-search"><input type="search" id="lk-search" placeholder="Search by student or parent…" autocomplete="off" /></div>
+          <div class="aud-list" id="lk-people" style="max-height:220px;"></div>
+          <p class="text-muted" id="lk-count" style="font-size:0.8rem;margin-top:4px;">${selected.size} selected</p>`;
+        renderPeople("");
+        detailEl.querySelector("#lk-search").addEventListener("input", (e) => renderPeople(e.target.value));
+      } else {
+        detailEl.innerHTML = "";
+      }
+    }
+
+    scopeSelect.addEventListener("change", renderDetail);
+
+    backdrop.querySelector("#lk-go").addEventListener("click", () => {
+      const scope = scopeSelect.value;
+      if (scope === "people" && selected.size === 0) {
+        showToast("Select at least one person.", "error");
+        return;
+      }
+      const groupId = backdrop.querySelector("#lk-group")?.value || "";
+      if (scope === "group" && !groupId) {
+        showToast("No group available.", "error");
+        return;
+      }
+      close({ scope, groupId, ids: new Set(selected) });
+    });
+  });
+}
+
+linkedBtn.addEventListener("click", async () => {
+  linkedBtn.disabled = true;
+  try {
+    const [students, parents, links, groupsRes] = await Promise.all([
+      fetchAll("profiles", "id, full_name, email", (q) => q.eq("role", "student").eq("is_active", true).eq("is_approved", true)),
+      fetchAll("profiles", "id, full_name, email", (q) => q.eq("role", "parent")),
+      fetchAll("guardians", "parent_id, student_id"),
+      supabase.from("groups").select("id, name").eq("organization_id", profile.organization_id).order("name"),
+    ]);
+    if (groupsRes.error) throw groupsRes.error;
+    if (students.length === 0) {
+      showToast("There are no active students yet.", "info");
+      return;
+    }
+
+    const parentById = new Map(parents.map((p) => [p.id, p]));
+    const parentsOf = new Map(); // student id -> parents
+    links.forEach((l) => {
+      const p = parentById.get(l.parent_id);
+      if (!p) return;
+      if (!parentsOf.has(l.student_id)) parentsOf.set(l.student_id, []);
+      parentsOf.get(l.student_id).push(p);
+    });
+    const parentNameOf = (studentId) => (parentsOf.get(studentId) || []).map((p) => p.full_name).join(" / ");
+
+    const choice = await openLinkedDialog({ students, groups: groupsRes.data || [], parentNameOf });
+    if (!choice) return;
+
+    let chosen = students;
+    if (choice.scope === "group") {
+      // Same lookup the QR card export uses for a group
+      const { data, error } = await supabase.rpc("admin_qr_cards", { p_scope: "group", p_group: choice.groupId });
+      if (error) throw error;
+      const inGroup = new Set((data || []).map((p) => p.id));
+      chosen = students.filter((st) => inGroup.has(st.id));
+    } else if (choice.scope === "people") {
+      chosen = students.filter((st) => choice.ids.has(st.id));
+    }
+    if (chosen.length === 0) {
+      showToast("No active students found for that selection.", "info");
+      return;
+    }
+
+    // One row per student (a student is meant to have one parent); students without a parent have blank parent columns.
+    const rows = [];
+    chosen.forEach((st) => {
+      const ps = parentsOf.get(st.id);
+      if (ps?.length) ps.forEach((p) => rows.push({ student: st, parent: p }));
+      else rows.push({ student: st, parent: null });
+    });
+    rows.sort((x, y) => byName(x.student.full_name, y.student.full_name) || byName(x.parent?.full_name, y.parent?.full_name));
+
+    const lines = [["Student", "Student email", "Parent", "Parent email"].join(",")];
+    rows.forEach((r) =>
+      lines.push([csvSafe(r.student.full_name || ""), csvSafe(r.student.email || ""), csvSafe(r.parent?.full_name || ""), csvSafe(r.parent?.email || "")].join(","))
+    );
+
+    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `linked-students-${choice.scope}-${todayPH()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast("Export downloaded.", "success");
+  } catch (err) {
+    console.error(err);
+    showToast(friendlyError(err, "Unable to export linked students right now."), "error");
+  } finally {
+    linkedBtn.disabled = false;
+  }
+});

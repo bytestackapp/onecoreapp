@@ -859,6 +859,12 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 .user-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .user-row.is-inactive { opacity: 0.75; }
 
+#users-list { padding-left: 14px; padding-right: 14px; margin-left: -14px; margin-right: -14px; }
+.user-row.is-pending {
+  border-color: var(--warning);
+  box-shadow: 0 0 0 3px var(--warning-bg), 0 4px 14px rgba(217, 119, 6, 0.16);
+}
+
 .icon-action {
   display: inline-flex;
   align-items: center;

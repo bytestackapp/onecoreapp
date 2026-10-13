@@ -131,7 +131,7 @@ function openJoinDialog(currentProfile) {
       const { error } = await supabase.rpc("add_academy", { p_invite_code: code, p_full_name: name });
       if (error) throw error;
       close();
-      showToast(`Request sent to ${org.name}. It will appear in Switch academy once approved.`, "success", 6000);
+      showToast(`Request sent to ${org.name}.`, "success", 6000);
     } catch (err) {
       console.error(err);
       showToast(msg(err, "Unable to join that academy."), "error");

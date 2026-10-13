@@ -8,6 +8,16 @@ import { yearPH, dateTimePH } from "./time.js";
 const profile = await mountLayout({ activeKey: "admin-settings", pageTitle: "Settings", allowedRoles: ["admin"] });
 if (!profile) throw new Error("redirecting");
 
+// Every call on this page must use the academy the database says I'm in. A saved profile that went stale
+// (academy switched in another tab or device) makes the invite code and archive calls fail, so refresh it once.
+const freshProfile = await getCurrentProfile({ force: true }).catch(() => null);
+if (freshProfile && freshProfile.organization_id !== profile.organization_id && !sessionStorage.getItem("onecore:settings-refreshed")) {
+  sessionStorage.setItem("onecore:settings-refreshed", "1");
+  location.reload();
+  throw new Error("refreshing");
+}
+sessionStorage.removeItem("onecore:settings-refreshed");
+
 const nameInput = document.getElementById("org-name");
 const viewActions = document.getElementById("org-name-view-actions");
 const editActions = document.getElementById("org-name-edit-actions");
@@ -531,8 +541,13 @@ function newDeviceDialog() {
         </div>
         <div class="field">
           <label for="dev-passcode">Scanner passcode</label>
-          <input id="dev-passcode" type="text" required minlength="4" placeholder="4+ digits or characters" />
-          <div class="field-hint">Whoever sets up this device will need this, along with its device code, to activate it.</div>
+          <input id="dev-passcode" type="password" required minlength="4" autocomplete="new-password" placeholder="4+ digits or characters" />
+        </div>
+        <div class="field">
+          <label for="dev-passcode2">Confirm passcode</label>
+          <input id="dev-passcode2" type="password" required minlength="4" autocomplete="new-password" placeholder="Type the passcode again" />
+          <div class="field-error" id="dev-passcode-error" style="display:none;">The two passcodes don't match.</div>
+          <div class="field-hint">Remember this passcode. The admin must provide it, along with the device code, to activate the scanner device.</div>		  
         </div>
         <div class="dialog-actions">
           <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
@@ -550,10 +565,22 @@ function newDeviceDialog() {
   document.addEventListener("keydown", onKey);
   backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
   backdrop.querySelector('[data-act="cancel"]').addEventListener("click", close);
+  backdrop.querySelector("#dev-passcode2").addEventListener("input", () => {
+    backdrop.querySelector("#dev-passcode-error").style.display = "none";
+  });
   backdrop.querySelector("#dev-name").focus();
 
   backdrop.querySelector("#dev-form").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const pass1 = backdrop.querySelector("#dev-passcode").value;
+    const pass2 = backdrop.querySelector("#dev-passcode2").value;
+    const mismatch = backdrop.querySelector("#dev-passcode-error");
+    if (pass1 !== pass2) {
+      mismatch.style.display = "block";
+      backdrop.querySelector("#dev-passcode2").focus();
+      return;
+    }
+    mismatch.style.display = "none";
     const submitBtn = backdrop.querySelector("#dev-submit");
     submitBtn.disabled = true;
     try {
@@ -564,7 +591,7 @@ function newDeviceDialog() {
       if (error) throw error;
       const created = data?.[0];
       close();
-      showCredentialsDialog(created.name, created.device_code, backdrop.querySelector("#dev-passcode")?.value);
+      showCredentialsDialog(created.name, created.device_code);
       loadDevices();
     } catch (err) {
       console.error(err);
@@ -574,20 +601,18 @@ function newDeviceDialog() {
   });
 }
 
-function showCredentialsDialog(name, deviceCode, passcode) {
+const EYE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+
+function showCredentialsDialog(name, deviceCode) {
   const backdrop = document.createElement("div");
   backdrop.className = "dialog-backdrop";
   backdrop.innerHTML = `
     <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="tok-title">
       <h3 id="tok-title">${escapeHtml(name)}</h3>
-      <p>Enter these details in “Scanner Mode” to activate the device. The device code is shown only once. If lost, revoke the device and create a new one. The passcode is the one you just entered.</p>
+      <p>Enter the device code and passcode in your designated scanner to activate it.</p>
       <div class="field">
         <label>Device code</label>
         <input readonly value="${escapeHtml(deviceCode)}" onclick="this.select()" style="font-size:1.1rem;letter-spacing:0.1em;text-align:left;" />
-      </div>
-      <div class="field">
-        <label>Passcode</label>
-        <input readonly value="${escapeHtml(passcode || "")}" onclick="this.select()" />
       </div>
       <div class="dialog-actions"><button type="button" class="btn btn-primary" data-act="close">Done</button></div>
     </div>`;
@@ -662,7 +687,8 @@ async function loadDevices() {
         ${
           d.revoked_at
             ? ""
-            : `<button type="button" class="icon-action sm revoke-device-btn" data-id="${d.id}" data-name="${escapeHtml(d.name)}" title="Revoke" aria-label="Revoke"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg></button>`
+            : `<button type="button" class="icon-action sm view-device-btn" data-id="${d.id}" title="View device code" aria-label="View device code">${EYE_ICON}</button>
+               <button type="button" class="icon-action sm revoke-device-btn" data-id="${d.id}" data-name="${escapeHtml(d.name)}" title="Revoke" aria-label="Revoke"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg></button>`
         }
         <button type="button" class="icon-action sm danger delete-device-btn" data-id="${d.id}" data-name="${escapeHtml(d.name)}" title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
       </div>`
@@ -671,6 +697,16 @@ async function loadDevices() {
 
     el.querySelectorAll(".delete-device-btn").forEach((btn) => {
       btn.addEventListener("click", () => deleteDevice(btn.getAttribute("data-id"), btn.getAttribute("data-name")));
+    });
+    el.querySelectorAll(".view-device-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const d = devicesCache.find((x) => x.id === btn.getAttribute("data-id"));
+        if (!d?.device_code) {
+          showToast("The device code isn't available for this device. Revoke it and create a new one.", "error");
+          return;
+        }
+        showCredentialsDialog(d.name, d.device_code);
+      });
     });
     el.querySelectorAll(".revoke-device-btn").forEach((btn) => {
       btn.addEventListener("click", () => revokeDevice(btn.getAttribute("data-id"), btn.getAttribute("data-name")));

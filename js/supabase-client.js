@@ -159,7 +159,8 @@ export async function getCurrentProfile({ force = false } = {}) {
   // Use the copy saved on the phone, except on the first page of each app launch.
   if (!force && seenThisLaunch("profile")) {
     const saved = readSaved("profile", profileId);
-    if (saved) {
+    // A copy saved before branding existed has no brand fields: ask the server instead.
+    if (saved && saved.organizations && "primary_color" in saved.organizations) {
       cachedProfile = saved;
       return saved;
     }
@@ -167,7 +168,7 @@ export async function getCurrentProfile({ force = false } = {}) {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, organization_id, full_name, email, avatar_url, phone, role, is_active, is_approved, auth_user_id, guest_until, created_at, updated_at, organizations(name, logo_url)")
+    .select("id, organization_id, full_name, email, avatar_url, phone, role, is_active, is_approved, auth_user_id, guest_until, created_at, updated_at, organizations(name, logo_url, slug, brand_name, tagline, primary_color, logo_horiz_url, logo_vert_url)")
     .eq("id", profileId)
     .single();
 

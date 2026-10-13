@@ -98,7 +98,7 @@ async function loadAcademies() {
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;">
             <button type="button" class="icon-action sm copy-code-btn" data-code="${escapeHtml(o.invite_code || "")}" title="Copy invite code" aria-label="Copy invite code">${COPY}</button>
-            <button type="button" class="icon-action sm danger wipe-btn" data-id="${o.id}" data-name="${escapeHtml(o.name)}" title="Clear or reset data" aria-label="Clear or reset data">${RESET}</button>
+            <button type="button" class="icon-action sm danger wipe-btn" data-id="${o.id}" data-name="${escapeHtml(o.name)}" title="Reset data" aria-label="Reset data">${RESET}</button>
             <button type="button" class="icon-action sm enter-btn" data-id="${o.id}" title="Open this academy" aria-label="Open this academy" ${isCurrent ? "disabled" : ""}>${ENTER}</button>
           </div>
         </div>`;
@@ -164,7 +164,7 @@ async function openWipeDialog(orgId, orgName) {
   const lockedStyle = "opacity:0.55;cursor:not-allowed;";
   backdrop.innerHTML = `
     <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="wp-title" style="max-height:90vh;overflow-y:auto;">
-      <h3 id="wp-title" style="margin-bottom:4px;">Clear data</h3>
+      <h3 id="wp-title" style="margin-bottom:4px;">Reset data</h3>
       <p class="text-muted" style="margin:0 0 12px;">${escapeHtml(orgName)}</p>
       <label style="${optionStyle}">
         <input type="radio" name="wp-mode" value="clear" checked style="width:auto;margin:3px 0 0;" />
@@ -185,7 +185,7 @@ async function openWipeDialog(orgId, orgName) {
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
-        <button type="button" class="btn btn-danger-solid" data-act="wipe" disabled>Clear data</button>
+        <button type="button" class="btn btn-danger-solid" data-act="wipe" disabled>Proceed</button>
       </div>
     </div>`;
   document.body.appendChild(backdrop);
@@ -197,7 +197,7 @@ async function openWipeDialog(orgId, orgName) {
 
   const mode = () => backdrop.querySelector('input[name="wp-mode"]:checked').value;
   const nameMatches = () => confirmEl.value.trim().toLowerCase() === orgName.trim().toLowerCase();
-  const LABELS = { clear: "Clear data", full: "Reset academy", delete: "Delete academy" };
+  const LABELS = { clear: "Proceed", full: "Proceed", delete: "Proceed" };
 
   function updateButton() {
     const blocked = mode() === "delete" && insideIt;
