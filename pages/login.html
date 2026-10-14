@@ -75,6 +75,7 @@
       <!-- Signup Modal -->      
       <div id="signup-modal" class="dialog-backdrop" style="display:none;">
         <div class="dialog-modal">
+          <div id="signup-brand" style="display:none;text-align:center;margin-bottom:14px;"></div>
           <h3>Create your account</h3>
           <div id="signup-org-banner" class="banner banner-info" style="display:none;"></div>
           <div id="signup-error-banner" class="banner banner-error" style="display:none;"></div>
@@ -218,6 +219,21 @@
       holdBrand = false;
       if (invitePreview || pageBrand) paintBrand(invitePreview || pageBrand);
     }
+
+    function paintSignupBrand(brand) {
+      const el = document.getElementById("signup-brand");
+      if (!brand || !brand.custom) {
+        el.style.display = "none";
+        el.innerHTML = "";
+        return;
+      }
+      const logo = brandLogo(brand, "vert", null);
+      el.innerHTML =
+        (logo ? `<img src="${escapeHtml(logo)}" alt="" style="max-width:96px;max-height:96px;display:block;margin:0 auto 6px;">` : "") +
+        `<div style="font-weight:700;font-size:1.05rem;color:var(--primary);">${escapeHtml(brand.name)}</div>`;
+      el.style.display = "";
+    }
+
     async function previewInviteBrand(code) {
       try {
         const { data, error } = await supabase.rpc("get_brand_by_invite_code", { code });
@@ -226,10 +242,12 @@
       } catch (err) {
         console.warn("previewInviteBrand:", err); // the preview is optional
       }
+      paintSignupBrand(invitePreview);
       releaseBrand();
     }
     function clearInvitePreview() {
       invitePreview = null;
+      paintSignupBrand(null);
       if (pageBrand) paintBrand(pageBrand);
     }
     
