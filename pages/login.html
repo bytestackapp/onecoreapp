@@ -77,7 +77,6 @@
         <div class="dialog-modal">
           <div id="signup-brand" style="display:none;text-align:center;margin-bottom:14px;"></div>
           <h3>Create your account</h3>
-          <div id="signup-org-banner" class="banner banner-info" style="display:none;"></div>
           <div id="signup-error-banner" class="banner banner-error" style="display:none;"></div>
           <form id="signup-form">
             <div class="field">
@@ -513,19 +512,6 @@
       previewInviteBrand(code);
       document.getElementById("signup-code").value = code;
       document.getElementById("signup-modal").style.display = "flex";
-      const banner = document.getElementById("signup-org-banner");
-      banner.style.display = "none";
-      try {
-        const { data } = await supabase.rpc("lookup_org_by_invite_code", { code });
-        const org = data?.[0];
-        const name = org?.name ?? org?.organization_name ?? org?.org_name;
-        if (name) {
-          banner.textContent = `You're joining ${name}.`;
-          banner.style.display = "";
-        }
-      } catch (err) {
-        console.error(err); // the banner is optional
-      }
     }
 
     // Opened from a QR link: open sign-up with the code filled in, then clean the address bar.
@@ -537,7 +523,6 @@
     }
 
     document.getElementById("cancel-signup-btn").addEventListener("click", () => {
-      document.getElementById("signup-org-banner").style.display = "none";
       clearInvitePreview();
     });
 
