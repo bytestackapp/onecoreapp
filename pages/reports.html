@@ -14,7 +14,7 @@
   <meta name="format-detection" content="telephone=no" />
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="../css/global.css" />
-  <script>try{var t=localStorage.getItem("onecore:theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+  <script>try{var t=localStorage.getItem("onecore:theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}try{var b=JSON.parse(localStorage.getItem("onecore_saved_brand_last")||"null");if(b&&b.css&&!/<|url\(|@import/i.test(b.css)){var s=document.createElement("style");s.id="brand-theme";s.textContent=b.css;document.head.appendChild(s)}}catch(e){}</script>
 </head>
 <body>
 <div id="page-loader" class="page-loader">
@@ -60,10 +60,10 @@
       </div>
     </div>
 
-    <div class="section">
+    <div class="section" id="linked">
       <div id="linked-head"></div>
       <div class="card">
-        <p style="margin:0;">Download the list of active students with their parent, as a CSV file. Students without a parent linked are included with the parent columns left blank.</p>
+        <p style="margin:0 0 8px;">Export the student-parent links to CSV for editing, then import the updated file to apply changes in bulk. File must contain at least Student and Parent columns.</p>
       </div>
     </div>
   </div>

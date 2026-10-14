@@ -14,6 +14,7 @@
   <meta name="format-detection" content="telephone=no" />
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="../css/global.css" />
+  <script>try{var h=location.hostname.toLowerCase(),sl=null;try{var q=new URLSearchParams(location.search).get("school");if(q)sessionStorage.setItem("onecore_school_override",q.trim().toLowerCase());sl=sessionStorage.getItem("onecore_school_override")}catch(e){}var l=h.split(".");if(!sl&&l.length>=3&&l[0]!=="www")sl=l[0];if(sl&&!/^[a-z0-9-]{2,40}$/.test(sl))sl=null;var c=JSON.parse(localStorage.getItem("onecore_brand_v1:"+h+"|"+(sl||""))||"null");if(!(c&&c.matched))c=JSON.parse(localStorage.getItem("onecore_device_brand")||"null");if(c&&c.css&&!/<|url\(|@import/i.test(c.css)){var s=document.createElement("style");s.id="brand-theme";s.textContent=c.css;document.head.appendChild(s)}}catch(e){}</script>
   <script src="../js/vendor/html5-qrcode.min.js"></script>
   <script type="module" src="../js/register-sw.js"></script>
   <script>try{var t=localStorage.getItem("onecore:theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
@@ -185,15 +186,20 @@
   </div>
 
   <script type="module">
-	import { supabase, getSessionUser, friendlyError, myAcademies } from "../js/supabase-client.js";
+	import { supabase, getSessionUser, getCurrentProfile, isPlatformOwner, friendlyError, myAcademies } from "../js/supabase-client.js";
 	import { showToast } from "../js/toast.js";
     import "../js/theme.js";
-    import { loadPublicBrand, getCachedBrand, applyBrand, brandLogo } from "../js/brand.js";
+    import { loadPublicBrand, getCachedBrand, applyBrand, brandLogo, brandFromOrg, rememberBrand, forgetBrand } from "../js/brand.js";
 
-    // Brand for this web address (school logo, name, color). Saved copy paints instantly;
-    // the server answer then confirms it. First-ever visit: the logo area stays empty for a
-    // moment instead of flashing the wrong brand.
-    function renderBrand(brand) {
+    // The brand the page normally shows (web address, or the academy this device used last)
+    let pageBrand = null;
+    // Brand of the school an invite link or QR belongs to (shown only while someone is joining it)
+    let invitePreview = null;
+    // With an invite link, wait for the school's brand before painting, so the wrong logo never flashes
+    let holdBrand = new URLSearchParams(window.location.search).has("invite");
+    setTimeout(releaseBrand, 3500); // safety: never wait longer than this
+    
+    function paintBrand(brand) {
       applyBrand(brand);
       document.title = `Sign in \u2014 ${brand.name}`;
       const logo = brandLogo(brand, "vert", "../images/logo-vert.png");
@@ -204,6 +210,29 @@
         ? `&copy; 2026 ${escapeHtml(brand.name)}. Powered by OneCore.`
         : "&copy; 2026 OneCore. All rights reserved.";
     }
+    function renderBrand(brand) {
+      pageBrand = brand;
+      if (!holdBrand) paintBrand(invitePreview || brand);
+    }
+    function releaseBrand() {
+      holdBrand = false;
+      if (invitePreview || pageBrand) paintBrand(invitePreview || pageBrand);
+    }
+    async function previewInviteBrand(code) {
+      try {
+        const { data, error } = await supabase.rpc("get_brand_by_invite_code", { code });
+        if (error) throw error;
+        invitePreview = data?.[0] ? brandFromOrg(data[0]) : null;
+      } catch (err) {
+        console.warn("previewInviteBrand:", err); // the preview is optional
+      }
+      releaseBrand();
+    }
+    function clearInvitePreview() {
+      invitePreview = null;
+      if (pageBrand) paintBrand(pageBrand);
+    }
+    
     const cachedBrand = getCachedBrand();
     if (cachedBrand) renderBrand(cachedBrand);
     loadPublicBrand().then(renderBrand);
@@ -224,8 +253,11 @@
     }
 
     // Already signed in? Skip straight to the dashboard.
-    getSessionUser().then((user) => {
-      if (user) window.location.href = "dashboard.html";
+    getSessionUser().then(async (user) => {
+      if (user) {
+        await rememberActiveBrand();
+        window.location.href = "dashboard.html";
+      }
     });
 
     const form = document.getElementById("login-form");
@@ -259,6 +291,22 @@
     // After a successful sign-in: if this login has more than one approved,
     // active academy, ask which one before continuing. Otherwise, straight
     // to the dashboard, exactly as before.
+    // Before leaving the login page: the device remembers the academy the person signed in to, so the
+    // splash, the loading screen and the next login page are in its brand. Platform owners leave
+    // nothing behind (they always see OneCore). Never holds up sign-in for more than 2 seconds.
+    async function rememberActiveBrand() {
+      try {
+        const [profile, owner] = await Promise.race([
+          Promise.all([getCurrentProfile({ force: true }), isPlatformOwner()]),
+          new Promise((resolve) => setTimeout(() => resolve([null, false]), 2000)),
+        ]);
+        if (owner) forgetBrand();
+        else if (profile) rememberBrand(brandFromOrg(profile.organizations));
+      } catch (err) {
+        console.warn("rememberActiveBrand:", err);
+      }
+    }
+
     async function proceedAfterSignIn() {
       let myProfiles = [];
       try {
@@ -268,6 +316,7 @@
       }
 
       if (myProfiles.length <= 1) {
+        await rememberActiveBrand();
         window.location.href = "dashboard.html";
         return;
       }
@@ -298,6 +347,7 @@
         return;
       }
       await supabase.auth.refreshSession();
+      await rememberActiveBrand();
       window.location.href = "dashboard.html";
     }
 
@@ -442,6 +492,7 @@
     }
 
     async function applyInviteCode(code) {
+      previewInviteBrand(code);
       document.getElementById("signup-code").value = code;
       document.getElementById("signup-modal").style.display = "flex";
       const banner = document.getElementById("signup-org-banner");
@@ -464,11 +515,12 @@
       const fromLink = extractInviteCode(params.get("invite"));
       history.replaceState(null, "", window.location.pathname);
       if (fromLink) applyInviteCode(fromLink);
-      else showToast("That invite link isn't valid. Ask your administrator for a new one.", "error");
+      else { releaseBrand(); showToast("That invite link isn't valid. Ask your administrator for a new one.", "error"); }
     }
 
     document.getElementById("cancel-signup-btn").addEventListener("click", () => {
       document.getElementById("signup-org-banner").style.display = "none";
+      clearInvitePreview();
     });
 
     // In-app scanner (for people inside the Android app)

@@ -92,9 +92,14 @@ function brandCss(color) {
   const [r, g, b] = base.map(Math.round);
   const lightText = toHex(mix(base, [255, 255, 255], 0.45)); // readable on dark backgrounds
   const lightHover = toHex(mix(base, [255, 255, 255], 0.65));
+  const tint = (t) => toHex(mix(base, [255, 255, 255], t));
+  // Colors for the splash screen (wave, bar, corner circle), all from the same primary color.
+  const splash = `--splash-a:${solid};--splash-b:${tint(0.45)};--splash-soft:${tint(0.8)};--splash-decor-a:${tint(0.78)};--splash-decor-b:${tint(0.9)};--splash-track:rgba(${r},${g},${b},.15);--loader-decor-a:${tint(0.78)};--loader-decor-b:${tint(0.9)};--loader-wave:${tint(0.8)}`;
+  const dk = (t) => toHex(mix(base, [11, 18, 32], t)); // tints for the dark loading screen
+  const darkLoader = `--loader-decor-a:${dk(0.72)};--loader-decor-b:${dk(0.84)};--loader-wave:${dk(0.8)};--loader-wave-a:${dk(0.35)};--loader-wave-b:${dk(0.6)}`;
   return `
-:root{--primary:${solid};--primary-hover:${hover};--primary-light:rgba(${r},${g},${b},.1);--primary-solid:${solid};--primary-solid-hover:${hover}}
-:root[data-theme="dark"]{--primary:${lightText};--primary-hover:${lightHover};--primary-light:rgba(${r},${g},${b},.22);--primary-solid:${solid};--primary-solid-hover:${toHex(mix(base, [255, 255, 255], 0.2))}}`;
+:root{${splash};--primary:${solid};--primary-hover:${hover};--primary-light:rgba(${r},${g},${b},.1);--primary-solid:${solid};--primary-solid-hover:${hover}}
+:root[data-theme="dark"]{${darkLoader};--primary:${lightText};--primary-hover:${lightHover};--primary-light:rgba(${r},${g},${b},.22);--primary-solid:${solid};--primary-solid-hover:${toHex(mix(base, [255, 255, 255], 0.2))}}`;
 }
 
 // ---------------------------------------------------------------------
@@ -102,6 +107,65 @@ function brandCss(color) {
 // ---------------------------------------------------------------------
 
 let currentBrand = DEFAULT_BRAND;
+
+// Injects (or removes) the color overrides: buttons/links, splash and the page loading screen.
+function setBrandStyle(color) {
+  let style = document.getElementById("brand-theme");
+  if (color) {
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "brand-theme";
+    }
+    style.textContent = brandCss(color);
+    document.head.appendChild(style); // last in <head>, so it wins over global.css
+  } else if (style) {
+    style.remove();
+  }
+}
+
+// The signed-in pages show a loading screen BEFORE the academy is known, so the last academy
+// color is also kept in LAST_KEY (wiped on sign-out with the other saved data).
+const LAST_KEY = "onecore_saved_brand_last";
+
+// The last academy this DEVICE was used in. It deliberately survives sign-out, so the splash and
+// login page of the installed app show that academy. Platform owners never leave anything here.
+const DEVICE_KEY = "onecore_device_brand";
+
+/** Saves the academy the person is working in as the device's brand (or clears it if that academy has no brand). */
+export function rememberBrand(brand) {
+  try {
+    if (brand?.custom) {
+      // The ready-made CSS is saved too, so tiny inline scripts in each page's <head> can color the page before its first paint.
+      const css = brand.color ? brandCss(brand.color) : null;
+      localStorage.setItem(DEVICE_KEY, JSON.stringify({ ...brand, css }));
+      if (css) localStorage.setItem(LAST_KEY, JSON.stringify({ color: brand.color, css }));
+      else localStorage.removeItem(LAST_KEY);
+    } else {
+      forgetBrand();
+    }
+  } catch {
+    // storage blocked: the splash just stays OneCore
+  }
+}
+
+/** Forgets the device's brand: splash and login go back to OneCore. Used for platform owners. */
+export function forgetBrand() {
+  try {
+    localStorage.removeItem(DEVICE_KEY);
+    localStorage.removeItem(LAST_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+export function applyRememberedBrand() {
+  try {
+    const last = JSON.parse(localStorage.getItem(LAST_KEY) || "null");
+    if (last && HEX.test(last.color || "")) setBrandStyle(last.color);
+  } catch {
+    // ignore
+  }
+}
 export const getBrand = () => currentBrand;
 
 /**
@@ -111,18 +175,7 @@ export const getBrand = () => currentBrand;
  */
 export function applyBrand(brand = DEFAULT_BRAND) {
   currentBrand = brand;
-
-  let style = document.getElementById("brand-theme");
-  if (brand.color) {
-    if (!style) {
-      style = document.createElement("style");
-      style.id = "brand-theme";
-    }
-    style.textContent = brandCss(brand.color);
-    document.head.appendChild(style); // last in <head>, so it wins over global.css
-  } else if (style) {
-    style.remove();
-  }
+  setBrandStyle(brand.color);
 
   document.querySelectorAll("[data-brand-name]").forEach((el) => (el.textContent = brand.name));
   if (brand.tagline) document.querySelectorAll("[data-brand-tagline]").forEach((el) => (el.textContent = brand.tagline));
@@ -154,14 +207,27 @@ function resolveTenant() {
   return { host, slug, key: CACHE_PREFIX + host + "|" + (slug || "") };
 }
 
-/** The brand saved on this device from the last visit (instant, no network). */
-export function getCachedBrand() {
+function readJson(key) {
   try {
-    const raw = localStorage.getItem(resolveTenant().key);
-    return raw ? { ...DEFAULT_BRAND, ...JSON.parse(raw) } : null;
+    return JSON.parse(localStorage.getItem(key) || "null");
   } catch {
     return null;
   }
+}
+
+/**
+ * The brand to show right now without waiting for the network:
+ *   1. the school this web address belongs to (school.onecore.app, custom domain, ?school=), else
+ *   2. the academy this device was last used in (installed app: there is no school in the address), else
+ *   3. OneCore.
+ * Returns null only if nothing has ever been saved (very first visit).
+ */
+export function getCachedBrand() {
+  const addr = readJson(resolveTenant().key);
+  if (addr && addr.matched) return { ...DEFAULT_BRAND, ...addr };
+  const device = readJson(DEVICE_KEY);
+  if (device) return { ...DEFAULT_BRAND, ...device };
+  return addr ? { ...DEFAULT_BRAND } : null;
 }
 
 /** Asks the server which brand belongs to this address. Never throws; falls back to the saved/default brand. */
@@ -172,13 +238,18 @@ export async function loadPublicBrand() {
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("brand lookup timed out")), 3000));
     const { data, error } = await Promise.race([call, timeout]);
     if (error) throw error;
-    const brand = brandFromOrg(data?.[0]);
+    const row = data?.[0];
     try {
-      localStorage.setItem(key, JSON.stringify(brand));
+      // "matched" tells the inline <head> scripts whether this address is a school (use its CSS) or not (use the device's).
+      const brand = brandFromOrg(row);
+      localStorage.setItem(key, JSON.stringify({ ...brand, matched: !!row, css: row && brand.color ? brandCss(brand.color) : null }));
     } catch {
       // storage full or blocked: fine
     }
-    return brand;
+    if (row) return brandFromOrg(row);
+    // No school in this address (the installed app opens one plain address): use the academy this device used last.
+    const device = readJson(DEVICE_KEY);
+    return device ? { ...DEFAULT_BRAND, ...device } : DEFAULT_BRAND;
   } catch (err) {
     console.warn("loadPublicBrand:", err);
     return getCachedBrand() || DEFAULT_BRAND;

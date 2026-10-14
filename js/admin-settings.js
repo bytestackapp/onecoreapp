@@ -310,6 +310,8 @@ const ACTION_LABELS = {
   "group.created": "- created a group",
   "group.head_assigned": "- assigned a group head" ,
   "user.guardian_linked": "- linked a parent to a student",
+  "user.child_linked": "- linked a student to a parent",
+  "user.links_imported": "- imported parent links from a file",
   "attendance.correction_approved": "- approved an attendance correction",
   "attendance.correction_rejected": "- rejected an attendance correction",
   "event.created": "- created an event",

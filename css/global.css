@@ -683,6 +683,11 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   color: var(--text-secondary);
   z-index: 1;
 }
+/* Brand colors for the loading ring and wave (override the stop-color attributes in each page's loader SVG) */
+.page-loader-ring stop:first-child { stop-color: var(--splash-a, #2952e3); }
+.page-loader-ring stop:last-child  { stop-color: var(--splash-b, #1fc6c6); }
+.page-loader-wave stop:first-child { stop-color: var(--splash-a, #1f4fe0); }
+.page-loader-wave stop:last-child  { stop-color: var(--splash-b, #22c9c9); }
 .page-loader-wave path:first-of-type { fill: var(--loader-wave); } /* overrides the fill attribute in each page's loader SVG */
 .page-loader-wave {
   position: absolute;
@@ -825,7 +830,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 .auth-card { width: 100%; max-width: 380px; }
 .auth-brand { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 6px; }
 .auth-brand .brand-name { font-size: 1.3rem; font-weight: 800; }
-.auth-brand-logo { max-width: 140px; height: auto; display: block; margin: 0 auto; }
+.auth-brand-logo { max-width: 110px; height: auto; display: block; margin: 0 auto; }
 .auth-card h1 { text-align: center; }
 .auth-card .subtitle { text-align: center; color: var(--text-secondary); margin-bottom: 24px; font-size: 0.9rem; }
 .auth-links { display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 6px; }
@@ -1095,8 +1100,8 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 }
 
 /* Loading screen wave: deeper blue-teal in dark mode (CSS overrides the stop-color attributes in each page's loader SVG) */
-:root[data-theme="dark"] #loaderWaveGradient stop:first-child { stop-color: #14296b; }
-:root[data-theme="dark"] #loaderWaveGradient stop:last-child { stop-color: #0d4c55; }
+:root[data-theme="dark"] #loaderWaveGradient stop:first-child { stop-color: var(--loader-wave-a, #14296b); }
+:root[data-theme="dark"] #loaderWaveGradient stop:last-child { stop-color: var(--loader-wave-b, #0d4c55); }
 
 /* Dark mode: native date / time pickers (the calendar and clock pop-ups follow color-scheme) */
 :root[data-theme="dark"] input,
@@ -1114,6 +1119,15 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
     0 0 0 1px rgba(124, 58, 237, 0.25),
     0 14px 50px rgba(88, 28, 135, 0.6),
     0 0 100px rgba(109, 40, 217, 0.3);
+}
+
+/* Dialogs: thin, modern scroll bar on desktop (phones keep no scroll bar, see below) */
+@media (hover: hover) and (pointer: fine) {
+  .dialog-backdrop { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+  .dialog-backdrop::-webkit-scrollbar { width: 6px; }
+  .dialog-backdrop::-webkit-scrollbar-track { background: transparent; }
+  .dialog-backdrop::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
+  .dialog-backdrop::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 }
 
 /* Phones and tablets: no scroll bar */

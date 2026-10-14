@@ -14,7 +14,7 @@
   <meta name="format-detection" content="telephone=no" />
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="../css/global.css" />
-  <script>try{var t=localStorage.getItem("onecore:theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+  <script>try{var t=localStorage.getItem("onecore:theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}try{var b=JSON.parse(localStorage.getItem("onecore_saved_brand_last")||"null");if(b&&b.css&&!/<|url\(|@import/i.test(b.css)){var s=document.createElement("style");s.id="brand-theme";s.textContent=b.css;document.head.appendChild(s)}}catch(e){}</script>
   <style>
     /* Clickable stat cards */
     .tile-link { display: block; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }

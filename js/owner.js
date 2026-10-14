@@ -21,9 +21,10 @@ const msg = (err, fallback) => (err?.code === "P0001" && err.message ? err.messa
 
 const PLUS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`;
 const ENTER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><path d="M10 17l5-5-5-5M15 12H3"/></svg>`;
-const COPY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
 const RESET = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>`;
 const TRASH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`;
+const EDIT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>`;
+const GEAR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.7 7.7 0 000-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 00-1.7-1L15 3h-6l-.3 2.6a7.6 7.6 0 00-1.7 1l-2.4-1-2 3.4L4.6 11a7.7 7.7 0 000 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 001.7 1L9 21h6l.3-2.6a7.6 7.6 0 001.7-1l2.4 1 2-3.4z"/></svg>`;
 
 document.getElementById("academies-head").innerHTML = sectionHead({
   title: "Academies",
@@ -39,7 +40,7 @@ document.getElementById("owners-head").innerHTML = sectionHead({
 });
 
 // ---------- small prompt dialog (one text field) ----------
-function promptDialog({ title, label, placeholder = "", type = "text", confirmLabel = "Save", hint = "" }) {
+function promptDialog({ title, label, placeholder = "", type = "text", confirmLabel = "Save", hint = "", value = "" }) {
   return new Promise((resolve) => {
     const backdrop = document.createElement("div");
     backdrop.className = "dialog-backdrop";
@@ -49,7 +50,7 @@ function promptDialog({ title, label, placeholder = "", type = "text", confirmLa
         <form id="pd-form">
           <div class="field">
             <label for="pd-input">${escapeHtml(label)}</label>
-            <input id="pd-input" type="${type}" placeholder="${escapeHtml(placeholder)}" required />
+            <input id="pd-input" type="${type}" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(value)}" required />
             ${hint ? `<div class="field-hint">${escapeHtml(hint)}</div>` : ""}
           </div>
           <div class="dialog-actions">
@@ -61,6 +62,7 @@ function promptDialog({ title, label, placeholder = "", type = "text", confirmLa
     document.body.appendChild(backdrop);
     const input = backdrop.querySelector("#pd-input");
     input.focus();
+    input.select();
 
     const onKey = (e) => { if (e.key === "Escape") close(null); };
     function close(v) {
@@ -94,10 +96,12 @@ async function loadAcademies() {
         return `<div class="list-row">
           <div style="flex:1;min-width:0;">
             <div style="font-weight:600;">${escapeHtml(o.name)}${isCurrent ? ` <span class="tag tag-approved">Current</span>` : ""}</div>
-            <div class="text-muted" style="font-size:0.85rem;">${o.member_count} member${Number(o.member_count) === 1 ? "" : "s"} · ${o.admin_count} admin${Number(o.admin_count) === 1 ? "" : "s"} · code ${escapeHtml(o.invite_code || "—")}</div>
+            <div class="text-muted" style="font-size:0.85rem;">${o.member_count} member${Number(o.member_count) === 1 ? "" : "s"} · ${o.admin_count} admin${Number(o.admin_count) === 1 ? "" : "s"}</div>
+            <div class="text-muted" style="font-size:0.85rem;">code: ${escapeHtml(o.invite_code || "—")}</div>
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;">
-            <button type="button" class="icon-action sm copy-code-btn" data-code="${escapeHtml(o.invite_code || "")}" title="Copy invite code" aria-label="Copy invite code">${COPY}</button>
+            <button type="button" class="icon-action sm brand-btn" data-id="${o.id}" data-name="${escapeHtml(o.name)}" title="Brand settings" aria-label="Brand settings">${GEAR}</button>
+            <button type="button" class="icon-action sm edit-btn" data-id="${o.id}" data-name="${escapeHtml(o.name)}" title="Edit academy name" aria-label="Edit academy name">${EDIT}</button>
             <button type="button" class="icon-action sm danger wipe-btn" data-id="${o.id}" data-name="${escapeHtml(o.name)}" title="Reset data" aria-label="Reset data">${RESET}</button>
             <button type="button" class="icon-action sm enter-btn" data-id="${o.id}" title="Open this academy" aria-label="Open this academy" ${isCurrent ? "disabled" : ""}>${ENTER}</button>
           </div>
@@ -105,16 +109,8 @@ async function loadAcademies() {
       })
       .join("");
 
-    el.querySelectorAll(".copy-code-btn").forEach((btn) =>
-      btn.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(btn.getAttribute("data-code"));
-          showToast("Invite code copied.", "success");
-        } catch {
-          showToast("Couldn't copy the code.", "error");
-        }
-      })
-    );
+    el.querySelectorAll(".edit-btn").forEach((btn) => btn.addEventListener("click", () => renameAcademy(btn.getAttribute("data-id"), btn.getAttribute("data-name"))));    
+    el.querySelectorAll(".brand-btn").forEach((btn) => btn.addEventListener("click", () => openBrandDialog(btn.getAttribute("data-id"), btn.getAttribute("data-name"))));
     el.querySelectorAll(".enter-btn").forEach((btn) => btn.addEventListener("click", () => enterAcademy(btn.getAttribute("data-id"))));
     el.querySelectorAll(".wipe-btn").forEach((btn) => btn.addEventListener("click", () => openWipeDialog(btn.getAttribute("data-id"), btn.getAttribute("data-name"))));
   } catch (err) {
@@ -136,6 +132,20 @@ async function enterAcademy(orgId) {
   } catch (err) {
     console.error(err);
     showToast(msg(err, "Unable to open that academy."), "error");
+  }
+}
+
+async function renameAcademy(orgId, currentName) {
+  const name = await promptDialog({ title: "Edit academy", label: "Academy name", value: currentName, confirmLabel: "Save" });
+  if (!name || name === currentName) return;
+  try {
+    const { error } = await supabase.rpc("owner_rename_academy", { p_org: orgId, p_name: name });
+    if (error) throw error;
+    showToast("Academy renamed.", "success");
+    await loadAcademies();
+  } catch (err) {
+    console.error(err);
+    showToast(msg(err, "Unable to rename the academy."), "error");
   }
 }
 
@@ -257,6 +267,212 @@ async function openWipeDialog(orgId, orgName) {
 
   confirmEl.focus();
   updateButton();
+}
+
+// ---------- Brand settings for one academy ----------
+const LOGO_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+const LOGO_MAX_BYTES = 1024 * 1024; // 1 MB: the logo loads on the splash screen, so keep it light
+const LOGO_EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/svg+xml": "svg" };
+
+async function openBrandDialog(orgId, orgName) {
+  let b;
+  try {
+    const { data, error } = await supabase.rpc("owner_get_academy_brand", { p_org: orgId });
+    if (error) throw error;
+    b = data?.[0];
+    if (!b) throw new Error("Academy not found");
+  } catch (err) {
+    console.error(err);
+    showToast(msg(err, "Brand settings couldn't be loaded."), "error");
+    return;
+  }
+
+  // One logo for the splash, login page and sidebar. It is saved in logo_vert_url; the sidebar
+  // falls back to it automatically. (An older separate sidebar logo is folded into this one.)
+  const oldUrls = [b.logo_vert_url, b.logo_horiz_url].filter(Boolean);
+  const logo = { saved: b.logo_vert_url || b.logo_horiz_url || null, file: null, removed: false };
+  const previewUrls = [];
+
+  const smallBtn = "padding:6px 12px;font-size:0.85rem;cursor:pointer;";
+  const backdrop = document.createElement("div");
+  backdrop.className = "dialog-backdrop";
+  backdrop.innerHTML = `
+    <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="bs-title">
+      <h3 id="bs-title" style="margin-bottom:18px;">Brand settings</h3>
+
+      <div class="field">
+        <label for="bs-name">Brand name</label>
+        <input id="bs-name" type="text" maxlength="60" placeholder="${escapeHtml(orgName)}" value="${escapeHtml(b.brand_name || "")}" />
+      </div>
+      <div class="field">
+        <label for="bs-tagline">Tagline</label>
+        <input id="bs-tagline" type="text" maxlength="120" placeholder="Shown on the login page" value="${escapeHtml(b.tagline || "")}" />
+      </div>
+      <div class="field">
+        <label for="bs-color">Primary color</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="bs-color-pick" type="color" value="${/^#[0-9a-f]{6}$/i.test(b.primary_color || "") ? b.primary_color : "#4f46e5"}" style="width:44px;height:38px;padding:2px;flex:none;" />
+          <input id="bs-color" type="text" maxlength="7" autocomplete="off" placeholder="#1f4fe0" value="${escapeHtml(b.primary_color || "")}" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Logo</label>
+        <div style="display:flex;align-items:stretch;gap:12px;">
+          <div id="bs-prev" style="width:96px;height:96px;flex:none;border:1px dashed var(--border-strong);border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:8px;">
+            <div class="field-hint" style="margin:0;">Square PNG with a transparent background, approximately 600 × 600 px and under 1 MB.</div>
+            <div style="display:flex;gap:8px;">
+              <button type="button" class="btn btn-primary" id="bs-upload" style="${smallBtn}">Upload</button>
+              <button type="button" class="btn btn-secondary" id="bs-remove" style="${smallBtn}">Remove</button>
+              <input id="bs-file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="bs-slug">Address name</label>
+        <input id="bs-slug" type="text" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="academy-a" value="${escapeHtml(b.slug || "")}" />
+      </div>
+      <div class="field">
+        <label for="bs-domain">Custom domain (optional)</label>
+        <input id="bs-domain" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="app.school.edu" value="${escapeHtml(b.custom_domain || "")}" />
+        <div class="field-hint">Must also be added to the project in Vercel.</div>
+      </div>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" data-act="save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+
+  const $ = (sel) => backdrop.querySelector(sel);
+  const saveBtn = $('[data-act="save"]');
+  const colorEl = $("#bs-color");
+  const colorPick = $("#bs-color-pick");
+  let busy = false;
+
+  function renderLogo() {
+    let src = null;
+    if (logo.file) {
+      src = URL.createObjectURL(logo.file);
+      previewUrls.push(src);
+    } else if (!logo.removed) {
+      src = logo.saved;
+    }
+    $("#bs-prev").innerHTML = src
+      ? `<img src="${escapeHtml(src)}" alt="" style="max-width:100%;max-height:100%;object-fit:contain;" />`
+      : `<span class="text-muted" style="font-size:0.75rem;">No logo</span>`;
+    $("#bs-remove").style.display = src ? "" : "none";
+  }
+  renderLogo();
+
+  $("#bs-upload").addEventListener("click", () => $("#bs-file").click());
+  $("#bs-file").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!LOGO_TYPES.includes(file.type)) {
+      showToast("Use a PNG, JPG, WebP or SVG image.", "error");
+      return;
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      showToast("That logo is over 1 MB. Please use a smaller file.", "error");
+      return;
+    }
+    logo.file = file;
+    logo.removed = false;
+    renderLogo();
+  });
+  $("#bs-remove").addEventListener("click", () => {
+    logo.file = null;
+    logo.removed = true;
+    renderLogo();
+  });
+
+  // The color picker and the hex box stay in step.
+  colorPick.addEventListener("input", () => { colorEl.value = colorPick.value; });
+  colorEl.addEventListener("input", () => { if (/^#[0-9a-f]{6}$/i.test(colorEl.value.trim())) colorPick.value = colorEl.value.trim(); });
+  $("#bs-slug").addEventListener("input", (e) => { e.target.value = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""); });
+
+  function onKey(e) {
+    if (e.key === "Escape" && !busy) close();
+  }
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    previewUrls.forEach((u) => URL.revokeObjectURL(u));
+    backdrop.remove();
+  }
+  document.addEventListener("keydown", onKey);
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop && !busy) close(); });
+  $('[data-act="cancel"]').addEventListener("click", () => { if (!busy) close(); });
+
+  // "…/object/public/brand/<org>/logo-123.png" -> "<org>/logo-123.png" (only files inside this academy's folder)
+  const storagePath = (url) => {
+    const part = (url || "").split("/object/public/brand/")[1];
+    const path = part ? decodeURIComponent(part.split("?")[0]) : null;
+    return path && path.startsWith(orgId + "/") ? path : null;
+  };
+
+  saveBtn.addEventListener("click", async () => {
+    if (busy) return;
+    const color = colorEl.value.trim();
+    if (color && !/^#[0-9a-f]{6}$/i.test(color)) {
+      showToast("Color must look like #1f4fe0.", "error");
+      return;
+    }
+    busy = true;
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving…";
+
+    let uploadedPath = null;
+    try {
+      let url = logo.removed ? null : logo.saved;
+      if (logo.file) {
+        // A new file name each time, so phones and browsers never show an old cached logo.
+        uploadedPath = `${orgId}/logo-${Date.now()}.${LOGO_EXT[logo.file.type]}`;
+        const { error } = await supabase.storage.from("brand").upload(uploadedPath, logo.file, { contentType: logo.file.type, cacheControl: "3600" });
+        if (error) throw error;
+        url = supabase.storage.from("brand").getPublicUrl(uploadedPath).data.publicUrl;
+      }
+
+      const { error } = await supabase.rpc("owner_set_academy_brand", {
+        p_org: orgId,
+        p_slug: $("#bs-slug").value.trim(),
+        p_custom_domain: $("#bs-domain").value.trim(),
+        p_brand_name: $("#bs-name").value.trim(),
+        p_tagline: $("#bs-tagline").value.trim(),
+        p_primary_color: color,
+        p_logo_horiz_url: null, // one logo only: the sidebar uses the same one
+        p_logo_vert_url: url,
+      });
+      if (error) throw error;
+
+      // Saved. Tidy up logo files this replaced (best effort, never blocks).
+      const stale = oldUrls.filter((u) => u !== url).map(storagePath).filter(Boolean);
+      if (stale.length) supabase.storage.from("brand").remove(stale).catch(() => {});
+
+      close();
+      showToast("Brand saved.", "success");
+      if (orgId === profile.organization_id) {
+        // This is the academy being viewed: reload so the new colors and logo show right away.
+        clearProfileCache();
+        setTimeout(() => window.location.reload(), 600);
+      }
+    } catch (err) {
+      console.error(err);
+      // The save failed: remove the file we just uploaded so nothing is left behind.
+      if (uploadedPath) supabase.storage.from("brand").remove([uploadedPath]).catch(() => {});
+      busy = false;
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save";
+      showToast(msg(err, "Unable to save the brand settings."), "error");
+    }
+  });
+
+  $("#bs-name").focus();
 }
 
 // ---------- Owners ----------

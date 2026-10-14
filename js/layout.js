@@ -9,7 +9,9 @@
 import "./register-sw.js";
 import { supabase, requireAuth, signOut, initials, isPlatformOwner, myAcademies, clearProfileCache, switchToProfile } from "./supabase-client.js";
 import { openAcademySwitcher } from "./academy-switcher.js";
-import { APP_NAME, LOGO_MARK, brandFromOrg, applyBrand, brandLogo } from "./brand.js";
+import { APP_NAME, LOGO_MARK, brandFromOrg, applyBrand, brandLogo, rememberBrand, forgetBrand, applyRememberedBrand } from "./brand.js";
+
+applyRememberedBrand(); // color the loading screen right away, before the academy is known
 import { initPushNotifications } from "./push.js";
 import { checkForUpdate } from "./version-check.js";
 import "./pull-to-refresh.js";
@@ -112,7 +114,7 @@ function buildSidebar(profile, activeKey, unread, isOwner) {
   el.id = "app-sidebar";
   el.innerHTML = `
     <div class="sidebar-brand">
-      ${brandLogoSrc ? `<img src="${esc(brandLogoSrc)}" alt="${esc(brand.name)}" class="sidebar-brand-logo" />` : `<span class="brand-name">${esc(brand.name)}</span>`}
+      ${brandLogoSrc ? `<img src="${esc(brandLogoSrc)}" alt="${esc(brand.name)}" class="sidebar-brand-logo" />` : ""}${brand.custom ? `<span class="brand-name" style="color:var(--primary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(brand.name)}</span>` : ""}
     </div>
     <nav class="sidebar-nav">
       <div class="sidebar-section-label">Workspace</div>
@@ -185,7 +187,7 @@ function buildTopbar(profile, pageTitle, unread, brandOnMobile, isOwner, otherUn
   el.id = "app-topbar";
   el.innerHTML = `
     <h1 class="topbar-title">
-      ${brandOnMobile ? `<span class="topbar-title-brand">${brand.custom ? esc(brand.name) : `<span class="brand-one">ONE</span><span class="brand-core">CORE</span>`}</span>` : ""}
+      ${brandOnMobile ? `<span class="topbar-title-brand"${brand.custom ? ' style="color:var(--primary)"' : ""}>${brand.custom ? esc(brand.name) : `<span class="brand-one">ONE</span><span class="brand-core">CORE</span>`}</span>` : ""}
       <span class="topbar-title-text">${pageTitle}</span>
     </h1>
     <div class="topbar-actions">
@@ -466,7 +468,11 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnM
   const otherUnread = academies.filter((a) => a.profile_id !== profile.id).reduce((n, a) => n + Number(a.unread || 0), 0);
 
   // Colors for this academy (logo and name are applied where the sidebar/topbar are built).
-  applyBrand(brandFromOrg(profile.organizations));
+  const brandNow = brandFromOrg(profile.organizations);
+  applyBrand(brandNow);
+  // The device remembers the last academy (for the splash and login). Platform owners leave nothing behind.
+  if (isOwner) forgetBrand();
+  else rememberBrand(brandNow);
 
   const existingContent = document.getElementById("page-content");
   const pageContentHtml = existingContent ? existingContent.innerHTML : "";

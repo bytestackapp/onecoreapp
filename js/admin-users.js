@@ -378,7 +378,7 @@ async function openChildDialog(parentId, parentName) {
                    linkedIds.has(st.id)
                      ? `<span class="text-muted" style="font-size:0.8rem;">Linked</span>`
                      : takenIds.has(st.id)
-                     ? `<span class="text-muted" style="font-size:0.8rem;">Has parent</span>`
+                     ? `<span class="text-muted" style="font-size:0.8rem;">Taken</span>`
                      : `<button type="button" class="icon-action sm approve" data-pick="${st.id}" title="Link" aria-label="Link ${escapeHtml(st.full_name)}">${ICON.add}</button>`
                  }</td>
                </tr>`
@@ -576,7 +576,12 @@ async function openLeaveTypeDialog(staffId, staffName) {
 function userSectionHead(mode, count) {
   const cfg =
     mode === "active"
-      ? { title: "Active users", icon: SECTION_ICON.active, tone: "info" }
+      ? {
+          title: "Active users",
+          icon: SECTION_ICON.active,
+          tone: "info",
+          linkHtml: `<a class="link" href="reports.html?import=links#linked">Link students to parents</a>`,
+        }
       : { title: "Inactive users", icon: SECTION_ICON.inactive, tone: "info" };
   return sectionHead({ ...cfg, count });
 }
