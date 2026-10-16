@@ -599,7 +599,7 @@ function searchBox(mode) {
 // ---------- Loading (one page at a time) ----------
 function baseQuery(mode, opts) {
   return supabase
-    .from("profiles")
+    .from("people_directory")
     .select(USER_COLS, opts)
     .eq("organization_id", profile.organization_id) // RLS also lets you read your own profiles in other academies
     .eq("is_approved", true)
@@ -797,7 +797,7 @@ async function load() {
     listState.inactive.counts = null;
     const org = profile.organization_id;
     const [pendingRes, inactiveRes, activeRes] = await Promise.all([
-      supabase.from("profiles").select(USER_COLS).eq("organization_id", org).eq("is_approved", false).order("full_name").range(0, 499),
+      supabase.from("people_directory").select(USER_COLS).eq("organization_id", org).eq("is_approved", false).order("full_name").range(0, 499),
       supabase.from("profiles").select("id", { count: "exact", head: true }).eq("organization_id", org).eq("is_approved", true).eq("is_active", false),
       fetchPage("active"),
     ]);

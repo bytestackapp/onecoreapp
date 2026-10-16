@@ -270,9 +270,9 @@ async function openWipeDialog(orgId, orgName) {
 }
 
 // ---------- Brand settings for one academy ----------
-const LOGO_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+const LOGO_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const LOGO_MAX_BYTES = 1024 * 1024; // 1 MB: the logo loads on the splash screen, so keep it light
-const LOGO_EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/svg+xml": "svg" };
+const LOGO_EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 
 async function openBrandDialog(orgId, orgName) {
   let b;

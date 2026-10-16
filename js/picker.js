@@ -1,3 +1,5 @@
+import { todayPH, PH_TZ } from "./time.js";
+
 // In-app date and time pickers, used in both Default and Dark mode.
 //
 // Phones draw their own date / time pop-ups (iOS and Android), and those cannot follow the
@@ -17,6 +19,8 @@ const RO_MARK = "data-picker-ro"; // set only when this script made the field re
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const pad = (n) => String(n).padStart(2, "0");
+// The clock in the Philippines as "HH:MM", whatever time zone the phone is set to
+const hmPH = new Intl.DateTimeFormat("en-GB", { timeZone: PH_TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const iso = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`; // m is 0-based
 
 function parseDate(v) {
@@ -107,10 +111,10 @@ function openDatePicker(el) {
   const min = el.getAttribute("min") || "";
   const max = el.getAttribute("max") || "";
   const cur = parseDate(el.value);
-  const now = new Date();
-  const todayISO = iso(now.getFullYear(), now.getMonth(), now.getDate());
-  let y = cur ? cur.y : now.getFullYear();
-  let m = cur ? cur.m : now.getMonth();
+  const todayISO = todayPH(); // today in the Philippines, not on the phone's own clock
+  const today = parseDate(todayISO);
+  let y = cur ? cur.y : today.y;
+  let m = cur ? cur.m : today.m;
 
   const { modal, close } = openShell(`<div id="dm-body"></div>`);
   const body = modal.querySelector("#dm-body");
@@ -160,9 +164,9 @@ function openDatePicker(el) {
 // ---------- time picker ----------
 function openTimePicker(el) {
   const cur = parseTime(el.value);
-  const now = new Date();
-  let h = cur ? cur.h : now.getHours();
-  let mi = cur ? cur.mi : Math.floor(now.getMinutes() / 5) * 5;
+  const nowPH = parseTime(hmPH.format(new Date())); // the Philippine clock
+  let h = cur ? cur.h : nowPH.h;
+  let mi = cur ? cur.mi : Math.floor(nowPH.mi / 5) * 5;
 
   const { modal, close } = openShell(`<div id="dm-body"></div>`);
   const body = modal.querySelector("#dm-body");
@@ -237,6 +241,14 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("paste", (e) => { if (fieldFrom(e)) e.preventDefault(); });
 
 // Catch fields that dialogs add later
-new MutationObserver(sync).observe(document.documentElement, { childList: true, subtree: true });
+new MutationObserver((mutations) => {
+  for (const m of mutations) {
+    m.addedNodes.forEach((n) => {
+      if (n.nodeType !== 1) return;
+      if (n.matches?.('input[type="date"], input[type="time"]')) enhance(n);
+      n.querySelectorAll?.('input[type="date"], input[type="time"]').forEach(enhance);
+    });
+  }
+}).observe(document.documentElement, { childList: true, subtree: true });
 addStyles(); // up front, so the 16px rule is in place before the first tap
 sync();

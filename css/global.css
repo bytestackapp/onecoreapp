@@ -4,7 +4,12 @@
    neutral background, white cards, clear status color-coding.
    ===================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* Inter, hosted with the app (css/fonts/): no outside server, works offline, and nothing blocks the first paint. */
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 400; font-display: swap; src: local("Inter"), url("fonts/inter-400.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 500; font-display: swap; src: local("Inter Medium"), url("fonts/inter-500.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 600; font-display: swap; src: local("Inter SemiBold"), url("fonts/inter-600.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 700; font-display: swap; src: local("Inter Bold"), url("fonts/inter-700.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 800; font-display: swap; src: local("Inter ExtraBold"), url("fonts/inter-800.woff2") format("woff2"); }
 
 :root {
   /* --- brand --- */
@@ -545,12 +550,12 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   white-space: nowrap;
 }
 .tag-normal, .tag-general { background: var(--tag-neutral-bg); color: var(--text-secondary); }
-.tag-important { background: var(--info-bg); color: var(--info); }
-.tag-action_required { background: var(--warning-bg); color: var(--warning); }
-.tag-urgent, .tag-emergency { background: var(--error-bg); color: var(--error); }
-.tag-approved { background: var(--success-bg); color: var(--success); }
-.tag-pending { background: var(--warning-bg); color: var(--warning); }
-.tag-rejected { background: var(--error-bg); color: var(--error); }
+.tag-important { background: var(--info-bg); color: var(--info-text); }
+.tag-action_required { background: var(--warning-bg); color: var(--warning-text); }
+.tag-urgent, .tag-emergency { background: var(--error-bg); color: var(--error-text); }
+.tag-approved { background: var(--success-bg); color: var(--success-text); }
+.tag-pending { background: var(--warning-bg); color: var(--warning-text); }
+.tag-rejected { background: var(--error-bg); color: var(--error-text); }
 
 .priority-rail { width: 3px; border-radius: 3px; align-self: stretch; flex-shrink: 0; }
 .priority-rail.tag-normal { background: var(--border-strong); }
@@ -624,9 +629,9 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   font-size: 0.88rem;
   margin-bottom: 16px;
 }
-.banner-error { background: var(--error-bg); color: var(--error); }
-.banner-success { background: var(--success-bg); color: var(--success); }
-.banner-info { background: var(--info-bg); color: var(--info); }
+.banner-error { background: var(--error-bg); color: var(--error-text); }
+.banner-success { background: var(--success-bg); color: var(--success-text); }
+.banner-info { background: var(--info-bg); color: var(--info-text); }
 
 .skeleton {
   background: linear-gradient(90deg, var(--skeleton-a) 25%, var(--skeleton-b) 37%, var(--skeleton-a) 63%);
@@ -1175,10 +1180,3 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 :root[data-theme="dark"] .tag-type-club         { --type-c: #2dd4bf; }
 :root[data-theme="dark"] .tag-type-team         { --type-c: #fb923c; }
 :root[data-theme="dark"] .tag-type-parent_group { --type-c: #f472b6; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .tag-type-class        { --type-c: #60a5fa; }
-  :root:not([data-theme="light"]) .tag-type-department   { --type-c: #a78bfa; }
-  :root:not([data-theme="light"]) .tag-type-club         { --type-c: #2dd4bf; }
-  :root:not([data-theme="light"]) .tag-type-team         { --type-c: #fb923c; }
-  :root:not([data-theme="light"]) .tag-type-parent_group { --type-c: #f472b6; }
-}

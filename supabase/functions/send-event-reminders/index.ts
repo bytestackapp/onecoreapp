@@ -29,6 +29,7 @@ Deno.serve(async (req) => {
     const windowStart = new Date(now.getTime() + (REMINDER_MINUTES_BEFORE - WINDOW_MINUTES / 2) * 60000);
     const windowEnd = new Date(now.getTime() + (REMINDER_MINUTES_BEFORE + WINDOW_MINUTES / 2) * 60000);
     const today = new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10); // today's date in Manila
+    const tomorrow = new Date(now.getTime() + 32 * 60 * 60 * 1000).toISOString().slice(0, 10); // tomorrow's date in Manila
 
     // Only events happening today are candidates — keeps the query cheap.
     // (A meeting past midnight UTC would need the query widened to
@@ -36,7 +37,7 @@ Deno.serve(async (req) => {
     const { data: events, error: eventsError } = await supabaseAdmin
       .from("events")
       .select("id, title, event_date, start_time, location, organizer_id")
-      .eq("event_date", today)
+      .in("event_date", [today, tomorrow])
       .eq("status", "scheduled")
       .not("start_time", "is", null);
     if (eventsError) throw eventsError;

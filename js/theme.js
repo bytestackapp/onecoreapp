@@ -38,9 +38,10 @@ function syncMetaColor() {
 // ---------- logos ----------
 const LOGO_RE = /(^|\/)(logo|logo-horiz|logo-vert)\.png(?=$|[?#])/;
 
-function syncLogos() {
+function syncLogos(scope = document) {
   const dark = root.getAttribute("data-theme") === "dark";
-  document.querySelectorAll("img").forEach((img) => {
+  const imgs = scope.nodeType === 1 && scope.tagName === "IMG" ? [scope] : scope.querySelectorAll ? scope.querySelectorAll("img") : [];
+  imgs.forEach((img) => {
     const light = img.getAttribute("data-logo-light");
     if (dark) {
       if (light || img.hasAttribute("data-logo-failed")) return;
@@ -89,7 +90,9 @@ applyTheme();
 
 // Logos added later (the sidebar and login screen are built by script) get switched too
 if (!root.hasAttribute("data-theme-lock")) {
-  new MutationObserver(() => {
-    if (root.getAttribute("data-theme") === "dark") syncLogos();
+  new MutationObserver((mutations) => {
+    if (root.getAttribute("data-theme") !== "dark") return;
+    // only the parts of the page that were just added, not the whole page every time
+    for (const m of mutations) m.addedNodes.forEach((n) => { if (n.nodeType === 1) syncLogos(n); });
   }).observe(root, { childList: true, subtree: true });
 }

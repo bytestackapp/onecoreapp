@@ -485,7 +485,7 @@ async function drainQueue() {
         if (error) throw error;
         // A duplicate ("already recorded") is simply dropped. Any other refusal
         // (ID not recognized, retired ID, removed account, wrong order...) is kept for review.
-        if (data?.ok === false) {
+        if (data?.ok === false && !/already/i.test(data.message || "")) {
           rejected.push({ ...item, name: item.name || data.name || null, message: data.message || "Rejected by the server." });
         }
       } catch (err) {
@@ -572,7 +572,7 @@ async function onDecoded(decodedText) {
   lastScan = { code: qrToken, at: now };
 
   const label = MODE_LABEL[currentMode];
-  const scannedAt = new Date().toISOString();
+  const scannedAt = nowCorrected().toISOString();
   const person = roster[qrToken];
 
   if (!person) {
@@ -662,6 +662,39 @@ window.addEventListener("orientationchange", () => {
 // -----------------------------------------------------------------
 // Boot
 // -----------------------------------------------------------------
+// -----------------------------------------------------------------
+// Clock correction
+// The server's clock is the truth. We measure how far this device's clock is from it and correct every
+// scan time by that amount, so a wrong tablet clock cannot record wrong times (also while offline,
+// using the last measurement).
+// -----------------------------------------------------------------
+const STORAGE_CLOCK_OFFSET = "onecore_scanner_clock_offset_ms";
+const CLOCK_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+
+function clockOffsetMs() {
+  const n = Number(localStorage.getItem(STORAGE_CLOCK_OFFSET));
+  return Number.isFinite(n) ? n : 0;
+}
+function nowCorrected() {
+  return new Date(Date.now() + clockOffsetMs());
+}
+async function measureClock() {
+  try {
+    const t0 = Date.now();
+    const { data, error } = await supabase.rpc("server_now");
+    const t1 = Date.now();
+    if (error || !data) return;
+    const server = new Date(data).getTime();
+    if (!Number.isFinite(server)) return;
+    localStorage.setItem(STORAGE_CLOCK_OFFSET, String(Math.round(server - (t0 + t1) / 2)));
+  } catch {
+    // offline: keep the last measurement
+  }
+}
+measureClock();
+setInterval(measureClock, CLOCK_CHECK_INTERVAL_MS);
+window.addEventListener("online", measureClock);
+
 function startScannerView() {
   device = loadDevice();
   if (!device) {

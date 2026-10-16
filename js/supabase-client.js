@@ -166,16 +166,21 @@ export async function getCurrentProfile({ force = false } = {}) {
     }
   }
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, organization_id, full_name, email, avatar_url, phone, role, is_active, is_approved, auth_user_id, guest_until, created_at, updated_at, organizations(name, logo_url, slug, brand_name, tagline, primary_color, logo_horiz_url, logo_vert_url)")
-    .eq("id", profileId)
-    .single();
+  // my_profile() returns my own row plus my academy's branding in one call. It also carries my own
+  // email and phone, which other people can no longer read straight from the profiles table.
+  const { data, error } = await supabase.rpc("my_profile");
 
   if (error) {
     console.error("getCurrentProfile error:", error);
-    return null;
+    // A bad connection is not the same as "no profile": never sign anyone out because of it.
+    const saved = readSaved("profile", profileId);
+    if (saved) {
+      cachedProfile = saved;
+      return saved;
+    }
+    return { __offline: true };
   }
+  if (!data) return null; // this login really has no profile row
 
   cachedProfile = data;
   writeSaved("profile", profileId, data);
@@ -275,6 +280,10 @@ async function tryFallbackAcademy(currentId) {
   }
 }
 
+function showOfflineScreen() {
+  document.body.innerHTML = `<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;font-family:system-ui,sans-serif;"><h2 style="margin:0;">No connection</h2><p style="margin:0;opacity:.7;">OneCore can't reach the server right now. Check your internet and try again.</p><button class="btn btn-primary" onclick="location.reload()">Try again</button></div>`;
+}
+
 export async function requireAuth() {
   const user = await getSessionUser();
   if (!user) {
@@ -282,6 +291,10 @@ export async function requireAuth() {
     return null;
   }
   const profile = await getCurrentProfile();
+  if (profile && profile.__offline) {
+    showOfflineScreen();
+    return null;
+  }
   if (!profile || !profile.organization_id) {
     if (await tryFallbackAcademy(profile?.id ?? null)) return null;
     // Signed in with Supabase Auth, but no matching (or unassigned)
@@ -310,6 +323,16 @@ export async function requireAuth() {
 }
 
 export async function signOut() {
+  // Stop this phone's notifications for the person who is leaving
+  try {
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith("onecore_push_saved_"));
+    for (const k of keys) {
+      const token = localStorage.getItem(k);
+      if (token) await supabase.from("device_push_tokens").delete().eq("token", token);
+    }
+  } catch (err) {
+    console.warn("push cleanup failed:", err);
+  }
   await supabase.auth.signOut();
   clearProfileCache();
   forgetAllSaved();

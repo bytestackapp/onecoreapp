@@ -24,8 +24,8 @@ export const FMC_ICON = svg('<path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11
 const PIN_SVG =
   '<svg viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg"><path d="M15 0C6.7 0 0 6.7 0 15c0 11 15 25 15 25s15-14 15-25C30 6.7 23.3 0 15 0z" fill="#dc2626"/><circle cx="15" cy="15" r="5.5" fill="#fff"/></svg>';
 
-const LEAFLET_CSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
-const LEAFLET_JS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+const LEAFLET_CSS = new URL("./vendor/leaflet/leaflet.min.css", import.meta.url).href; // hosted with the app
+const LEAFLET_JS = new URL("./vendor/leaflet/leaflet.min.js", import.meta.url).href; // hosted with the app
 
 const REQ_COLS = "id, status, failure_reason, latitude, longitude, accuracy_m, located_at, completed_at, created_at";
 

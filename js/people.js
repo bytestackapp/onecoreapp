@@ -13,7 +13,7 @@ const roleFilter = document.getElementById("role-filter");
 const PAGE_SIZE = 20;
 const STAFF_ROLES = ["admin", "teacher"];           // shown first: page 1
 const OTHER_ROLES = ["student", "parent", "guest"]; // page 2 onwards, in this order
-const COLS = "id, full_name, email, phone, role";
+const COLS = "id, full_name, email, phone, role, contact_hidden";
 const ROLE_RANK = { admin: 0, teacher: 1 };
 
 let state = { page: 1, rows: [], total: 0, pages: 1, counts: null };
@@ -22,7 +22,7 @@ let searchTimer;
 
 function baseQuery(opts) {
   return supabase
-    .from("profiles")
+    .from("people_directory")
     .select(COLS, opts)
     .eq("organization_id", profile.organization_id)
     .eq("is_active", true);
@@ -151,11 +151,15 @@ function render() {
     .map(
       (p) => `
     <div class="list-row">
-      <div class="avatar">${initials(p.full_name)}</div>
+      <div class="avatar">${escapeHtml(initials(p.full_name))}</div>
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;">${escapeHtml(p.full_name)}${p.id === profile.id ? " (you)" : ""}</div>
-        <div class="text-muted" style="font-size:0.82rem;">${escapeHtml(p.email)}</div>
-        <div class="text-muted" style="font-size:0.82rem;">${p.phone ? escapeHtml(p.phone) : "no contact info provided"}</div>
+        ${
+          p.contact_hidden
+            ? `<div class="text-muted" style="font-size:0.82rem;">Contact details are hidden</div>`
+            : `<div class="text-muted" style="font-size:0.82rem;">${p.email ? escapeHtml(p.email) : "no email on file"}</div>
+        <div class="text-muted" style="font-size:0.82rem;">${p.phone ? escapeHtml(p.phone) : "no contact info provided"}</div>`
+        }
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;align-self:stretch;gap:8px;flex-shrink:0;">
         <span class="tag tag-role-${escapeHtml(p.role)}">${escapeHtml(p.role)}</span>

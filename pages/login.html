@@ -18,6 +18,17 @@
   <script src="../js/vendor/html5-qrcode.min.js"></script>
   <script type="module" src="../js/register-sw.js"></script>
   <script>try{var t=localStorage.getItem("onecore:theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+  <style>
+  .faq-item { border-bottom: 1px solid var(--border, #e5e7eb); }
+  .faq-item summary {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 11px 0; cursor: pointer; font-weight: 600; font-size: 0.92rem; list-style: none;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after { content: "+"; color: var(--primary); font-weight: 700; }
+  .faq-item[open] summary::after { content: "\2212"; }
+  .faq-item p { margin: 0 0 12px; font-size: 0.88rem; color: var(--text-secondary); }
+  </style>
 </head>
 <body>
   <div class="auth-page">
@@ -145,11 +156,29 @@
       <div id="about-modal" class="dialog-backdrop" style="display:none;">
         <div class="dialog-modal">
           <h3>About OneCore</h3>
-            <p><strong>OneCore</strong> is a centralized platform designed to make organizational operations simpler, more organized, and more connected.</p>
-            <p>OneCore brings essential information, services, and administrative functions together in one place—helping users access what they need without having to rely on multiple systems or disconnected processes.</p>
+            <p><strong>OneCore</strong> is a centralized platform that helps organizations bring people, information, and everyday operations together in one place. It connects administrators, staff, members, students, and parents through a shared platform designed to make communication, coordination, and routine tasks simpler and more organized.</p>
+            <ul style="margin:0 0 12px 18px;padding:0;">
+              <li><strong>Announcements and Notifications</strong></li>
+                Share important updates and keep members informed.
+              <li><strong>Calendar and Events</strong></li>
+                Organize activities, meetings, schedules, and attendance.
+              <li><strong>Groups and Members</strong></li>
+                Manage classes, departments, teams, clubs, and other groups.
+              <li><strong>Attendance Management</strong></li>
+                Record attendance, track work or school-day activity, and submit correction requests.
+              <li><strong>Leave Management</strong></li>
+                Submit, review, and manage leave requests and approvals.
+              <li><strong>Parent and Guardian Access</strong></li>
+                Help authorized parents and guardians stay informed about their linked children's school activities and attendance.
+              <li><strong>Connected Workflows</strong></li>
+                Bring related information and tasks together to reduce disconnected processes and unnecessary manual work.
+            </ul>
+            <p><strong>OneCore</strong> supports organization-specific branding and access based on assigned roles, helping each organization manage its own users and information.
+            <p><strong>OneCore</strong> goal is simply make essential organizational information and services easier to access, manage, and connect.
             <p class="text-muted">
-              Version 1.0.0<br>
-              © 2026 OneCore. All rights reserved.
+              <strong>Version:</strong> <span id="about-version">1.0.0</span><br>
+              <strong>Developed by:</strong> ByteStack Labs<br>
+              &copy; 2026 ByteStack. All rights reserved.
             </p>
           <div class="dialog-actions">
             <button class="btn btn-primary" type="button" id="about-ok-btn">Close</button>
@@ -157,32 +186,119 @@
         </div>
       </div>
 
-	  <!-- Support Modal -->	  
+      <!-- Support Modal -->
       <div id="support-modal" class="dialog-backdrop" style="display:none;">
         <div class="dialog-modal">
-          <h3>Support</h3>
-          <p>Need help with <span data-brand-name>OneCore</span>? If you encounter an issue, have trouble accessing your account, or have questions about a feature, please contact your school or organization's designated administrator or support team.</p>
-		  <p>When reporting an issue, include a brief description of the problem and, if possible, the page or feature where it occurred. Please do not include your password, PIN, verification codes, or other confidential information.</p>
+          <h3 id="support-title">OneCore Support</h3>  
+          <div id="support-main">
+            <p>Need help with OneCore? We're here to help you get back on track.</p>
+            <p><strong>Admin assistance</strong></p>
+              <p>Your school or organization's administrator can help with:</p>
+                <ul style="margin:0 0 12px 18px;padding:0;">
+                  <li>Account registration and approval</li>
+                  <li>Account activation or deactivation</li>
+                  <li>Parent-child account linking</li>
+                  <li>Group membership and access permissions</li>
+                  <li>QR codes and attendance records</li>
+                  <li>Organization-specific settings and information</li>
+				</ul>
+            <p><strong>Technical assistance</strong></p>
+              <p>If you encounter an application error, a page that does not load, or a feature that is not working correctly, try closing and reopening the app and checking your internet connection. If the problem continues, contact the OneCore support team.</p>
+              <p><a id="support-email" href="mailto:support.onecore@gmail.com">support.onecore@gmail.com</a></p>
+              <p>When reporting an issue, describe what happened and which page or feature you were on, and mention your device (for example, iPhone or Android). Please never send your password, PIN, or verification codes.</p>
+              <p>We aim to respond within 2–3 working days. Response times may vary depending on the nature and complexity of the issue.</p>
+          </div>
+          <div id="support-faq" style="display:none;"></div>
+      
           <div class="dialog-actions">
+            <button class="btn btn-secondary" type="button" id="support-faq-btn">FAQ</button>
             <button class="btn btn-primary" type="button" id="support-ok-btn">Close</button>
           </div>
         </div>
       </div>
 
-	  <!-- Provacy Modal -->	  	  
+	  <!-- Privacy Modal -->	  	  
       <div id="privacy-modal" class="dialog-backdrop" style="display:none;">
         <div class="dialog-modal">
-          <h3>Privacy</h3>
-          <p><span data-brand-name>OneCore</span> respects your privacy and is committed to protecting your personal information. Information collected through the application is used only for legitimate purposes related to providing school services, managing accounts, communication, security, and other authorized functions.</p>
-          <p><span data-brand-name>OneCore</span> handles personal information in accordance with applicable privacy laws, including the Philippine Data Privacy Act of 2012 (RA 10173). Users may have rights to access, correct, or request appropriate handling of their personal information, subject to applicable laws and policies.</p>
-          <div class="dialog-actions">
+          <h3>Privacy Notice</h3>
+          <p><strong>Last updated:</strong> October 15, 2026</p>
+          <p><strong>OneCore</strong> is committed to respecting your privacy and protecting personal information. This notice explains how personal information is collected, used, stored, and shared when you use OneCore.</p>
+          <p><strong>OneCore</strong> is intended to operate in accordance with applicable data protection laws, including the Philippine Data Privacy Act of 2012 (Republic Act No. 10173).</p>
+          <p><strong>1. Who is responsible for your information?</strong></p>
+          <p>Your school or organization generally determines what personal information is collected and how it is used for its operations. Depending on the activity and applicable law, the school or organization may act as the personal information controller, while OneCore and its service providers may process information to provide and maintain the platform.</p>
+          <p>For questions about records held by your organization, contact its administrator or designated Data Protection Officer, if applicable. For platform-related privacy concerns, contact OneCore support team.</p>
+          <p><strong>2. What information may be collected?</strong></p>
+          <p>Depending on the features you use, OneCore may process:</p>
+            <ul style="margin:0 0 12px 18px;padding:0;">
+              <li>Account information, including your name, email address, role, and optional contact details.</li>
+              <li>Organization information, including your membership, groups, classes, departments, and authorized relationships with other users.</li>
+              <li>Attendance information, including attendance status, timestamps, time-in, breaks, time-out, and correction requests.</li>
+              <li>Leave requests, approvals, balances, and related records.</li>
+              <li>Announcements, event details, attendance responses, acknowledgments, and notifications.</li>
+              <li>Technical and security information, such as activity logs, device information, session information, and notification tokens.</li>
+              <li>Location information, if an enabled location feature is used and the required permissions are granted.</li>
+            </ul>
+          <p>Only information relevant to the applicable services and purposes should be processed.</p>
+          <p><strong>3. How is your information used?</strong></p>
+          <p>Information may be used to:</p>
+            <ul style="margin:0 0 12px 18px;padding:0;">
+              <li>Create and manage accounts and organization memberships.</li>
+              <li>Provide announcements, notifications, calendars, events, and group features.</li>
+              <li>Record and manage attendance and leave requests.</li>
+              <li>Support authorized parent or guardian access to linked children's records.</li>
+              <li>Operate optional features that require location information.</li>
+              <li>Maintain application functionality, investigate errors, and protect accounts and records.</li>
+              <li>Meet applicable legal and organizational obligations.</li>
+            </ul>
+          <p>Information should not be used for unrelated purposes that are inconsistent with the purposes communicated to you and applicable law.</p>
+          <p><strong>4. Who can access your information?</strong></p>
+          <p>Access depends on the user's role, permissions, and relationship to the relevant organization or records.</p>
+          <p>Administrators may manage records within their authorized organization. Teachers, group heads, staff, parents, and other members may access information according to their assigned permissions and the features available to them.</p>
+          <p>Parents and guardians may access records of children properly linked to their accounts, subject to applicable permissions and policies.</p>
+          <p>OneCore is designed to separate organizations' information. Access must be enforced through the application's authorization controls and backend security policies.</p>
+          <p><strong>5. Storage and service providers</strong></p>
+          <p>OneCore uses third-party services to operate the application and provide its features. These may include Vercel for application hosting, Supabase for authentication and data services, and relevant platform providers for push notifications.</p>
+          <p>These providers may process or store information as needed to deliver their services. Depending on the providers' infrastructure and configurations, information may be processed or stored outside the Philippines.</p>
+          <p>Third-party services are subject to their own applicable terms, privacy notices, and security practices.</p>
+          <p><strong>6. Information stored on your device</strong></p>
+          <p>OneCore may store session information, display preferences, and limited organization-branding information on your device to support sign-in and application functionality.</p>
+          <p>Scanner devices may also store a limited local roster and QR-code mappings to recognize users when an internet connection is unavailable. Locally queued attendance records may be retained until synchronization is possible.</p>
+          <p>Protect devices used to access OneCore, particularly shared devices and attendance scanners. Sign out when finished using a shared device, and avoid allowing unauthorized people to access stored information.</p>
+          <p><strong>7. Data retention and deletion</strong></p>
+          <p>Personal information should be retained only for as long as necessary for the relevant purposes, applicable legal requirements, and legitimate organizational recordkeeping needs.</p>
+          <p>Retention periods may differ by record type and organization policy. Authorized administrators may be able to archive, export, or remove certain records, subject to the application's capabilities and applicable requirements.</p>
+          <p>Deleting information from the application may not automatically remove exported files, local device copies, backups, or records retained where legally necessary. Requests for access, correction, or deletion should be directed to the responsible organization or its designated contact.</p>
+          <p><strong>8. Optional location features</strong></p>
+          <p>If an optional location feature is enabled, location information may be collected when the feature is used and the device has granted the required location permissions.</p>
+          <p>For example, an on-demand child-location feature may request a registered device's location and make it available to an authorized parent or guardian linked to that child. Location access is subject to device permissions, connectivity, operating-system restrictions, and the feature's actual implementation.</p>
+          <p>Location information should only be accessible to authorized users and retained according to the feature's disclosed retention period. If the device is offline, switched off, or unable to provide a location, a current location may not be available.</p>
+          <p><strong>9. Children and parent or guardian access</strong></p>
+          <p>Student accounts and parent-child relationships may be managed by the school or organization. Access to a child's information must be restricted to appropriately authorized users.</p>
+          <p>Organizations are responsible for determining and fulfilling applicable requirements relating to parental or guardian consent and the processing of children's information. Optional location features require particular care because location data can reveal a child's whereabouts.</p>
+          <p><strong>10. Security</strong></p>
+          <p>OneCore uses authentication and role-based access controls intended to protect information from unauthorized access. The platform's security also depends on proper backend permissions, secure device handling, and the practices of the organizations using it.</p>
+          <p>No system can guarantee absolute security. Users should protect their credentials, keep their devices secure, and report suspected unauthorized access or security issues promptly.</p>
+          <p><strong>11. Your privacy rights</strong></p>
+          <p>Subject to applicable law and any relevant limitations, you may have the right to be informed about processing, access your personal information, request correction, object to or restrict certain processing, request deletion or blocking where applicable, and seek other available remedies.</p>
+          <p>To exercise these rights, contact your school or organization's administrator or designated Data Protection Officer, if applicable. You may also contact the National Privacy Commission through its official website at <a href="https://privacy.gov.ph" target="_blank" rel="noopener noreferrer">https://privacy.gov.ph</a>.</p>
+          <p><strong>12. Changes to this notice</strong></p>
+          <p>This notice may be updated when OneCore's features, data practices, service providers, or legal obligations change. Material changes should be communicated as required by applicable law.</p>
+          <p><strong>13. Contact</strong></p>
+          <p>For questions about organization records, contact your school or organization's administrator or designated Data Protection Officer.</p>
+          <p>For platform-related privacy questions, contact <a href="mailto:support.onecore@gmail.com">support.onecore@gmail.com</a></p>
+
+
+
+
+
+           <div class="dialog-actions">
             <button class="btn btn-primary" type="button" id="privacy-ok-btn">Close</button>
           </div>
         </div>
       </div>
 	  
     </div>
-    <div class="auth-footer" id="auth-footer">&copy; 2026 OneCore. All rights reserved.</div>
+    <div class="auth-footer" id="auth-footer">&copy; 2026 ByteStack. All rights reserved.</div>
   </div>
 
   <script type="module">
@@ -190,6 +306,19 @@
 	import { showToast } from "../js/toast.js";
     import "../js/theme.js";
     import { loadPublicBrand, getCachedBrand, applyBrand, brandLogo, brandFromOrg, rememberBrand, forgetBrand } from "../js/brand.js";
+    import { APP_VERSION } from "../js/version.js";
+
+    const installed = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    document.getElementById("support-email").href =
+      "mailto:support.onecore@gmail.com?subject=" + encodeURIComponent(`OneCore support (v${APP_VERSION})`) +
+      "&body=" + encodeURIComponent(
+        "What happened:\n\nPage or feature:\n\nDevice (iPhone / Android / computer):\n\n" +
+        "(Please don't include passwords, PINs or verification codes.)\n\n" +
+        "--- Support info (please keep) ---\n" +
+        `App version: ${APP_VERSION}\n` +
+        `Installed app: ${installed ? "yes" : "no"}\n` +
+        `Browser: ${navigator.userAgent}`
+      );
 
     // The brand the page normally shows (web address, or the academy this device used last)
     let pageBrand = null;
@@ -206,9 +335,7 @@
       document.getElementById("auth-brand").innerHTML =
         (logo ? `<img src="${escapeHtml(logo)}" alt="${escapeHtml(brand.name)}" class="auth-brand-logo">` : "") +
         (brand.custom ? `<div class="brand-name">${escapeHtml(brand.name)}</div>` : "");
-      document.getElementById("auth-footer").innerHTML = brand.custom
-        ? `&copy; 2026 ${escapeHtml(brand.name)}. Powered by OneCore.`
-        : "&copy; 2026 OneCore. All rights reserved.";
+      document.getElementById("auth-footer").innerHTML = "Powered by OneCore &middot; &copy; 2026 ByteStack";
     }
     function renderBrand(brand) {
       pageBrand = brand;
@@ -385,6 +512,8 @@
       window.location.href = window.location.pathname;
     });
 	
+    document.getElementById("about-version").textContent = APP_VERSION;
+
     document.getElementById("show-about-btn").addEventListener("click", () => {
       document.getElementById("about-modal").style.display = "flex";
     });
@@ -393,7 +522,96 @@
       document.getElementById("about-modal").style.display = "none";
     });
 
+    // ---- Support FAQ ----
+    // Edit this list any time: one { q, a } for each question.
+    const FAQS = [
+      { q: "How do I join a school or organization?",
+        a: "Tap Create an account and enter the invite code from your administrator, or scan their QR code. Your administrator must approve you before you can use the app." },
+      { q: "I signed up but I can't sign in.",
+        a: "Your account probably still needs your administrator's approval. Once it is approved, you can sign in with the same email and password." },
+      { q: "I forgot my password.",
+        a: "On the sign-in page, tap Forgot password? and follow the instructions sent to your email." },
+      { q: "My account says it is deactivated.",
+        a: "Your administrator has turned the account off. Please contact them to have it restored." },
+      { q: "My guest access ended.",
+        a: "Guest accounts can have an end date set by the administrator. Contact them if you need more time." },
+      { q: "I belong to more than one school. How do I switch?",
+        a: "After signing in, you choose which one to open. Once you are inside the app, you can switch to another one from the menu." },
+      { q: "I'm a parent and I can't see my child.",
+        a: "Your administrator needs to link your child to your account. Please contact them with your child's name." },
+      { q: "My QR code isn't scanning.",
+        a: "QR codes are replaced whenever the administrator refreshes them, and the old ones stop working. Ask your administrator for your current code." },
+      { q: "I'm not receiving notifications.",
+        a: "Allow notifications when the app asks, and check your phone or browser settings. On iPhone, first add the app to your Home Screen (Share, then Add to Home Screen)." },
+      { q: "How do I install the app on my phone?",
+        a: "iPhone: open it in Safari, tap Share, then Add to Home Screen. Android: open it in Chrome, tap the menu, then Install app or Add to Home screen." },
+      { q: "There is a mistake in my attendance record.",
+        a: "Staff can send an attendance correction request from the Attendance page, and an administrator will review it. Students and parents should contact the administrator." },
+      { q: "Who do I contact if something isn't working?",
+        a: "Contact your school or organization's administrator or support team. Describe the problem and where it happened, but never send your password or verification codes." },
+      { q: "Is my information safe?",
+        a: "Your information is used only for school services and account purposes. See the Privacy link on the sign-in page for details." },
+      { q: "Why does the sign-in page show a different school's logo?",
+        a: "The sign-in page shows the school you last used on this device, or the school whose link or QR code you opened. Your account is the same. After you sign in, you choose which school to open." },
+      { q: "Why do the logo and colours change when I switch schools?",
+        a: "Each school sets its own logo, name and colours. The app shows the ones for the school you are currently in." },
+      { q: "I scanned a school's QR code. What happens next?",
+        a: "A sign-up window opens for that school. Fill in your details and submit. Your administrator must approve you before you can sign in." },
+      { q: "The app looks old or something is broken after an update.",
+        a: "Close the app completely and open it again while connected to the internet. If the problem stays, contact your administrator and mention your device." },
+      { q: "How do I switch to dark mode?",
+        a: "Tap your name badge at the top right, then Appearance, to switch between Light and Dark." },
+      { q: "Can the scanner work without Wi-Fi?",
+        a: "Yes. A scanner device keeps a list of people, so it can recognise QR codes without a connection." },
+      { q: "How do I ask for my information to be corrected or deleted?",
+        a: "Contact your school's administrator. See the Privacy link for your rights." },
+      { q: "(Administrators) How do I link many parents to their children?",
+        a: "Go to Reports, then Linked students, and use the import icon with an Excel or CSV file. You can also link one at a time from the Users page." },
+      { q: "(Administrators) How do I add many people to a group?",
+        a: "Open the group, choose Add members, and use the import icon with an Excel or CSV file." },
+      { q: "What do Time In, Break Out, Break In and Time Out mean?",
+        a: "They are the four scans at the school scanner: arriving, leaving for a break, coming back from a break, and leaving for the day. A parent sees each of them on the dashboard and on the Attendance page." },
+      { q: "Why does my child show Absent in the morning?",
+        a: "Today always appears at the top of your child's attendance. It shows Absent until the child's first scan of the day, and then it changes to the time." },
+      { q: "I get notifications inside the app, but my phone does not buzz or show a banner.",
+        a: "On Android, open Settings, then Apps, then OneCore, then Notifications, and make sure they are allowed and not silent. Turn off battery restrictions for OneCore and turn off Do Not Disturb. After reinstalling the app, sign in again so the phone is registered." },
+      { q: "How does Find My Child work?",
+        a: "It is optional and works only with your child's Android phone. Your child opens OneCore on that phone and allows location access (set to Allow all the time). When you tap Find My Child, the phone shares its location once and your child sees a notice. It does not work if the phone is off, offline, or has location switched off." },
+      { q: "How do I add many people to my group at once?",
+        a: "Group heads can open the group, tap Manage, then Import names, and choose an Excel (.xlsx) or CSV file with one name per row. Names must match the names used at sign-up. Names that cannot be matched are skipped, and you see a preview before anything is added." },
+      { q: "Who can manage a group?",
+        a: "Administrators create and delete groups. A group head can add and remove members. Teacher heads can also add other heads, and student or parent heads can manage members only." },
+      { q: "How do administrators export attendance?",
+        a: "Open Reports, tap the export icon, choose the date range and who to include (staff, students, specific people or everyone), and the file downloads. It opens in Excel, with times in Philippine time." },
+      { q: "How do I set up a scanner device?",
+        a: "An administrator creates a device in Settings, then Scanner devices, and gets a device code and passcode. On the scanner phone, tap Scanner mode on the sign-in page and enter them." },
+      { q: "How long do I stay signed in?",
+        a: "You normally stay signed in on this device until you sign out. On a shared phone or computer, please sign out when you finish." },
+      { q: "How do I have my account or data removed?",
+        a: "Ask your school's administrator to deactivate or delete your account. For requests about your personal information, see the Privacy link on this page." },
+    ];
+    
+    const FAQ_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>`;
+    const BACK_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`;
+    
+    document.getElementById("support-faq").innerHTML = FAQS.map(
+      (f) => `<details class="faq-item"><summary>${escapeHtml(f.q)}</summary><p>${escapeHtml(f.a)}</p></details>`
+    ).join("");
+    
+    function showSupportView(showFaq) {
+      document.getElementById("support-main").style.display = showFaq ? "none" : "";
+      document.getElementById("support-faq").style.display = showFaq ? "" : "none";
+      document.getElementById("support-title").textContent = showFaq ? "FAQ" : "Onecore Support";
+      document.getElementById("support-faq-btn").textContent = showFaq ? "Back" : "FAQ";
+    }
+
+    showSupportView(false);
+    document.getElementById("support-faq-btn").addEventListener("click", () => {
+      showSupportView(document.getElementById("support-faq").style.display === "none");
+    });
+
     document.getElementById("show-support-btn").addEventListener("click", () => {
+      showSupportView(false);
       document.getElementById("support-modal").style.display = "flex";
     });
 	

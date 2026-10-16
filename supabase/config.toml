@@ -1,0 +1,14 @@
+# Supabase CLI settings for OneCore.
+# These three functions are called by the database or by the child's phone (not by a signed-in
+# person), so they must not demand a login. They check their own secret or one-time code instead.
+# Keeping this here means a normal deploy can never switch that off by accident.
+project_id = "hizrmrthctzbxdvpgila"
+
+[functions.send-notification-push]
+verify_jwt = false
+
+[functions.send-event-reminders]
+verify_jwt = false
+
+[functions.submit-child-location]
+verify_jwt = false
