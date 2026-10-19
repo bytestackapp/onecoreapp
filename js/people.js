@@ -1,7 +1,8 @@
 import { mountLayout } from "./layout.js";
 import { supabase, initials } from "./supabase-client.js";
+import { escapeHtml, pagerHtml, bindPager } from "./utils.js";
 
-const profile = await mountLayout({ activeKey: "people", pageTitle: "People" });
+const profile = await mountLayout({ activeKey: "people", pageTitle: "People", allowedRoles: ["admin", "teacher", "student", "parent"] });
 if (!profile) throw new Error("redirecting");
 
 const listEl = document.getElementById("people-list");
@@ -79,9 +80,14 @@ async function fetchPage() {
     pages = 1 + Math.ceil(othersTotal / PAGE_SIZE);
     page = Math.min(Math.max(page, 1), pages);
     if (page === 1) {
-      const { data, error } = await baseQuery().in("role", STAFF_ROLES).order("full_name").order("id").limit(200);
-      if (error) throw error;
-      rows = (data || []).sort(
+      const staff = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await baseQuery().in("role", STAFF_ROLES).order("full_name").order("id").range(from, from + 999);
+        if (error) throw error;
+        staff.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
+      rows = staff.sort(
         (a, b) => (ROLE_RANK[a.role] ?? 99) - (ROLE_RANK[b.role] ?? 99) || a.full_name.localeCompare(b.full_name)
       );
     } else {
@@ -187,30 +193,6 @@ roleFilter.addEventListener("change", () => {
 });
 
 // Pager: first, previous, "Page [select] of N", next, last
-function pagerHtml(page, pages) {
-  if (pages <= 1) return "";
-  const btn = (act, label, path, off) =>
-    `<button type="button" class="icon-action sm" data-pg="${act}" title="${label}" aria-label="${label}" ${off ? "disabled" : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg></button>`;
-  const options = Array.from({ length: pages }, (_, i) => `<option value="${i + 1}" ${i + 1 === page ? "selected" : ""}>${i + 1}</option>`).join("");
-  return `<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:14px;">
-    ${btn("first", "First page", "M11 17l-5-5 5-5M18 17l-5-5 5-5", page <= 1)}
-    ${btn("prev", "Previous page", "M15 18l-6-6 6-6", page <= 1)}
-    <span class="text-muted" style="font-size:0.85rem;display:flex;align-items:center;gap:6px;white-space:nowrap;">Page
-      <select data-pg="select" aria-label="Go to page" style="width:auto;min-width:0;padding:4px 24px 4px 8px;">${options}</select>
-      of ${pages}</span>
-    ${btn("next", "Next page", "M9 18l6-6-6-6", page >= pages)}
-    ${btn("last", "Last page", "M13 17l5-5-5-5M6 17l5-5-5-5", page >= pages)}
-  </div>`;
-}
-
-function bindPager(container, page, pages, goTo) {
-  container.querySelector('[data-pg="first"]')?.addEventListener("click", () => goTo(1));
-  container.querySelector('[data-pg="prev"]')?.addEventListener("click", () => goTo(page - 1));
-  container.querySelector('[data-pg="next"]')?.addEventListener("click", () => goTo(page + 1));
-  container.querySelector('[data-pg="last"]')?.addEventListener("click", () => goTo(pages));
-  container.querySelector('[data-pg="select"]')?.addEventListener("change", (e) => goTo(Number(e.target.value)));
-}
-
 // Call / text buttons: open the phone's own dialer or messaging app
 function contactActions(p) {
   if (!p.phone || p.id === profile.id) return "";
@@ -223,10 +205,6 @@ function contactActions(p) {
     <a class="icon-action sm" href="tel:${num}" title="Call" aria-label="Call ${name}" style="${btn}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg></a>
     <a class="icon-action sm" href="sms:${num}" title="Text" aria-label="Text ${name}" style="${btn}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></a>
   </span>`;
-}
-
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 load();

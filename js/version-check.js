@@ -1,5 +1,6 @@
 import { supabase } from "./supabase-client.js";
 import { APP_VERSION, currentPlatform } from "./version.js";
+import { escapeHtml } from "./utils.js";
 
 const DIALOG_ID = "onecore-update-dialog";
 
@@ -35,10 +36,6 @@ function compareVersions(a, b) {
 
 function dismissedKey(version) {
   return `onecore_update_dismissed_${version}`;
-}
-
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 function isValidHttpUrl(url) {

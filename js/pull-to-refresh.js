@@ -42,7 +42,7 @@ function initPullToRefresh() {
     /* The coloured area revealed above the sliding page (it never changes size, so it costs nothing to animate) */
     #ptr-reveal {
       position: fixed; left: 0; right: 0; z-index: 0;
-      top: calc(var(--topbar-h, 64px) + env(safe-area-inset-top, 0px));
+      top: calc(var(--topbar-h, 64px) + var(--safe-top, 0px));
       height: ${MAX_PULL + RADIUS}px; overflow: hidden; display: none;
       background: linear-gradient(135deg, var(--splash-a, #2952e3) 0%, var(--splash-b, #1fc6c6) 100%);
       pointer-events: none;

@@ -6,19 +6,11 @@
 // `import { PushNotifications } from "@capacitor/push-notifications"`) so
 // no bundler is required — Capacitor's native runtime injects the plugin
 // onto window.Capacitor.Plugins automatically once it's installed and
-// `npx cap sync` has been run. See PUSH-NOTIFICATIONS.md.
+// `npx cap sync` has been run.
 
 import { supabase } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { registerChildDevice } from "./find-my-child.js";
-
-// TEMPORARY: while true, every registration step shows as a small toast so you
-// can see exactly where it stops. Set to false once push notifications work.
-const DEBUG_PUSH = false;
-function dbg(message, kind = "info") {
-  if (DEBUG_PUSH) console.log("[push]", message);
-  if (DEBUG_PUSH) showToast(`Push: ${message}`, kind);
-}
 
 export async function initPushNotifications(profile) {
   const capacitor = window.Capacitor;
@@ -26,27 +18,21 @@ export async function initPushNotifications(profile) {
 
   const { PushNotifications } = capacitor.Plugins || {};
   if (!PushNotifications) {
-    dbg("plugin missing — run `npx cap sync android`, then rebuild", "error");
+    console.warn("Push notifications: plugin missing. Run `npx cap sync android`, then rebuild the app.");
     return;
   }
 
   try {
     let permission = await PushNotifications.checkPermissions();
-    dbg(`permission is “${permission.receive}”`);
 
     // Android 13+ reports "prompt-with-rationale" after a first refusal. It has to be
     // asked again too — checking only for "prompt" left the phone silently unregistered.
     if (permission.receive === "prompt" || permission.receive === "prompt-with-rationale") {
       permission = await PushNotifications.requestPermissions();
-      dbg(`permission is now “${permission.receive}”`);
     }
-    if (permission.receive !== "granted") {
-      dbg("notifications are blocked. Allow them in Android Settings → Apps → OneCore → Notifications", "error");
-      return; // user declined — respect it, don't ask again this session
-    }
+    if (permission.receive !== "granted") return; // user declined — respect it, don't ask again this session
 
     PushNotifications.addListener("registration", async (token) => {
-      dbg(`got token ${token.value.slice(0, 8)}…`);
       try {
         // Moves this phone's token to whoever is signed in now (see register-push-token.sql).
         // The server is only told when the token is new or belongs to a different profile.
@@ -60,22 +46,18 @@ export async function initPushNotifications(profile) {
           localStorage.setItem(savedKey, token.value);
         }
         if (profile.role === "student") registerChildDevice(token.value);
-        dbg("token saved", "success");
       } catch (err) {
         console.error("Failed to save push token:", err);
-        dbg(`could not save token: ${err?.message || JSON.stringify(err)}`, "error");
       }
     });
 
     PushNotifications.addListener("registrationError", (err) => {
       console.error("Push registration error:", err);
-      dbg(`Firebase registration error: ${err?.error || err?.message || JSON.stringify(err)}`, "error");
     });
 
     // A push that arrives while the app is open: tell the page, so it can refresh just what changed
     // (see the "onecore:push" listeners in the page scripts and in layout.js).
     PushNotifications.addListener("pushNotificationReceived", (n) => {
-      dbg(`received “${n.title}”`, "success");
       const data = n.data || {};
       const forThisAcademy = !data.profile_id || data.profile_id === profile.id;
       // The notification list and bell only cover the academy I'm in, so tell her about the other one here.
@@ -124,7 +106,6 @@ export async function initPushNotifications(profile) {
         });
       } catch (err) {
         console.warn("Could not create notification channel:", err);
-        dbg(`channel not created: ${err?.message || err}`, "error");
       }
     }
 
@@ -134,10 +115,8 @@ export async function initPushNotifications(profile) {
     if (!sessionStorage.getItem(askedKey)) {
       sessionStorage.setItem(askedKey, "1");
       await PushNotifications.register();
-      dbg("asked Firebase for a token…");
     }
   } catch (err) {
     console.error("initPushNotifications failed:", err);
-    dbg(`failed: ${err?.message || JSON.stringify(err)}`, "error");
   }
 }

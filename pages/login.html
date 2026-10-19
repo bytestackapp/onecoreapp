@@ -323,7 +323,7 @@
   </div>
 
   <script type="module">
-	import { supabase, getSessionUser, getCurrentProfile, isPlatformOwner, friendlyError, myAcademies } from "../js/supabase-client.js";
+	import { supabase, getSessionUser, getCurrentProfile, isPlatformOwner, friendlyError, myAcademies, isUsableAcademy, switchToProfile } from "../js/supabase-client.js";
 	import { showToast } from "../js/toast.js";
     import "../js/theme.js";
     import { loadPublicBrand, getCachedBrand, applyBrand, brandLogo, brandFromOrg, rememberBrand, forgetBrand } from "../js/brand.js";
@@ -475,7 +475,7 @@
     async function proceedAfterSignIn() {
       let myProfiles = [];
       try {
-        myProfiles = (await myAcademies()).filter((a) => a.is_approved !== false && a.is_active !== false);
+        myProfiles = (await myAcademies()).filter((a) => a.is_approved !== false && isUsableAcademy(a));
       } catch (err) {
         console.error(err);
       }
@@ -500,18 +500,13 @@
     }
 
     async function chooseAcademy(profileId) {
-      const { data: userData } = await supabase.auth.getUser();
-      const { error } = await supabase.from("active_academy_selection").upsert({
-        auth_user_id: userData.user.id,
-        profile_id: profileId,
-        updated_at: new Date().toISOString(),
-      });
-      if (error) {
-        console.error(error);
+      try {
+        await switchToProfile(profileId);
+      } catch (err) {
+        console.error(err);
         showToast("Unable to switch academies. Please try again.", "error");
         return;
       }
-      await supabase.auth.refreshSession();
       await rememberActiveBrand();
       window.location.href = "dashboard.html";
     }
@@ -715,17 +710,19 @@
     
       // Validate the invite code BEFORE creating the account, so bad codes
       // never result in a half-created user.
+      const submitBtn = document.getElementById("signup-submit-btn");
+      if (submitBtn.disabled) return; // already sending
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Creating account…";
       const { data: orgRows, error: orgError } = await supabase.rpc("lookup_org_by_invite_code", { code: inviteCode });
       const org = orgRows?.[0];
     
       if (orgError || !org) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Sign up";
         showToast("Invalid invite code. Please check with your administrator.", "error");
         return;
       }
-    
-      const submitBtn = document.getElementById("signup-submit-btn");
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Creating account…";
     
       const { error: signUpError } = await supabase.auth.signUp({
         email,

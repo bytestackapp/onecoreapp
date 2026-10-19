@@ -2,8 +2,9 @@ import { mountLayout } from "./layout.js";
 import { supabase, formatDate, friendlyError, logAudit } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { todayPH, addDaysISO, timePH, momentPH } from "./time.js";
+import { escapeHtml, cap } from "./utils.js";
 
-const profile = await mountLayout({ activeKey: "attendance", pageTitle: "Attendance" });
+const profile = await mountLayout({ activeKey: "attendance", pageTitle: "Attendance", allowedRoles: ["admin", "teacher", "student", "parent"] });
 if (!profile) throw new Error("redirecting");
 
 // Today's date in Philippine time (YYYY-MM-DD)
@@ -23,11 +24,6 @@ const ICON = {
 // -----------------------------------------------------------------
 // Small helpers
 // -----------------------------------------------------------------
-const cap = (s = "") => s.charAt(0).toUpperCase() + s.slice(1);
-
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
 
 function fmtTime(iso) {
   if (!iso) return null;

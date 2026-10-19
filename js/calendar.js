@@ -2,8 +2,9 @@ import { mountLayout } from "./layout.js";
 import { supabase, formatDate, friendlyError } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { todayPH } from "./time.js";
+import { escapeHtml } from "./utils.js";
 
-const profile = await mountLayout({ activeKey: "calendar", pageTitle: "Calendar" });
+const profile = await mountLayout({ activeKey: "calendar", pageTitle: "Calendar", allowedRoles: ["admin", "teacher", "student", "parent"] });
 if (!profile) throw new Error("redirecting");
 
 // ---------------------------------------------------------------------------
@@ -88,9 +89,6 @@ function fmtTimeStr(t) {
   const d = new Date();
   d.setHours(h, m, 0, 0);
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-}
-function escapeHtml(str = "") {
-  return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 function monthRange(c) {
   const first = monthStart(c);

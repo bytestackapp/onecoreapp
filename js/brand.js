@@ -106,7 +106,6 @@ function brandCss(color) {
 // Applying a brand to the current page
 // ---------------------------------------------------------------------
 
-let currentBrand = DEFAULT_BRAND;
 
 // Injects (or removes) the color overrides: buttons/links, splash and the page loading screen.
 function setBrandStyle(color) {
@@ -166,7 +165,6 @@ export function applyRememberedBrand() {
     // ignore
   }
 }
-export const getBrand = () => currentBrand;
 
 /**
  * Sets the colors and fills any element marked with:
@@ -174,7 +172,6 @@ export const getBrand = () => currentBrand;
  *   data-brand-tagline  -> the tagline (left alone if the brand has none)
  */
 export function applyBrand(brand = DEFAULT_BRAND) {
-  currentBrand = brand;
   setBrandStyle(brand.color);
 
   document.querySelectorAll("[data-brand-name]").forEach((el) => (el.textContent = brand.name));

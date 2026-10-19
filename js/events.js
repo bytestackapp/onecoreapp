@@ -3,6 +3,7 @@ import { supabase, formatDate, friendlyError, logAudit } from "./supabase-client
 import { showToast } from "./toast.js";
 import { confirmDialog } from "./dialog.js";
 import { todayPH } from "./time.js";
+import { escapeHtml, cap } from "./utils.js";
 
 const profile = await mountLayout({ activeKey: "events", pageTitle: "Events" });
 if (!profile) throw new Error("redirecting");
@@ -29,10 +30,6 @@ function localDate() {
   return todayPH(); // today in Philippine time
 }
 
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-const cap = (s = "") => s.charAt(0).toUpperCase() + s.slice(1);
 
 // -----------------------------------------------------------------
 // Online meeting platforms (shown in the picker, stored as the `id`)

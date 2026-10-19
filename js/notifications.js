@@ -2,6 +2,7 @@ import { mountLayout } from "./layout.js";
 import { supabase, timeAgo, priorityLabel, friendlyError, logAudit, formatDate } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { confirmDialog } from "./dialog.js";
+import { escapeHtml } from "./utils.js";
 
 const profile = await mountLayout({ activeKey: "notifications", pageTitle: "Notifications" });
 if (!profile) throw new Error("redirecting");
@@ -53,10 +54,6 @@ let hasMore = false; // are there older (read) notifications that aren't shown y
 let readCursor = null; // created_at of the oldest read notification shown so far
 const PAGE_SIZE = 5; // read notifications are shown 5 at a time; unread ones are always all shown
 const NOTIF_COLS = "id, profile_id, title, body, priority, related_type, related_id, is_read, created_at, subject_name, related_status";
-
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
 
 async function load() {
   listEl.innerHTML = `<div class="skeleton" style="height:60px;"></div>`;
@@ -222,22 +219,33 @@ async function markRead(id) {
   if (!n || n.is_read) return;
   n.is_read = true;
   const row = listEl.querySelector(`[data-id="${id}"]`);
+  const previousStyle = row ? row.style.cssText : "";
   if (row) {
     row.style.cssText = CARD_READ;
     if (row.firstElementChild) row.firstElementChild.style.fontWeight = "";
   }
   try {
-    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+    const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+    if (error) throw error;
     updateSummary();
   } catch (err) {
     console.error(err);
+    // The server did not save it: put the card back as unread so what you see is the truth
+    n.is_read = false;
+    if (row) {
+      row.style.cssText = previousStyle;
+      if (row.firstElementChild) row.firstElementChild.style.fontWeight = "600";
+    }
+    updateSummary();
+    showToast("Couldn't mark it as read. Please try again.", "error");
   }
 }
 
 markAllBtn.addEventListener("click", async () => {
   markAllBtn.disabled = true;
   try {
-    await supabase.from("notifications").update({ is_read: true }).eq("profile_id", profile.id).eq("is_read", false);
+    const { error } = await supabase.from("notifications").update({ is_read: true }).eq("profile_id", profile.id).eq("is_read", false);
+    if (error) throw error;
     notifications.forEach((n) => (n.is_read = true));
     updateSummary();
     render();

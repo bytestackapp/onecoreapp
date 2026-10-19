@@ -2,6 +2,7 @@ import { mountLayout, sectionHead } from "./layout.js";
 import { supabase, formatDate, friendlyError, logAudit } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { yearPH } from "./time.js";
+import { escapeHtml } from "./utils.js";
 
 const profile = await mountLayout({ activeKey: "leave", pageTitle: "Leave", allowedRoles: ["admin", "teacher"] });
 if (!profile) throw new Error("redirecting");
@@ -13,10 +14,6 @@ const MY_REQUESTS_PREVIEW = 5; // how many show on the card
 const ADMIN_PENDING_PREVIEW = 5; // pending requests shown on the admin card
 const HALF_LABEL = { first: "First Half", second: "Second Half" };
 const halfTag = (r) => (r.half_day_period ? ` · Half day (${HALF_LABEL[r.half_day_period] || ""})` : "");
-
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
 
 document.getElementById("balances-head").innerHTML = sectionHead({
   title: "Leave balance",

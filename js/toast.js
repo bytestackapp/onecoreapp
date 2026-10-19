@@ -1,3 +1,4 @@
+import { escapeHtml } from "./utils.js";
 // Self-contained toast system — works on any page, including auth pages
 // that never call mountLayout(). First call lazily creates the container.
 
@@ -41,6 +42,3 @@ export function showToast(message, type = "info", duration = 4500) {
   toast.addEventListener("mouseleave", () => { timer = setTimeout(remove, 1500); });
 }
 
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}

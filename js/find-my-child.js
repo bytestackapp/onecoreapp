@@ -16,6 +16,8 @@ import { supabase } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { sectionHead } from "./layout.js";
 import { timePH } from "./time.js";
+import { openShell } from "./modal.js";
+import { escapeHtml as esc } from "./utils.js";
 
 const svg = (path) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
@@ -29,9 +31,6 @@ const LEAFLET_JS = new URL("./vendor/leaflet/leaflet.min.js", import.meta.url).h
 
 const REQ_COLS = "id, status, failure_reason, latitude, longitude, accuracy_m, located_at, completed_at, created_at";
 
-function esc(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------------------------------------------------------------
@@ -74,27 +73,11 @@ injectStyles();
 // ---------------------------------------------------------------------
 // Small dialog helpers (same look as the rest of the app)
 // ---------------------------------------------------------------------
-function shell(html, onClose) {
-  const backdrop = document.createElement("div");
-  backdrop.className = "dialog-backdrop";
-  backdrop.innerHTML = html;
-  document.body.appendChild(backdrop);
-  const onKey = (e) => { if (e.key === "Escape") close(); };
-  function close() {
-    document.removeEventListener("keydown", onKey);
-    backdrop.remove();
-    if (onClose) onClose();
-  }
-  document.addEventListener("keydown", onKey);
-  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
-  return { backdrop, close };
-}
-
 function confirmDialog({ title, bodyHtml, okLabel }) {
   return new Promise((resolve) => {
     let settled = false;
     const done = (v) => { if (!settled) { settled = true; resolve(v); } };
-    const { backdrop, close } = shell(
+    const { backdrop, close } = openShell(
       `<div class="dialog-modal" role="dialog" aria-modal="true">
         <h3>${esc(title)}</h3>
         ${bodyHtml}
@@ -252,7 +235,7 @@ export async function initChildDeviceCard(profile) {
       }
     } catch (err) {
       console.error(err);
-      showToast(typeof err?.message === "string" && err.message ? err.message : "Something went wrong.", "error");
+      showToast(err && !(err instanceof TypeError) && typeof err.message === "string" && err.message ? err.message : "Something went wrong.", "error");
     }
     await refresh();
   });
@@ -348,7 +331,7 @@ export function openFindMyChild({ childId, childName }) {
   let map = null;
   let busy = false;
 
-  const { backdrop, close } = shell(
+  const { backdrop, close } = openShell(
     `<div class="dialog-modal fmc-modal" role="dialog" aria-modal="true" aria-labelledby="fmc-title">
       <h3 id="fmc-title">Find My Child</h3>
       <div class="fmc-child">${esc(childName)}</div>

@@ -2,29 +2,12 @@
 // "add academy" flow. Switching is a database call plus a token
 // refresh; nobody has to sign out and back in.
 
-import { supabase, friendlyError, isUsableAcademy, switchToProfile } from "./supabase-client.js";
+import { supabase, isUsableAcademy, switchToProfile, userMessage } from "./supabase-client.js";
 import { showToast } from "./toast.js";
+import { openShell } from "./modal.js";
+import { escapeHtml as esc, cap } from "./utils.js";
 
-function esc(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-const cap = (s = "") => s.charAt(0).toUpperCase() + s.slice(1);
-const msg = (err, fallback) => (err?.code === "P0001" && err.message ? err.message : friendlyError(err, fallback));
-
-function shell(html) {
-  const backdrop = document.createElement("div");
-  backdrop.className = "dialog-backdrop";
-  backdrop.innerHTML = html;
-  document.body.appendChild(backdrop);
-  const onKey = (e) => { if (e.key === "Escape") close(); };
-  function close() {
-    document.removeEventListener("keydown", onKey);
-    backdrop.remove();
-  }
-  document.addEventListener("keydown", onKey);
-  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
-  return { backdrop, close };
-}
+const msg = userMessage;
 
 function statusOf(a) {
   if (a.is_active !== false) return isUsableAcademy(a) ? null : "Guest access ended";
@@ -32,7 +15,7 @@ function statusOf(a) {
 }
 
 export function openAcademySwitcher(academies, currentProfile) {
-  const { backdrop, close } = shell(`
+  const { backdrop, close } = openShell(`
     <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="sw-title">
       <h3 id="sw-title">Switch academy</h3>
       <div style="max-height:50vh;overflow-y:auto;margin:4px 0 8px;">
@@ -90,7 +73,7 @@ export function openAcademySwitcher(academies, currentProfile) {
 }
 
 function openJoinDialog(currentProfile) {
-  const { backdrop, close } = shell(`
+  const { backdrop, close } = openShell(`
     <div class="dialog-modal" role="dialog" aria-modal="true" aria-labelledby="jn-title">
       <h3 id="jn-title">Add academy</h3>
       <form id="jn-form">

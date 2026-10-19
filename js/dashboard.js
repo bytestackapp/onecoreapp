@@ -1,6 +1,7 @@
 import { mountLayout, ICONS, sectionHead } from "./layout.js";
-import { supabase, formatDate, timeAgo, priorityLabel } from "./supabase-client.js";
+import { supabase, formatDate, timeAgo, priorityLabel, initials } from "./supabase-client.js";
 import { todayPH } from "./time.js";
+import { escapeHtml } from "./utils.js";
 
 const profile = await mountLayout({ activeKey: "dashboard", pageTitle: "Dashboard", brandOnMobile: true });
 if (!profile) throw new Error("redirecting");
@@ -90,14 +91,6 @@ function tile(label, value, href) {
     </div>
   </div>`;
   return href ? `<a class="tile-link" href="${href}">${card}</a>` : card;
-}
-
-function initials(name = "") {
-  const parts = String(name).trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "?";
-  const first = [...parts[0]][0];
-  const last = parts.length > 1 ? [...parts[parts.length - 1]][0] : "";
-  return (first + last).toUpperCase();
 }
 
 function childTile(label, kids, key, href) {
@@ -307,6 +300,3 @@ function emptyState(title, body) {
   </div>`;
 }
 
-function escapeHtml(str = "") {
-  return str.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}

@@ -1,4 +1,5 @@
 import { supabase, requireAuth } from "./supabase-client.js";
+import { escapeHtml } from "./utils.js";
 
 const profile = await requireAuth();
 if (!profile) throw new Error("redirecting");
@@ -10,10 +11,6 @@ if (profile.role !== "admin") {
 const orgName = profile.organizations?.name || "";
 const gridEl = document.getElementById("card-grid");
 const titleEl = document.getElementById("toolbar-title");
-
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
 
 async function fetchPeople() {
   const params = new URLSearchParams(window.location.search);

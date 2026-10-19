@@ -14,14 +14,14 @@
   <meta name="format-detection" content="telephone=no" />
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="../css/global.css" />
-  <script>try{var t=localStorage.getItem("onecore:theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}try{var b=JSON.parse(localStorage.getItem("onecore_saved_brand_last")||"null");if(b&&b.css&&!/<|url\(|@import/i.test(b.css)){var s=document.createElement("style");s.id="brand-theme";s.textContent=b.css;document.head.appendChild(s)}}catch(e){}</script>
+  <script src="../js/page-start.js" data-loader></script>
   <style>
     /* Clickable stat cards */
     .tile-link { display: block; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
     .tile-link .stat-tile { height: 100%; box-sizing: border-box; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
     .tile-link:hover .stat-tile { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.10); }
     .tile-link:active .stat-tile { transform: translateY(0); }
-    .tile-link:focus-visible { outline: 2px solid #2952e3; outline-offset: 2px; border-radius: 12px; }
+    .tile-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 12px; }
 
     /* Stat cards: title on top (applies to every role) */
     .stat-tile .stat-label { font-weight: 600; margin: 0 0 12px; }
@@ -70,31 +70,6 @@
   </style>
 </head>
 <body>
-<div id="page-loader" class="page-loader">
-  <div class="page-loader-decor-top"></div>
-  <svg class="page-loader-ring" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="loaderGradient" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#2952e3" />
-        <stop offset="100%" stop-color="#1fc6c6" />
-      </linearGradient>
-    </defs>
-    <circle cx="25" cy="25" r="20" fill="none" stroke="url(#loaderGradient)" stroke-width="4" stroke-linecap="round" stroke-dasharray="90 40" />
-  </svg>
-  <div class="page-loader-text">LOADING&hellip;</div>
-  <div class="page-loader-wave">
-    <svg viewBox="0 0 1440 260" preserveAspectRatio="none" width="100%" height="150" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="loaderWaveGradient" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#1f4fe0" />
-          <stop offset="100%" stop-color="#22c9c9" />
-        </linearGradient>
-      </defs>
-      <path d="M0,140 C240,40 420,220 720,120 C1000,30 1200,200 1440,90 L1440,260 L0,260 Z" fill="#cfe0ff" />
-      <path d="M0,180 C260,100 460,240 760,150 C1040,70 1220,220 1440,140 L1440,260 L0,260 Z" fill="url(#loaderWaveGradient)" />
-    </svg>
-  </div>
-</div>
   <div id="page-content">
     <p id="welcome-line" class="text-muted mt-0" style="margin-bottom:1.25rem;">Loading your dashboard…</p>
 

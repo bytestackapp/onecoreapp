@@ -1,7 +1,8 @@
 import { mountLayout, sectionHead } from "./layout.js";
-import { supabase, friendlyError, isPlatformOwner, clearProfileCache } from "./supabase-client.js";
+import { supabase, friendlyError, isPlatformOwner, clearProfileCache, userMessage } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { confirmDialog } from "./dialog.js";
+import { escapeHtml } from "./utils.js";
 
 const profile = await mountLayout({ activeKey: "owner", pageTitle: "Owner console", allowedRoles: ["admin"] });
 if (!profile) throw new Error("redirecting");
@@ -12,12 +13,7 @@ if (!(await isPlatformOwner())) {
   throw new Error("redirecting");
 }
 
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
-// Custom messages raised inside the database functions come back with code P0001.
-const msg = (err, fallback) => (err?.code === "P0001" && err.message ? err.message : friendlyError(err, fallback));
+const msg = userMessage; // messages written inside the database are shown as they are
 
 const PLUS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`;
 const ENTER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><path d="M10 17l5-5-5-5M15 12H3"/></svg>`;

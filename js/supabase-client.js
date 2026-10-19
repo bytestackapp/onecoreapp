@@ -173,11 +173,7 @@ export async function getCurrentProfile({ force = false } = {}) {
   if (error) {
     console.error("getCurrentProfile error:", error);
     // A bad connection is not the same as "no profile": never sign anyone out because of it.
-    const saved = readSaved("profile", profileId);
-    if (saved) {
-      cachedProfile = saved;
-      return saved;
-    }
+    // The page shows "No connection" with a Try again button instead.
     return { __offline: true };
   }
   if (!data) return null; // this login really has no profile row
@@ -282,9 +278,16 @@ async function tryFallbackAcademy(currentId) {
 
 function showOfflineScreen() {
   document.body.innerHTML = `<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;font-family:system-ui,sans-serif;"><h2 style="margin:0;">No connection</h2><p style="margin:0;opacity:.7;">OneCore can't reach the server right now. Check your internet and try again.</p><button class="btn btn-primary" onclick="location.reload()">Try again</button></div>`;
+
+  // Come back by itself as soon as the connection returns
+  window.addEventListener("online", () => window.location.reload(), { once: true });
 }
 
 export async function requireAuth() {
+  if (navigator.onLine === false) {
+    showOfflineScreen(); // airplane mode or no signal: say so, instead of showing empty pages
+    return null;
+  }
   const user = await getSessionUser();
   if (!user) {
     window.location.href = "login.html";
@@ -344,12 +347,11 @@ export async function signOut() {
 // ---------------------------------------------------------------------
 
 export function initials(name = "") {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? "")
-    .join("");
+  const parts = String(name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  const first = [...parts[0]][0]; // [...text] keeps emoji and other special characters in one piece
+  const last = parts.length > 1 ? [...parts[parts.length - 1]][0] : "";
+  return (first + last).toUpperCase();
 }
 
 export function formatDateTime(iso) {
@@ -433,4 +435,13 @@ export function friendlyError(error, fallback = "Something went wrong. Please tr
     return "Network error. Check your connection and try again.";
   }
   return fallback;
+}
+
+/**
+ * The sentence to show a person when something failed. A message we wrote ourselves inside the database
+ * (error code P0001) is shown as it is; anything else becomes a plain sentence.
+ */
+export function userMessage(error, fallback = "Something went wrong. Please try again.") {
+  if (error?.code === "P0001" && error.message) return error.message;
+  return friendlyError(error, fallback);
 }

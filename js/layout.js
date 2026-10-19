@@ -9,14 +9,16 @@
 import "./register-sw.js";
 import { supabase, requireAuth, signOut, initials, isPlatformOwner, myAcademies, clearProfileCache, switchToProfile } from "./supabase-client.js";
 import { openAcademySwitcher } from "./academy-switcher.js";
-import { APP_NAME, LOGO_MARK, brandFromOrg, applyBrand, brandLogo, rememberBrand, forgetBrand, applyRememberedBrand } from "./brand.js";
+import { brandFromOrg, applyBrand, brandLogo, rememberBrand, forgetBrand, applyRememberedBrand } from "./brand.js";
 
 applyRememberedBrand(); // color the loading screen right away, before the academy is known
 import { initPushNotifications } from "./push.js";
 import { checkForUpdate } from "./version-check.js";
 import "./pull-to-refresh.js";
+import "./modal.js";
 import { getThemePref, setThemePref, THEME_LABELS } from "./theme.js";
 import "./picker.js";
+import { escapeHtml as esc } from "./utils.js";
 
 
 const themeMeta = document.querySelector('meta[name="theme-color"]');
@@ -28,10 +30,6 @@ new MutationObserver(syncThemeColor).observe(document.documentElement, { attribu
 syncThemeColor();
 
 // Makes text safe to show inside the page
-function esc(str = "") {
-  return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
 const ICONS = {
   dashboard:  `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>`,
   bell:       `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>`,

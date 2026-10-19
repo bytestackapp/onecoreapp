@@ -2,6 +2,7 @@ import { mountLayout, sectionHead } from "./layout.js";
 import { supabase, friendlyError, logAudit } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { todayPH } from "./time.js";
+import { escapeHtml } from "./utils.js";
 
 const profile = await mountLayout({ activeKey: "reports", pageTitle: "Reports", allowedRoles: ["admin"] });
 if (!profile) throw new Error("redirecting");
@@ -41,10 +42,6 @@ toInput.value = todayStr;
 const EXPORT_PAGE_SIZE = 1000; // Supabase returns at most 1000 rows per request, so we read page by page
 const EXPORT_ROLES = ["admin", "teacher", "student"]; // people who have attendance (parents do not)
 const STAFF_ROLES = ["admin", "teacher"];
-
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
 
 // Modal: choose who to include. Resolves { scope, ids } or null when cancelled.
 function openExportDialog() {
@@ -321,22 +318,34 @@ function saveCsv(lines, filename) {
   URL.revokeObjectURL(url);
 }
 
-// student id -> names of the groups they belong to (same lookup the QR card export uses; one call per group)
+// student id -> names of the groups they belong to. One query per 100 groups (not one per group),
+// and no QR codes are involved.
 async function loadGroupMembership(groups) {
   const byStudent = new Map();
-  const results = await Promise.all(
-    (groups || []).map(async (g) => {
-      const { data, error } = await supabase.rpc("admin_qr_cards", { p_scope: "group", p_group: g.id });
+  const list = groups || [];
+  if (!list.length) return byStudent;
+  const order = new Map(list.map((g, i) => [g.id, i]));
+  const nameOf = new Map(list.map((g) => [g.id, g.name]));
+  const found = new Map(); // student id -> [[group position, group name], ...]
+  for (let i = 0; i < list.length; i += 100) {
+    const ids = list.slice(i, i + 100).map((g) => g.id);
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from("group_members")
+        .select("group_id, profile_id")
+        .in("group_id", ids)
+        .order("group_id")
+        .order("profile_id")
+        .range(from, from + 999);
       if (error) throw error;
-      return [g, data || []];
-    })
-  );
-  results.forEach(([g, members]) =>
-    members.forEach((m) => {
-      if (!byStudent.has(m.id)) byStudent.set(m.id, []);
-      byStudent.get(m.id).push(g.name);
-    })
-  );
+      (data || []).forEach((m) => {
+        if (!found.has(m.profile_id)) found.set(m.profile_id, []);
+        found.get(m.profile_id).push([order.get(m.group_id), nameOf.get(m.group_id)]);
+      });
+      if (!data || data.length < 1000) break;
+    }
+  }
+  found.forEach((pairs, id) => byStudent.set(id, pairs.sort((a, b) => a[0] - b[0]).map((p) => p[1])));
   return byStudent;
 }
 

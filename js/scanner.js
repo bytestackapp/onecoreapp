@@ -1,8 +1,9 @@
 // Standalone scanner page. No login — authenticates as a DEVICE via the
 // device token stored on activation, not a person. See record_attendance_scan,
 // activate_scanner_device, and scanner_download_roster in the database.
-import { supabase } from "./supabase-client.js";
+import { supabase, userMessage } from "./supabase-client.js";
 import { showToast } from "./toast.js";
+import { escapeHtml } from "./utils.js";
 
 const STORAGE_DEVICE = "onecore_scanner_device";
 const STORAGE_ROSTER = "onecore_scanner_roster";
@@ -101,10 +102,6 @@ function updateFooter() {
 function showResult(kind, lines) {
   resultEl.className = `scanner-result ${kind}`;
   resultEl.innerHTML = lines.map((l) => `<div>${l}</div>`).join("");
-}
-
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 // -----------------------------------------------------------------
@@ -491,7 +488,7 @@ async function drainQueue() {
       } catch (err) {
         item.attempts = (item.attempts || 0) + 1;
         if (err?.code && item.attempts >= MAX_ATTEMPTS) {
-          rejected.push({ ...item, message: `${err.code} ${err.message}` });
+          rejected.push({ ...item, message: userMessage(err, "This scan could not be sent.") });
         } else {
           remaining.push(item); // network trouble or a server error worth retrying
         }

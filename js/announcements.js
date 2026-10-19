@@ -2,6 +2,7 @@ import { mountLayout } from "./layout.js";
 import { supabase, formatDateTime, timeAgo, priorityLabel, friendlyError, logAudit } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { confirmDialog } from "./dialog.js";
+import { escapeHtml, cap } from "./utils.js";
 
 const profile = await mountLayout({ activeKey: "announcements", pageTitle: "Announcements" });
 if (!profile) throw new Error("redirecting");
@@ -68,7 +69,6 @@ async function loadAudienceOptions() {
 function audienceDialog(current) {
   return new Promise((resolve) => {
     const sel = { types: new Set(current.types), groups: new Set(current.groups), users: new Set(current.users) };
-    const cap = (s = "") => s.charAt(0).toUpperCase() + s.slice(1);
 
     const backdrop = document.createElement("div");
     backdrop.className = "dialog-backdrop";
@@ -471,7 +471,6 @@ async function openAckDialog(id) {
 
   const acknowledged = rows.filter((r) => r.acknowledged_at);
   const pending = rows.filter((r) => !r.acknowledged_at);
-  const cap = (s = "") => s.charAt(0).toUpperCase() + s.slice(1);
   const item = (r, detail) => `
     <div class="list-row">
       <div style="flex:1;min-width:0;">
@@ -537,10 +536,11 @@ async function autoAcknowledge(announcementId) {
 async function markViewed(announcementId, existing) {
   if (existing?.viewed_at) return;
   try {
-    await supabase.from("announcement_acknowledgments").upsert(
+    const { error } = await supabase.from("announcement_acknowledgments").upsert(
       { announcement_id: announcementId, profile_id: profile.id, viewed_at: new Date().toISOString() },
       { onConflict: "announcement_id,profile_id", ignoreDuplicates: false }
     );
+    if (error) throw error;
   } catch (err) {
     console.error("markViewed failed:", err);
   }
@@ -570,9 +570,6 @@ async function acknowledge(announcementId, btn) {
   }
 }
 
-function escapeHtml(str = "") {
-  return str.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
 function escapeAttr(str = "") {
   return escapeHtml(str);
 }

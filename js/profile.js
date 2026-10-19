@@ -2,6 +2,7 @@ import { mountLayout, sectionHead } from "./layout.js";
 import { supabase, initials, friendlyError, getCurrentProfile } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { initChildDeviceCard, openFindMyChild, FMC_ICON } from "./find-my-child.js";
+import { escapeHtml } from "./utils.js";
 
 const profile = await mountLayout({ activeKey: "profile", pageTitle: "Profile" });
 if (!profile) throw new Error("redirecting");
@@ -13,10 +14,6 @@ const ICON = {
   child: svg('<circle cx="12" cy="5.5" r="2.5"/><path d="M12 8.5v6M7.5 11l4.5 1.5 4.5-1.5M9 21l3-6.5 3 6.5"/>'),
   lock: svg('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/>'),
 };
-
-function escapeHtml(str = "") {
-  return str.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
 
 // ---------- Block 1: identity ----------
 document.getElementById("profile-avatar").textContent = initials(profile.full_name);

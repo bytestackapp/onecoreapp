@@ -1,3 +1,4 @@
+import { escapeHtml } from "./utils.js";
 // Self-contained confirm dialog — replaces window.confirm() with an
 // app-styled modal. Usage:
 //   const ok = await confirmDialog({ title: "Reject request?", message: "...", danger: true });
@@ -54,6 +55,3 @@ export function confirmDialog({ title, message, confirmLabel = "Confirm", cancel
   });
 }
 
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
