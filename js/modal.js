@@ -51,6 +51,7 @@ function sync() {
     }
   }
   knownCount = open.length;
+  fit();
 }
 
 document.addEventListener(
@@ -72,6 +73,39 @@ document.addEventListener(
   },
   true
 );
+
+// Keyboard-aware dialogs. When the on-screen keyboard opens, Android may slide the whole page up instead of
+// shrinking it, which pushes the top of a dialog out of sight. So while a dialog is open it is fitted to the
+// part of the screen that is really visible, and the dialog scrolls inside that space.
+const vv = window.visualViewport;
+function fit() {
+  if (!vv) return;
+  const squeezed = vv.height < window.innerHeight - 1 || vv.offsetTop > 1;
+  openBackdrops().forEach((b) => {
+    if (squeezed) {
+      b.style.top = vv.offsetTop + "px";
+      b.style.bottom = "auto";
+      b.style.height = vv.height + "px";
+    } else {
+      b.style.top = "";
+      b.style.bottom = "";
+      b.style.height = "";
+    }
+  });
+}
+if (vv) {
+  vv.addEventListener("resize", fit);
+  vv.addEventListener("scroll", fit);
+}
+
+// Bring the field you tap into view once the keyboard has finished opening
+document.addEventListener("focusin", (e) => {
+  const el = e.target;
+  if (!el.closest?.(".dialog-backdrop") || !/^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
+  setTimeout(() => {
+    if (document.activeElement === el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, 320);
+});
 
 if (document.body) new MutationObserver(sync).observe(document.body, { childList: true });
 sync();
