@@ -35,6 +35,19 @@ function syncMetaColor() {
   meta.content = card;
 }
 
+// Android app: match the status bar icons (clock, battery) to the theme
+function syncStatusBar() {
+  const cap = window.Capacitor;
+  if (!cap || !cap.isNativePlatform || !cap.isNativePlatform()) return;
+  const SB = cap.Plugins && cap.Plugins.StatusBar;
+  if (!SB) return;
+  const dark = root.getAttribute("data-theme") === "dark";
+  const card = getComputedStyle(root).getPropertyValue("--card").trim();
+  // DARK = light icons (for dark backgrounds), LIGHT = dark icons (for light backgrounds)
+  SB.setStyle({ style: dark ? "DARK" : "LIGHT" }).catch(() => {});
+  if (card) SB.setBackgroundColor({ color: card }).catch(() => {});
+}
+
 // ---------- logos ----------
 const LOGO_RE = /(^|\/)(logo|logo-horiz|logo-vert)\.png(?=$|[?#])/;
 
@@ -73,6 +86,7 @@ export function applyTheme(pref = getThemePref()) {
   if (pref === "dark") root.setAttribute("data-theme", "dark");
   else root.removeAttribute("data-theme");
   syncMetaColor();
+  syncStatusBar();
   syncLogos();
 }
 
