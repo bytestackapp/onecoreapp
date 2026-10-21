@@ -571,16 +571,11 @@ async function openLeaveTypeDialog(staffId, staffName) {
 // Section header for the Active / Inactive lists. Re-rendered on every filter
 // change so the count matches what is actually shown.
 function userSectionHead(mode, count) {
-  const cfg =
-    mode === "active"
-      ? {
-          title: "Active users",
-          icon: SECTION_ICON.active,
-          tone: "info",
-          linkHtml: `<a class="link" href="reports.html?import=links#linked">Link students to parents</a>`,
-        }
-      : { title: "Inactive users", icon: SECTION_ICON.inactive, tone: "info" };
-  return sectionHead({ ...cfg, count });
+    const cfg =
+      mode === "active"
+        ? { title: "Active users", icon: SECTION_ICON.active, tone: "info" }
+        : { title: "Inactive users", icon: SECTION_ICON.inactive, tone: "info" };
+    return sectionHead({ ...cfg, count });
 }
 
 function searchBox(mode) {

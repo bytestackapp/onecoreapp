@@ -1029,12 +1029,3 @@ importFile.addEventListener("change", async () => {
     importBtn.disabled = false;
   }
 });
-
-// The Users page links here with ?import=links. A browser only opens the file chooser after a tap,
-// so this brings the import icon into view and points at it instead.
-if (new URLSearchParams(window.location.search).get("import") === "links") {
-  history.replaceState(null, "", `${window.location.pathname}#linked`);
-  importBtn.scrollIntoView({ block: "center" });
-  importBtn.focus();
-  showToast("Tap the import icon to choose your file.", "info");
-}

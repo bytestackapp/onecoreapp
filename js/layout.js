@@ -443,6 +443,33 @@ async function endSessionIfProfileGone(profile, academies) {
   return true;
 }
 
+// Keeps the loading screen over the page until no visible skeleton placeholder is left
+// (every page starts with .skeleton blocks and replaces them when its data arrives).
+function holdLoaderUntilLoaded(loader, root) {
+  let done = false;
+  let timer = 0;
+  const skeletonsShowing = () =>
+    [...root.querySelectorAll(".skeleton")].some((el) => el.getClientRects().length > 0); // hidden ones don't count
+  function hide() {
+    if (done) return;
+    done = true;
+    observer.disconnect();
+    clearTimeout(timer);
+    clearTimeout(fallback);
+   loader.style.transition = "opacity .45s ease, transform .45s ease";
+   loader.style.pointerEvents = "none";
+   loader.style.opacity = "0";
+   loader.style.transform = "scale(1.03)"; // very slight zoom while fading
+   setTimeout(() => loader.remove(), 480);  // keep this a little longer than the transition
+  }
+  const check = () => { timer = 0; if (!skeletonsShowing()) hide(); };
+  const schedule = () => { if (!timer) timer = setTimeout(check, 120); };
+  const observer = new MutationObserver(schedule);
+  observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class", "hidden"] });
+  const fallback = setTimeout(hide, 20000); // safety: never block the app longer than 20s
+  schedule();
+}
+
 export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnMobile }) {
   const profile = await requireAuth();
   checkForUpdate(); // fire-and-forget, never blocks the page
@@ -496,8 +523,10 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnM
   shell.appendChild(sheetBackdrop);
   shell.appendChild(sheet);
 
-  document.body.innerHTML = "";
+  const loader = document.getElementById("page-loader");
+  [...document.body.children].forEach((el) => { if (el !== loader) el.remove(); });
   document.body.appendChild(shell);
+  if (loader) holdLoaderUntilLoaded(loader, content);
 
   // Must run after the page content has been moved into the shell above;
   // enhancing earlier would copy dead buttons into the rebuilt page.
