@@ -539,6 +539,9 @@ newBtn?.addEventListener("click", () => newEventDialog());
 // -----------------------------------------------------------------
 // List + RSVP
 // -----------------------------------------------------------------
+// How many upcoming events are shown; "Show more events" adds 15 more.
+let eventsLimit = 15;
+
 async function loadEvents() {
   listEl.innerHTML = `<div class="skeleton" style="height:90px;margin-bottom:10px;"></div>`;
   try {
@@ -547,8 +550,11 @@ async function loadEvents() {
       .from("events")
       .select("id, title, description, event_date, start_time, end_time, location, is_online, meeting_platform, meeting_link, meeting_details, status, organizer_id, audience_types, audience_group_ids, audience_user_ids, profiles!events_organizer_id_fkey(full_name)")
       .gte("event_date", today)
-      .order("event_date", { ascending: true });
+      .order("event_date", { ascending: true })
+      .range(0, eventsLimit); // one more than we show, to know whether later ones exist
     if (error) throw error;
+    const hasMore = (data || []).length > eventsLimit;
+    if (hasMore) data.pop();
 
     const events = (data || []).filter((e) => e.status !== "cancelled");
     eventsCache = events;
@@ -596,6 +602,19 @@ async function loadEvents() {
         </div>`;
       })
       .join("");
+
+    if (hasMore) {
+      listEl.insertAdjacentHTML(
+        "beforeend",
+        `<div style="text-align:center;margin:8px 0 16px;"><button type="button" class="btn btn-secondary" id="show-more-events-btn">Load more</button></div>`
+      );
+      document.getElementById("show-more-events-btn").addEventListener("click", async () => {
+        const y = window.scrollY;
+        eventsLimit += 15;
+        await loadEvents();
+        window.scrollTo(0, y);
+      });
+    }
 
     listEl.querySelectorAll(".edit-event-btn").forEach((btn) => {
       btn.addEventListener("click", () => {

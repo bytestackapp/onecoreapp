@@ -5,7 +5,7 @@ import { showToast } from "./toast.js";
 import { currentPlatform, isStandalone } from "./version.js";
 import { yearPH, dateTimePH } from "./time.js";
 import { initAppSettings } from "./admin-app-settings.js";
-import { escapeHtml } from "./utils.js";
+import { escapeHtml, loadVendor } from "./utils.js";
 
 const profile = await mountLayout({ activeKey: "admin-settings", pageTitle: "Settings", allowedRoles: ["admin"] });
 if (!profile) throw new Error("redirecting");
@@ -137,15 +137,17 @@ function inviteLink(code) {
   return u.href;
 }
 
-function inviteQrDialog() {
+async function inviteQrDialog() {
   const canDownload = currentPlatform() === "web" && !isStandalone();
   const code = document.getElementById("invite-code").value.trim();
   if (!code) {
     showToast("There's no invite code to show yet.", "error");
     return;
   }
-  if (!window.QRCode) {
-    showToast("The QR generator didn't load. Please refresh the page.", "error");
+  try {
+    await loadVendor("qrcode");
+  } catch {
+    showToast("The QR generator didn't load. Check your connection and try again.", "error");
     return;
   }
   const link = inviteLink(code);
@@ -1434,8 +1436,10 @@ function arcAskFileSaved(m, fileName) {
 
 async function arcRun(m, a) {
   if (arcBusy) return;
-  if (!window.JSZip) {
-    showToast("The ZIP tool couldn't be loaded. Check your connection and reload the page.", "error");
+  try {
+    await loadVendor("jszip");
+  } catch {
+    showToast("The ZIP tool couldn't be loaded. Check your connection and try again.", "error");
     return;
   }
   arcBusy = true;

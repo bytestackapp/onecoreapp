@@ -7,7 +7,7 @@
 // =====================================================================
 
 import "./register-sw.js";
-import { supabase, requireAuth, signOut, initials, isPlatformOwner, myAcademies, clearProfileCache, switchToProfile } from "./supabase-client.js";
+import { supabase, requireAuth, signOut, initials, isPlatformOwner, myAcademies, clearProfileCache, switchToProfile, forgetAcademies } from "./supabase-client.js";
 import { openAcademySwitcher } from "./academy-switcher.js";
 import { brandFromOrg, applyBrand, brandLogo, rememberBrand, forgetBrand, applyRememberedBrand } from "./brand.js";
 
@@ -546,6 +546,7 @@ export async function mountLayout({ activeKey, pageTitle, allowedRoles, brandOnM
   // A push arrived while the app is open: show the unread dot straight away, without asking the server.
   let liveUnread = unread;
   window.addEventListener("onecore:push", (e) => {
+    forgetAcademies(); // a new notification: the next page must ask for fresh unread counts
     if (!e.detail?.forThisAcademy) return; // another academy: the phone still buzzes, but this bell stays as is
     liveUnread += 1;
     const text = liveUnread > 9 ? "9+" : String(liveUnread);

@@ -15,7 +15,6 @@
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="stylesheet" href="../css/global.css" />
   <script>try{var h=location.hostname.toLowerCase(),sl=null;try{var q=new URLSearchParams(location.search).get("school");if(q)sessionStorage.setItem("onecore_school_override",q.trim().toLowerCase());sl=sessionStorage.getItem("onecore_school_override")}catch(e){}var l=h.split(".");if(!sl&&l.length>=3&&l[0]!=="www")sl=l[0];if(sl&&!/^[a-z0-9-]{2,40}$/.test(sl))sl=null;var c=JSON.parse(localStorage.getItem("onecore_brand_v1:"+h+"|"+(sl||""))||"null");if(!(c&&c.matched))c=JSON.parse(localStorage.getItem("onecore_device_brand")||"null");if(c&&c.css&&!/<|url\(|@import/i.test(c.css)){var s=document.createElement("style");s.id="brand-theme";s.textContent=c.css;document.head.appendChild(s)}}catch(e){}</script>
-  <script src="../js/vendor/html5-qrcode.min.js"></script>
   <script type="module" src="../js/register-sw.js"></script>
   <script>try{var t=localStorage.getItem("onecore:theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
   <style>
@@ -325,6 +324,7 @@
   <script type="module">
 	import { supabase, getSessionUser, getCurrentProfile, isPlatformOwner, friendlyError, myAcademies, isUsableAcademy, switchToProfile } from "../js/supabase-client.js";
 	import { showToast } from "../js/toast.js";
+	import { loadVendor } from "../js/utils.js";
     import "../js/theme.js";
     import { loadPublicBrand, getCachedBrand, applyBrand, brandLogo, brandFromOrg, rememberBrand, forgetBrand } from "../js/brand.js";
     import { APP_VERSION } from "../js/version.js";
@@ -795,7 +795,9 @@
     }
 
     document.getElementById("scan-invite-btn").addEventListener("click", async () => {
-      if (!window.Html5Qrcode) {
+      try {
+        await loadVendor("html5qrcode");
+      } catch {
         showToast("The QR scanner didn't load. Please type the code instead.", "error");
         return;
       }

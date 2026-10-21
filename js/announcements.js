@@ -320,6 +320,9 @@ async function openAnnouncementDialog(existingId = null) {
 
 newBtn.addEventListener("click", () => openAnnouncementDialog());
 
+// How many announcements are shown; "Show older announcements" adds 15 more. (Loading everything ever posted gets slow.)
+let announcementsLimit = 15;
+
 async function loadAnnouncements() {
   listEl.innerHTML = `<div class="skeleton" style="height:70px;margin-bottom:10px;"></div>`;
   try {
@@ -327,8 +330,11 @@ async function loadAnnouncements() {
       .from("announcements")
       .select("id, title, content, priority, audience_types, audience_group_ids, audience_user_ids, requires_acknowledgment, created_by, created_at")
       .eq("organization_id", profile.organization_id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(0, announcementsLimit); // one more than we show, to know whether older ones exist
     if (error) throw error;
+    const hasMore = (data || []).length > announcementsLimit;
+    if (hasMore) data.pop();
     announcementsCache = data || [];
 
     if (!data || data.length === 0) {
@@ -385,6 +391,19 @@ async function loadAnnouncements() {
         </div>`;
       })
       .join("");
+
+    if (hasMore) {
+      listEl.insertAdjacentHTML(
+        "beforeend",
+        `<div style="text-align:center;margin:8px 0 16px;"><button type="button" class="btn btn-secondary" id="show-older-btn">Load more</button></div>`
+      );
+      document.getElementById("show-older-btn").addEventListener("click", async () => {
+        const y = window.scrollY;
+        announcementsLimit += 15;
+        await loadAnnouncements();
+        window.scrollTo(0, y);
+      });
+    }
 
     listEl.querySelectorAll(".ack-btn").forEach((btn) => {
       btn.addEventListener("click", () => acknowledge(btn.getAttribute("data-id"), btn));

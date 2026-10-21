@@ -187,7 +187,7 @@ export async function getCurrentProfile({ force = false } = {}) {
 export function clearProfileCache() {
   cachedProfile = null;
   cachedIsOwner = null;
-  academiesMemo = null;
+  forgetAcademies();
   forgetSaved("profile");
 }
 
@@ -230,10 +230,36 @@ export async function isPlatformOwner() {
 let academiesMemo = null;
 let academiesMemoAt = 0;
 
+const ACADEMIES_KEY = SEEN_PREFIX + "academies"; // cleared at sign-out and by pull-to-refresh (both wipe "onecore_seen_*")
+const ACADEMIES_TTL_MS = 30 * 1000;
+
+/** Forget the remembered academy list, so the next page asks the server again (use after unread counts change). */
+export function forgetAcademies() {
+  academiesMemo = null;
+  academiesMemoAt = 0;
+  try {
+    sessionStorage.removeItem(ACADEMIES_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export async function myAcademies({ force = false } = {}) {
-  // Unread counts change whenever someone else sends something, so this is asked on each page,
-  // but only once per page even if several parts of the page need it.
-  if (!force && academiesMemo && Date.now() - academiesMemoAt < 20000) return academiesMemo;
+  // Asked at most once every 30 seconds, even when you move from page to page.
+  // Reading or clearing notifications, a new push, switching academy, pull-to-refresh and sign-out all reset it.
+  if (!force) {
+    if (academiesMemo && Date.now() - academiesMemoAt < ACADEMIES_TTL_MS) return academiesMemo;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(ACADEMIES_KEY) || "null");
+      if (saved && Array.isArray(saved.data) && Date.now() - saved.at < ACADEMIES_TTL_MS) {
+        academiesMemo = saved.data;
+        academiesMemoAt = saved.at;
+        return academiesMemo;
+      }
+    } catch {
+      // unreadable copy: just ask the server
+    }
+  }
   const { data, error } = await supabase.rpc("my_academies");
   if (error) {
     console.error("myAcademies error:", error);
@@ -241,6 +267,11 @@ export async function myAcademies({ force = false } = {}) {
   }
   academiesMemo = data || [];
   academiesMemoAt = Date.now();
+  try {
+    sessionStorage.setItem(ACADEMIES_KEY, JSON.stringify({ at: academiesMemoAt, data: academiesMemo }));
+  } catch {
+    // storage full or blocked: the in-memory copy still works for this page
+  }
   return academiesMemo;
 }
 

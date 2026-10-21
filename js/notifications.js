@@ -1,5 +1,5 @@
 import { mountLayout } from "./layout.js";
-import { supabase, timeAgo, priorityLabel, friendlyError, logAudit, formatDate } from "./supabase-client.js";
+import { supabase, timeAgo, priorityLabel, friendlyError, logAudit, formatDate, forgetAcademies } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { confirmDialog } from "./dialog.js";
 import { escapeHtml } from "./utils.js";
@@ -227,6 +227,7 @@ async function markRead(id) {
   try {
     const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", id);
     if (error) throw error;
+    forgetAcademies(); // the unread count changed
     updateSummary();
   } catch (err) {
     console.error(err);
@@ -246,6 +247,7 @@ markAllBtn.addEventListener("click", async () => {
   try {
     const { error } = await supabase.from("notifications").update({ is_read: true }).eq("profile_id", profile.id).eq("is_read", false);
     if (error) throw error;
+    forgetAcademies(); // the unread count changed
     notifications.forEach((n) => (n.is_read = true));
     updateSummary();
     render();
@@ -271,6 +273,7 @@ clearBtn.addEventListener("click", async () => {
       showToast("Nothing was cleared. You may not have permission to delete notifications.", "error");
       return;
     }
+    forgetAcademies(); // the unread count changed
     notifications = [];
     updateSummary();
     render();

@@ -2,7 +2,7 @@ import { mountLayout } from "./layout.js";
 import { supabase, friendlyError, logAudit } from "./supabase-client.js";
 import { showToast } from "./toast.js";
 import { confirmDialog } from "./dialog.js";
-import { escapeHtml, cap, pagerHtml, bindPager } from "./utils.js";
+import { escapeHtml, cap, pagerHtml, bindPager, loadVendor } from "./utils.js";
 
 const profile = await mountLayout({ activeKey: "groups", pageTitle: "Groups", allowedRoles: ["admin", "teacher", "student", "parent"] });
 if (!profile) throw new Error("redirecting");
@@ -455,7 +455,11 @@ function parseXml(xml) {
 
 // Text cells of the first worksheet, grouped by column: Map(columnIndex -> [text, ...])
 async function readXlsxColumns(file) {
-  if (!window.JSZip) throw new Error("The Excel reader didn't load. Please refresh the page and try again.");
+  try {
+    await loadVendor("jszip");
+  } catch {
+    throw new Error("The Excel reader didn't load. Check your connection and try again.");
+  }
   const zip = await window.JSZip.loadAsync(file);
   const text = async (path) => {
     const f = zip.file(path);
