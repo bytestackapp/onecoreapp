@@ -1,5 +1,6 @@
 import { mountLayout, sectionHead } from "./layout.js";
-import { supabase, initials, friendlyError, getCurrentProfile } from "./supabase-client.js";
+import { supabase, initials, friendlyError, getCurrentProfile, getSessionUser } from "./supabase-client.js";
+import { biometricSupported, biometricEnabledFor, enableBiometric, disableBiometric } from "./biometric.js";
 import { showToast } from "./toast.js";
 import { initChildDeviceCard, openFindMyChild, FMC_ICON } from "./find-my-child.js";
 import { escapeHtml } from "./utils.js";
@@ -198,3 +199,33 @@ async function loadLinkedStudents() {
 
 loadLinkedStudents();
 initChildDeviceCard(profile);
+
+// ---------- Fingerprint / face unlock (Android app only, on a phone that has one set up) ----------
+async function initBiometricCard() {
+  const card = document.getElementById("biometric-card");
+  const btn = document.getElementById("biometric-btn");
+  const user = await getSessionUser();
+  if (!card || !btn || !user || !(await biometricSupported())) return; // web version, or no fingerprint/face on this phone
+  const paint = () => {
+    btn.textContent = biometricEnabledFor(user.id) ? "Turn off" : "Turn on";
+  };
+  paint();
+  card.style.display = "";
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      if (biometricEnabledFor(user.id)) {
+        disableBiometric();
+        showToast("Fingerprint / face unlock is off.", "success");
+      } else {
+        const r = await enableBiometric(user.id);
+        if (r.ok) showToast("Fingerprint / face unlock is on.", "success");
+        else if (r.message && r.message !== "Cancelled.") showToast(r.message, "error");
+      }
+    } finally {
+      btn.disabled = false;
+      paint();
+    }
+  });
+}
+initBiometricCard().catch((err) => console.error(err));

@@ -27,6 +27,7 @@ const { createClient } = window.supabase;
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./env-config.js";
 import { PH_TZ, todayPH } from "./time.js";
+import { ensureUnlocked, forgetBiometric } from "./biometric.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true },
@@ -114,6 +115,7 @@ supabase.auth.onAuthStateChange((event) => {
     cachedIsOwner = null;
     academiesMemo = null;
     forgetAllSaved();
+    forgetBiometric(); // the next sign-in is by password; fingerprint/face unlock is turned on again in Profile
   }
 });
 
@@ -324,6 +326,8 @@ export async function requireAuth() {
     window.location.href = "login.html";
     return null;
   }
+  // Fingerprint / face unlock (Android app, when the person turned it on): nothing private is shown until it passes.
+  await ensureUnlocked(user.id);
   const profile = await getCurrentProfile();
   if (profile && profile.__offline) {
     showOfflineScreen();
