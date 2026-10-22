@@ -206,8 +206,14 @@ async function initBiometricCard() {
   const btn = document.getElementById("biometric-btn");
   const user = await getSessionUser();
   if (!card || !btn || !user || !(await biometricSupported())) return; // web version, or no fingerprint/face on this phone
+  const badge = document.getElementById("biometric-badge");
   const paint = () => {
-    btn.textContent = biometricEnabledFor(user.id) ? "Turn off" : "Turn on";
+    const on = biometricEnabledFor(user.id);
+    badge.textContent = on ? "Activated" : "Deactivated";
+    badge.style.color = on ? "var(--success)" : "var(--error)";
+    badge.style.background = on ? "var(--success-bg)" : "var(--error-bg)";
+    btn.textContent = on ? "Deactivate" : "Activate";
+    btn.className = on ? "btn btn-secondary" : "btn btn-primary";
   };
   paint();
   card.style.display = "";
@@ -216,10 +222,10 @@ async function initBiometricCard() {
     try {
       if (biometricEnabledFor(user.id)) {
         disableBiometric();
-        showToast("Fingerprint / face unlock is off.", "success");
+        showToast("Fingerprint / face unlock deactivated.", "success");
       } else {
-        const r = await enableBiometric(user.id);
-        if (r.ok) showToast("Fingerprint / face unlock is on.", "success");
+        const r = await enableBiometric(user.id, profile.full_name);
+        if (r.ok) showToast("Fingerprint / face unlock activated.", "success");
         else if (r.message && r.message !== "Cancelled.") showToast(r.message, "error");
       }
     } finally {

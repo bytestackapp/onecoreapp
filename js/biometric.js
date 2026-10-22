@@ -15,6 +15,7 @@
 const ENABLED_KEY = "onecore_biometric_user"; // localStorage: id of the login that turned it on, on this phone
 const UNLOCKED_KEY = "onecore_unlocked";      // sessionStorage: this app launch already passed the check
 const LEFT_KEY = "onecore_left_at";           // localStorage: when the app last went to the background
+const NAME_KEY = "onecore_biometric_name";    // localStorage: the person's name, shown on the lock screen
 const RELOCK_AFTER_MS = 2 * 60 * 1000;        // lock again after this long in the background
 
 // Plugin error codes (BiometricAuthError in @capgo/capacitor-native-biometric)
@@ -71,7 +72,7 @@ async function verify(reason) {
 }
 
 /** Turn it on for this login. The phone is asked first, so it is proven to work before anything is saved. */
-export async function enableBiometric(userId) {
+export async function enableBiometric(userId, fullName = "") {
   if (!userId) return { ok: false, message: "Please sign in again." };
   if (!(await biometricSupported())) {
     return { ok: false, message: "Set up a fingerprint or face unlock in your phone's settings first." };
@@ -79,11 +80,18 @@ export async function enableBiometric(userId) {
   const r = await verify("Turn on fingerprint / face unlock");
   if (!r.ok) return r;
   store.set("localStorage", ENABLED_KEY, userId);
+  rememberBiometricName(userId, fullName);
   store.set("sessionStorage", UNLOCKED_KEY, "1"); // just confirmed: no second prompt on this launch
   return { ok: true };
 }
 
+/** Keeps the name on the lock screen up to date (only does anything while unlock is on for this login). */
+export function rememberBiometricName(userId, fullName) {
+  if (fullName && biometricEnabledFor(userId)) store.set("localStorage", NAME_KEY, String(fullName));
+}
+
 export function disableBiometric() {
+  store.del("localStorage", NAME_KEY);
   store.del("localStorage", ENABLED_KEY);
   store.del("sessionStorage", UNLOCKED_KEY);
   store.del("localStorage", LEFT_KEY);
@@ -97,6 +105,7 @@ export const forgetBiometric = disableBiometric;
 // ---------------------------------------------------------------------
 
 let liveUserId = null;
+let liveEmail = "";
 let lockPromise = null;
 
 function injectStyle() {
@@ -109,6 +118,9 @@ function injectStyle() {
   #bio-lock .bio-icon svg{width:38px;height:38px;}
   #bio-lock h2{margin:8px 0 0;}
   #bio-lock p{margin:0;max-width:300px;color:var(--text-secondary,#64748b);min-height:1.4em;}
+  #bio-lock .bio-who{margin:2px 0 4px;color:var(--text-secondary,#64748b);font-size:.92rem;overflow-wrap:anywhere;}
+  #bio-lock .bio-who strong{display:block;color:var(--text,#1e293b);font-size:1.05rem;}
+  #bio-lock .bio-who span{display:block;font-size:.85rem;}
   #bio-lock .bio-actions{display:flex;flex-direction:column;gap:8px;width:100%;max-width:260px;margin-top:8px;}
   @keyframes bioIn{from{opacity:0}to{opacity:1}}
   @media (prefers-reduced-motion:reduce){#bio-lock{animation:none}}`;
@@ -117,6 +129,7 @@ function injectStyle() {
 
 function showLock() {
   if (lockPromise) return lockPromise;
+  const email = liveEmail;
   lockPromise = new Promise((resolve) => {
     injectStyle();
     const el = document.createElement("div");
@@ -127,12 +140,21 @@ function showLock() {
     el.innerHTML = `
       <div class="bio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 11c0 3-.5 5.5-2 8M8.5 8.5A4.5 4.5 0 0116.5 11c0 1.6-.1 3-.5 4.5M5 11a7 7 0 0112-5M19 11c0 2.5-.3 4.5-1 6.5M12 11v.01"/></svg></div>
       <h2>OneCore is locked</h2>
+      <div class="bio-who" id="bio-who" hidden>Logging in as <strong id="bio-name"></strong><span id="bio-email"></span></div>
       <p id="bio-msg">Confirm it's you to continue.</p>
       <div class="bio-actions">
         <button type="button" class="btn btn-primary" id="bio-unlock">Unlock</button>
         <button type="button" class="btn btn-secondary" id="bio-signout">Sign out</button>
       </div>`;
     document.body.appendChild(el);
+
+    // Who is signed in: the saved name, and the login email underneath (set with textContent, never as HTML).
+    const name = store.get("localStorage", NAME_KEY) || "";
+    if (name || email) {
+      el.querySelector("#bio-name").textContent = name || email;
+      el.querySelector("#bio-email").textContent = name ? email : "";
+      el.querySelector("#bio-who").hidden = false;
+    }
 
     const msg = el.querySelector("#bio-msg");
     const unlockBtn = el.querySelector("#bio-unlock");
@@ -186,8 +208,9 @@ if (plugin()) relockIfAway(); // a page that loads after a long time away (check
  * Call once the signed-in user is known and before showing anything private. Resolves straight away when
  * fingerprint/face unlock is off or already passed on this launch; otherwise it waits behind the lock screen.
  */
-export async function ensureUnlocked(userId) {
+export async function ensureUnlocked(userId, email = "") {
   liveUserId = userId || null;
+  liveEmail = email || "";
   if (!plugin() || !biometricEnabledFor(userId) || isUnlocked()) return;
   // The phone can no longer do it (fingerprints removed...): drop the setting rather than lock the person out.
   if (!(await biometricSupported())) {

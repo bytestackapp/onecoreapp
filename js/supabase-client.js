@@ -27,7 +27,7 @@ const { createClient } = window.supabase;
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./env-config.js";
 import { PH_TZ, todayPH } from "./time.js";
-import { ensureUnlocked, forgetBiometric } from "./biometric.js";
+import { ensureUnlocked, forgetBiometric, rememberBiometricName } from "./biometric.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true },
@@ -327,7 +327,7 @@ export async function requireAuth() {
     return null;
   }
   // Fingerprint / face unlock (Android app, when the person turned it on): nothing private is shown until it passes.
-  await ensureUnlocked(user.id);
+  await ensureUnlocked(user.id, user.email);
   const profile = await getCurrentProfile();
   if (profile && profile.__offline) {
     showOfflineScreen();
@@ -357,6 +357,7 @@ export async function requireAuth() {
     window.location.href = "login.html?deactivated=1";
     return null;
   }
+  rememberBiometricName(user.id, profile.full_name); // keeps the name on the lock screen current
   return profile;
 }
 
