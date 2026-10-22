@@ -222,7 +222,7 @@ function timeCell(value) {
     text = phTimeFormat.format(d);
   }
   // ="08:00:00" makes Excel keep the text exactly as written (otherwise it shows 8:00:00 or 8:00 AM)
-  return csvSafe(`="${text}"`);
+  return csvQuote(`="${text}"`);
 }
 
 function downloadCsv(rows, from, to, scope) {

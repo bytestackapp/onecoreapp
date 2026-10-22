@@ -10,7 +10,7 @@
 // timezone column and use it here.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.116.0";
-import { getAccessToken, sendPush, loadServiceAccount } from "../_shared/fcm.ts";
+import { getAccessToken, sendPush, loadServiceAccount, secretOk } from "../_shared/fcm.ts";
 
 const REMINDER_MINUTES_BEFORE = 15;
 const WINDOW_MINUTES = 2; // the cron runs every minute; a small window avoids missing events between ticks
@@ -21,11 +21,8 @@ const supabaseAdmin = createClient(
 );
 
 Deno.serve(async (req) => {
-   if (!secretOk(req)) {
-     return new Response("Forbidden", { status: 403 });
-   }
-   
-  if (req.headers.get("x-push-secret") !== Deno.env.get("PUSH_SECRET")) {
+  if (!secretOk(req)) {
+    console.error("403: x-push-secret mismatch");
     return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
   }
   try {

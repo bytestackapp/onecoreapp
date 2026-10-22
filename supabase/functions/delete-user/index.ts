@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
       // They belong to other academies too: remove only this academy's profile.
       const { error: deleteProfileErr } = await adminClient.from("profiles").delete().eq("id", target.id);
       if (deleteProfileErr) {
-        return json({ error: deleteProfileErr.message }, 400);
+        console.error(deleteProfileErr); return json({ error: "Unable to complete this action." }, 400);
       }
       return json({ success: true, removed: "profile" });
     }

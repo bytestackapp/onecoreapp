@@ -9,7 +9,7 @@
 // to the devices of ALL of that person's profiles (done inside the push_batch_rows database function).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.116.0";
-import { getAccessToken, sendPush, loadServiceAccount } from "../_shared/fcm.ts";
+import { getAccessToken, sendPush, loadServiceAccount, secretOk } from "../_shared/fcm.ts";
 
 const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -51,11 +51,7 @@ interface PushRow {
 }
 
 Deno.serve(async (req) => {
-   if (!secretOk(req)) {
-     return new Response("Forbidden", { status: 403 });
-   }
-   
-  if (req.headers.get("x-push-secret") !== Deno.env.get("PUSH_SECRET")) {
+  if (!secretOk(req)) {
     console.error("403: x-push-secret mismatch");
     return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
   }
