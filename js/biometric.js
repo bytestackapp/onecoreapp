@@ -113,7 +113,7 @@ function injectStyle() {
   const s = document.createElement("style");
   s.id = "bio-lock-style";
   s.textContent = `
-  #bio-lock{position:fixed;inset:0;z-index:10001;background:var(--bg,#f8fafc);color:var(--text,#1e293b);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;animation:bioIn .2s ease-out;}
+  #bio-lock{position:fixed;inset:0;z-index:10001;background:var(--bg,#f8fafc);color:var(--text,#1e293b);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:12px;padding:calc(14vh + env(safe-area-inset-top,0px)) 24px 24px;text-align:center;animation:bioIn .2s ease-out;}
   #bio-lock .bio-icon{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--card,#fff);border:1px solid var(--border,#e2e8f0);color:var(--primary,#4f46e5);}
   #bio-lock .bio-icon svg{width:38px;height:38px;}
   #bio-lock h2{margin:8px 0 0;}
