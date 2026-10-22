@@ -257,9 +257,11 @@ function downloadCsv(rows, from, to, scope) {
   URL.revokeObjectURL(url);
 }
 
+function csvQuote(s) { return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
 function csvSafe(value) {
-  const str = String(value);
-  return str.includes(",") || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
+  let s = String(value ?? "");
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return csvQuote(s);
 }
 
 // ---------- Linked students report: active students with their parent ----------
@@ -448,8 +450,8 @@ linkedBtn.addEventListener("click", async () => {
   linkedBtn.disabled = true;
   try {
     const [students, parents, links, groupsRes] = await Promise.all([
-      fetchAll("profiles", "id, full_name, email", (q) => q.eq("role", "student").eq("is_active", true).eq("is_approved", true)),
-      fetchAll("profiles", "id, full_name, email", (q) => q.eq("role", "parent")),
+      fetchAll("people_directory", "id, full_name, email", (q) => q.eq("role", "student").eq("is_active", true).eq("is_approved", true)),
+      fetchAll("people_directory", "id, full_name, email", (q) => q.eq("role", "parent")),
       fetchAll("guardians", "parent_id, student_id"),
       supabase.from("groups").select("id, name").eq("organization_id", profile.organization_id).order("name"),
     ]);
@@ -802,8 +804,8 @@ async function readImportRows(file) {
 // Load what the check needs from the database
 async function loadImportContext() {
   const [students, parents, links] = await Promise.all([
-    fetchAll("profiles", "id, full_name, email", (q) => q.eq("role", "student").eq("is_active", true).eq("is_approved", true)),
-    fetchAll("profiles", "id, full_name, email", (q) => q.eq("role", "parent").eq("is_active", true).eq("is_approved", true)),
+    fetchAll("people_directory", "id, full_name, email", (q) => q.eq("role", "student").eq("is_active", true).eq("is_approved", true)),
+    fetchAll("people_directory", "id, full_name, email", (q) => q.eq("role", "parent").eq("is_active", true).eq("is_approved", true)),
     fetchAll("guardians", "parent_id, student_id"),
   ]);
   const group = (list, keyOf) => {

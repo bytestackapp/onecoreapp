@@ -123,10 +123,12 @@ Deno.serve(async (req) => {
     // Last profile: remove the whole login.
     const { error: deleteErr } = await adminClient.auth.admin.deleteUser(targetAuthId);
     if (deleteErr) {
-      return json({ error: deleteErr.message }, 400);
+      console.error("Failed to delete user account:", deleteErr);
+      return json({ error: "Unable to complete this action." }, 400);
     }
     return json({ success: true, removed: "account" });
-  } catch (err) {
-    return json({ error: String(err) }, 500);
-  }
+    } catch (err) {
+      console.error("Unexpected error while processing account removal:", err);
+      return json({ error: "Unable to complete this action." }, 500);
+    }
 });

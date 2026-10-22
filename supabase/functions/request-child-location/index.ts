@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
 
     const { data: child } = await admin
       .from("profiles")
-      .select("id, organization_id, is_active")
+      .select("id, organization_id, is_active, full_name")
       .eq("id", childId)
       .maybeSingle();
     if (!child || child.organization_id !== caller.organization_id || !child.is_active) {
@@ -190,7 +190,7 @@ Deno.serve(async (req) => {
         action: "find_my_child_requested",
         record_type: "location_request",
         record_id: reqRow.id,
-        details: { child_id: childId, device_id: device.id },
+        details: { child_id: childId, child_name: child.full_name, device_id: device.id },
       });
     } catch (_) { /* not critical */ }
 

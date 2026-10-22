@@ -179,7 +179,7 @@ export async function initChildDeviceCard(profile) {
     }
 
     card.innerHTML = `
-      <p class="fmc-intro">Optional. If a parent linked to you asks, this phone shares its current location once. OneCore never tracks you continuously and never keeps a location history. You will see a notice on this phone each time.</p>
+      <p class="fmc-intro">Optional. This phone will shares its current location to linked parent once. OneCore never tracks you continuously and the shared location is deleted after 24 hours.</p>
       <div class="fmc-row"><span>Location access</span>${dot(s.locationGranted)}</div>
       <div class="fmc-row"><span>Background location</span>${dot(s.backgroundGranted)}</div>
       <div class="fmc-row" style="border-bottom:0;"><span>Status</span><span class="fmc-state ${ready ? "ok" : "bad"}">${ready ? "Ready" : "Needs attention"}</span></div>
@@ -215,7 +215,7 @@ export async function initChildDeviceCard(profile) {
         const ok = await confirmDialog({
           title: "Allow location for Find My Child",
           bodyHtml: `<p>OneCore can share this phone's location with a parent linked to you, <strong>only when they tap “Find My Child”</strong>.</p>
-                     <p>It takes one reading and shares only the current location. It never tracks you continuously or keeps a history, and you will see a notice on this phone each time.</p>
+                     <p>It takes one reading and shares only the current location. The shared location is deleted after 24 hours.</p>
                      <p>This permission is needed only for this optional feature.</p>`,
           okLabel: "Continue",
         });

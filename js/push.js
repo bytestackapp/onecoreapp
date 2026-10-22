@@ -88,6 +88,7 @@ export async function initPushNotifications(profile) {
         leave_request: "leave.html",
         attendance_correction: "attendance.html",
         signup: "admin-users.html",
+		attendance: "attendance.html",
       }[data.related_type];
       if (relatedPage) window.location.href = relatedPage;
     });

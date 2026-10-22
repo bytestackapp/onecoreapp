@@ -13,3 +13,5 @@ android/app/onecore-debug.keystore
 releases/
 *.keystore
 *.jks
+.env
+.env.*

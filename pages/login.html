@@ -226,7 +226,7 @@
       <div id="privacy-modal" class="dialog-backdrop" style="display:none;">
         <div class="dialog-modal">
           <h3>Privacy Notice</h3>
-          <p><strong>Last updated:</strong> October 15, 2026</p>
+          <p><strong>Last updated:</strong> October 22, 2026</p>
           <p><strong>OneCore</strong> is committed to respecting your privacy and protecting personal information. This notice explains how personal information is collected, used, stored, and shared when you use OneCore.</p>
           <p><strong>OneCore</strong> is intended to operate in accordance with applicable data protection laws, including the Philippine Data Privacy Act of 2012 (Republic Act No. 10173).</p>
  
@@ -246,6 +246,7 @@
             <li>Information about a student's registered phone for the optional Find My Child feature, such as a random installation ID, app version, and whether location permission is granted.</li>
             <li>Location information, if the Find My Child feature is used and the required permissions are granted: the location, its accuracy, and the time it was taken, along with a record of the request.</li>
             <li>Logos and colors that an organization's administrator chooses for its branding. These images are stored publicly so they can appear on the sign-in page.</li>
+			<li>Private calendar notes you write, visible only to you.</li>
           </ul>
           <p>Only information relevant to the applicable services and purposes should be processed.</p>
  
@@ -284,7 +285,7 @@
           <p><strong>7. Data retention and deletion</strong></p>
           <p>Personal information should be retained only for as long as necessary for the relevant purposes, applicable legal requirements, and legitimate organizational recordkeeping needs.</p>
           <p>Retention periods differ by record type and organization policy. Administrators can export and archive records for a past year. Archived records are removed from the OneCore database after the export is saved. Exported files are held outside OneCore and are the responsibility of the organization.</p>
-          <p>Location results from Find My Child are deleted automatically after 24 hours. A record that a request was made, showing who asked about which child but not the location, is kept in the organization's activity history.</p>
+          <p>Location results from Find My Child are deleted automatically after 24 hours. A record that a request was made, showing who made it but not the location, is added to the organization’s activity history, which administrators can review and clear.</p>
           <p>Deleting information from the application may not automatically remove exported files, local device copies, backups, or records retained where legally necessary. Requests for access, correction, or deletion should be directed to the responsible organization or its designated contact.</p>
  
           <p><strong>8. Optional location feature (Find My Child)</strong></p>
@@ -594,7 +595,7 @@
       { q: "The app looks old or something is broken after an update.",
         a: "Close the app completely and open it again while connected to the internet. If the problem stays, contact your administrator and mention your device." },
       { q: "How do I switch to dark mode?",
-        a: "Tap your picture at the top right, then Appearance, to switch between Light and Dark." },
+        a: "Tap your picture at the top right, then Theme, to switch between Light and Dark." },
       { q: "Can the scanner work without Wi-Fi?",
         a: "Yes. A scanner device keeps a list of people, so it can recognise QR codes without a connection, and it sends the scans when the connection returns. Scan times are corrected using the server's clock, so a wrong clock on the scanner does not record wrong times." },
       { q: "How do I ask for my information to be corrected or deleted?",
@@ -635,7 +636,7 @@
     function showSupportView(showFaq) {
       document.getElementById("support-main").style.display = showFaq ? "none" : "";
       document.getElementById("support-faq").style.display = showFaq ? "" : "none";
-      document.getElementById("support-title").textContent = showFaq ? "FAQ" : "Onecore Support";
+      document.getElementById("support-title").textContent = showFaq ? "FAQ" : "OneCore Support";
       document.getElementById("support-faq-btn").textContent = showFaq ? "Back" : "FAQ";
     }
 

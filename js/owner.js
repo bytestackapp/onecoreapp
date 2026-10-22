@@ -321,7 +321,7 @@ async function openBrandDialog(orgId, orgName) {
             <div style="display:flex;gap:8px;">
               <button type="button" class="btn btn-primary" id="bs-upload" style="${smallBtn}">Upload</button>
               <button type="button" class="btn btn-secondary" id="bs-remove" style="${smallBtn}">Remove</button>
-              <input id="bs-file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
+              <input id="bs-file" type="file" accept="image/png,image/jpeg,image/webp" hidden />
             </div>
           </div>
         </div>
@@ -371,7 +371,7 @@ async function openBrandDialog(orgId, orgName) {
     e.target.value = "";
     if (!file) return;
     if (!LOGO_TYPES.includes(file.type)) {
-      showToast("Use a PNG, JPG, WebP or SVG image.", "error");
+      showToast("Use a PNG, JPG, or WebP image.", "error");
       return;
     }
     if (file.size > LOGO_MAX_BYTES) {

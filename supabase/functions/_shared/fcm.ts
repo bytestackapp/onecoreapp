@@ -151,3 +151,12 @@ export function loadServiceAccount(): ServiceAccount {
   if (!raw) throw new Error("FCM_SERVICE_ACCOUNT_JSON secret is not set.");
   return JSON.parse(raw);
 }
+
+export function secretOk(req: Request): boolean {
+  const want = Deno.env.get("PUSH_SECRET") ?? "";
+  const got = req.headers.get("x-push-secret") ?? "";
+  if (!want || want.length !== got.length) return false;
+  let d = 0;
+  for (let i = 0; i < want.length; i++) d |= want.charCodeAt(i) ^ got.charCodeAt(i);
+  return d === 0;
+}

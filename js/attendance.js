@@ -11,7 +11,6 @@ if (!profile) throw new Error("redirecting");
 const today = todayPH();
 const isStaff = profile.role === "admin" || profile.role === "teacher";
 const isParent = profile.role === "parent";
-const REFRESH_MS = 60000;
 const RECENT_COUNT = 7; // rows shown in the history table before "view all"
 
 let allHistory = [];
@@ -40,13 +39,6 @@ function sourceLabel(source) {
     { biometric: "the biometric scanner", gate: "the gate scanner", scanner: "a scanner", web: "the web app", manual: "manual entry" }[source] ||
     source
   );
-}
-
-// Runs fn every ms while the tab is visible.
-function every(ms, fn) {
-  setInterval(() => {
-    if (document.visibilityState === "visible") fn();
-  }, ms);
 }
 
 // A day can have a school-wide record (gate/biometric scan, group_id null) and

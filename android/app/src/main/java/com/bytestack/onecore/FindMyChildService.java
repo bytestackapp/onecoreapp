@@ -53,6 +53,7 @@ public class FindMyChildService extends Service {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private int activeJobs = 0; // touched on the main thread only
+	private int lastStartId = 0;
 
     /** One request. */
     private static final class Job {
@@ -85,6 +86,7 @@ public class FindMyChildService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+		lastStartId = startId;
         final Job job = Job.from(intent);
 
         // Android requires startForeground() within a few seconds of startForegroundService().
@@ -210,7 +212,7 @@ public class FindMyChildService extends Service {
 
     private void finish() {
         stopForeground(true);
-        stopSelf();
+        stopSelf(lastStartId);
     }
 
     @Override

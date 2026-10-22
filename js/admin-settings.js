@@ -71,13 +71,9 @@ function generateInviteCode() {
 async function loadInviteCode() {
   const codeInput = document.getElementById("invite-code");
   try {
-    const { data, error } = await supabase
-      .from("organizations")
-      .select("invite_code")
-      .eq("id", profile.organization_id)
-      .single();
+    const { data, error } = await supabase.rpc("admin_get_invite_code");
     if (error) throw error;
-    codeInput.value = data.invite_code || "";
+    codeInput.value = data || "";
   } catch (err) {
     console.error(err);
     codeInput.value = "";
@@ -330,6 +326,12 @@ const ACTION_LABELS = {
   "leave.approved": "- approved a leave request",
   "leave.rejected": "- rejected a leave request",
   "qr.refreshed": "- refreshed QR codes",
+  "find_my_child_requested": (d) => `- asked for ${d?.child_name || "a child"}'s location`,
+  "group.deleted": "- deleted a group",
+  "group.members_imported": "- imported group members",
+  "event.updated": "- edited an event",
+  "event.deleted": "- deleted an event",
+  "archive.completed": "- archived a year of records",
 };
 
 function capitalize(s = "") {
@@ -543,11 +545,11 @@ function newDeviceDialog() {
         </div>
         <div class="field">
           <label for="dev-passcode">Scanner passcode</label>
-          <input id="dev-passcode" type="password" required minlength="4" autocomplete="new-password" placeholder="4+ digits or characters" />
+          <input id="dev-passcode" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters" />
         </div>
         <div class="field">
           <label for="dev-passcode2">Confirm passcode</label>
-          <input id="dev-passcode2" type="password" required minlength="4" autocomplete="new-password" placeholder="Type the passcode again" />
+          <input id="dev-passcode2" type="password" required minlength="8" autocomplete="new-password" placeholder="Type the passcode again" />
           <div class="field-error" id="dev-passcode-error" style="display:none;">The two passcodes don't match.</div>
           <div class="field-hint">Remember this passcode. The admin must provide it, along with the device code, to activate the scanner device.</div>		  
         </div>
@@ -669,7 +671,7 @@ async function deleteDevice(id, name) {
 async function loadDevices() {
   const el = document.getElementById("devices-list");
   try {
-    const { data, error } = await supabase.from("scanner_devices").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("scanner_devices").select("id, name, device_code, last_seen_at, revoked_at, created_at").order("created_at", { ascending: false });
     if (error) throw error;
     devicesCache = data || [];
 
@@ -847,9 +849,10 @@ function refreshQrDialog() {
         const { data: everyone, error: listError } = await supabase.from("profiles").select("id").eq("organization_id", profile.organization_id).eq("is_active", true).neq("role", "parent").neq("role", "guest");
         if (listError) throw listError;
         const { data: refreshed, error } = await supabase.rpc("refresh_qr_tokens_for", { p_user_ids: (everyone || []).map((p) => p.id) });
-        const data = typeof refreshed === "number" ? refreshed : (everyone || []).length;
         if (error) throw error;
+        const data = typeof refreshed === "number" ? refreshed : (everyone || []).length;
         showToast(`${data} QR code${data === 1 ? "" : "s"} refreshed.`, "success");
+		Promise.resolve(logAudit({ action: "qr.refreshed", recordType: "organization", recordId: profile.organization_id, details: { scope: "all", count: data } })).catch((e) => console.error("Audit log failed:", e));
         close();
         return;
       }
@@ -880,7 +883,6 @@ function refreshQrDialog() {
         if (error) throw error;
         const keep = new Set(await withoutParents((groupData || []).map((p) => p.id)));
         const data = (groupData || []).filter((p) => keep.has(p.id));
-        if (error) throw error;
         people = (data || []).map((p) => ({ id: p.id, full_name: p.full_name }));
         label = `group ${groupsCache.find((g) => g.id === groupId)?.name || ""}`.trim();
       }
@@ -1233,7 +1235,8 @@ function arcShowConfirm(m, a) {
 // ----- export helpers -----
 function csvCell(v) {
   if (v === null || v === undefined) return "";
-  const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+  let s = typeof v === "object" ? JSON.stringify(v) : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // stop Excel running names like =HYPERLINK(...)
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 function rowsToCsv(rows) {

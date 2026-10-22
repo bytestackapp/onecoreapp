@@ -430,7 +430,7 @@ export function priorityLabel(priority) {
       important: "Important",
       action_required: "Action required",
       urgent: "Urgent",
-    }[priority] || priority
+    }[priority] || "Normal"
   );
 }
 

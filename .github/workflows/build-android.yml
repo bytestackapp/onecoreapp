@@ -42,10 +42,12 @@ jobs:
           cp index.html www/
 
       - name: Write google-services.json from secret
-        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_B64 }}" | base64 -d > android/app/google-services.json
+        env: { B64: "${{ secrets.GOOGLE_SERVICES_JSON_B64 }}" }
+        run: echo "$B64" | base64 -d > android/app/google-services.json
 
       - name: Write signing keystore from secret
-        run: echo "${{ secrets.ONECORE_DEBUG_KEYSTORE_B64 }}" | base64 -d > android/app/onecore-debug.keystore
+        env: { B64: "${{ secrets.ONECORE_DEBUG_KEYSTORE_B64 }}" }
+        run: echo "$B64" | base64 -d > android/app/onecore-debug.keystore
 
       - name: Capacitor sync
         run: npx cap sync android

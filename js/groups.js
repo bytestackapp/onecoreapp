@@ -256,13 +256,15 @@ async function deleteGroup(id, name) {
   // Count class attendance recorded against this group so the admin knows what is at stake.
   const { count } = await supabase.from("attendance_records").select("id", { count: "exact", head: true }).eq("group_id", id);
   const attendanceCount = count || 0;
+  
+  if (attendanceCount > 0) {
+    showToast("This group has class attendance records and can't be deleted.", "error");
+    return;
+  }
 
   const ok = await confirmDialog({
     title: `Delete ${name}?`,
-    message:
-      attendanceCount > 0
-        ? `This group has ${attendanceCount} class attendance record${attendanceCount === 1 ? "" : "s"}, which may be removed with it. Its member list will also be removed. This cannot be undone.`
-        : "The group and its member list will be removed. This cannot be undone.",
+    message: "The group and its member list will be removed. This cannot be undone.",
     confirmLabel: "Delete",
     danger: true,
   });
@@ -289,7 +291,6 @@ async function deleteGroup(id, name) {
 function groupCard(g) {
   const members = g.group_members || [];
   const heads = members.filter((m) => isHeadRole(m.member_role));
-  const regular = members.filter((m) => m.member_role === "member");
 
   return `
     <div class="card" style="margin-bottom:10px;" data-id="${g.id}">

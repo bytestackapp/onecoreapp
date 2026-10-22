@@ -4,8 +4,8 @@
 // and logs each send in event_reminder_log so it's never sent twice.
 //
 // Timezone note: event_date/start_time are stored as plain date/time with
-// no timezone (see schema.sql) — this compares them against server UTC
-// time directly. If your organization isn't in UTC, adjust the window
+// no timezone (see schema.sql) — this compares them against server Manila (+8)
+// time directly. If your organization isn't in Manila (+8), adjust the window
 // calculation below to offset for your timezone, or add an org-level
 // timezone column and use it here.
 
@@ -21,6 +21,10 @@ const supabaseAdmin = createClient(
 );
 
 Deno.serve(async (req) => {
+   if (!secretOk(req)) {
+     return new Response("Forbidden", { status: 403 });
+   }
+   
   if (req.headers.get("x-push-secret") !== Deno.env.get("PUSH_SECRET")) {
     return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
   }

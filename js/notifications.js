@@ -18,6 +18,7 @@ const RELATED_PAGE = {
   leave_request: "leave.html",
   attendance_correction: "attendance.html#corrections", // reviewed on the Attendance page
   signup: "admin-users.html", // new account waiting for approval
+  attendance: "attendance.html",
 };
 
 // Related types an admin reviews inline instead of navigating away.
